@@ -40,8 +40,11 @@ export async function proxy(req: NextRequest) {
     }
 
     // A screen path like /admin/submissions also grants /admin/submissions/list
+    // Skip /admin as a parent — it only represents the dashboard, not all admin pages
     const isAllowed = allowedScreens.some(
-      (screen) => pathname === screen || pathname.startsWith(screen + "/")
+      (screen) =>
+        screen !== "/admin" &&
+        (pathname === screen || pathname.startsWith(screen + "/"))
     );
 
     if (!isAllowed) {

@@ -36,11 +36,12 @@ export function Sidebar({ allowedPaths, userEmail, roleName }: SidebarProps) {
   const navItems =
     allowedPaths === null
       ? ALL_NAV_ITEMS
-      : ALL_NAV_ITEMS.filter((item) =>
-          allowedPaths.some((p) =>
-            item.href === p || item.href.startsWith(p + "/")
-          )
-        );
+      : ALL_NAV_ITEMS.filter((item) => {
+          if (item.href === "/admin") return true; // dashboard always visible
+          return allowedPaths!.some(
+            (p) => p !== "/admin" && (item.href === p || item.href.startsWith(p + "/"))
+          );
+        });
 
   const initials = userEmail.slice(0, 2).toUpperCase();
 
