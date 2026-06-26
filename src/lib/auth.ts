@@ -13,6 +13,7 @@ export interface SessionPayload {
   email: string;
   roleId: string | null;
   roleName: string | null;
+  allowedScreens: string[] | null; // null = super admin (unrestricted)
 }
 
 export async function createSession(payload: SessionPayload) {

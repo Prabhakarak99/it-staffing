@@ -25,11 +25,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    // Super admin (no roleId) gets null = unrestricted access
+    // Role-based users get the list of paths their role can view
+    let allowedScreens: string[] | null = null;
+    if (user.roleId) {
+      const roleScreens = await prisma.roleScreen.findMany({
+        where: { roleId: user.roleId, canView: true },
+        include: { screen: true },
+      });
+      allowedScreens = roleScreens.map((rs) => rs.screen.path);
+    }
+
     await createSession({
       userId: user.id,
       email: user.email,
       roleId: user.roleId,
       roleName: user.role?.name ?? null,
+      allowedScreens,
     });
 
     return NextResponse.json({ success: true });
