@@ -1,0 +1,240 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  roleScreens RoleScreen[]
+}
+
+model Screen {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  path        String  @unique
+  description String?
+
+  roleScreens RoleScreen[]
+}
+
+model RoleScreen {
+  id       String  @id @default(cuid())
+  roleId   String
+  screenId String
+  canView  Boolean @default(true)
+
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, screenId])
+}
+
+model User {
+  id               String    @id @default(cuid())
+  firstName        String
+  lastName         String
+  email            String    @unique
+  phoneNumber      String?
+  password         String
+  roleId           String?
+  isActive         Boolean   @default(false)
+  activationToken  String?   @unique
+  activationExpiry DateTime?
+  businessNumber   String?
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  role          Role?          @relation(fields: [roleId], references: [id])
+  submissions   Submission[]
+  interviews    Interview[]
+  preMarketings PreMarketing[] @relation("PreMarketingRecruiter")
+  expenses      Expense[]      @relation("ExpenseSubmitter")
+}
+
+model Student {
+  id                     String    @id @default(cuid())
+  // Personal
+  firstName              String
+  lastName               String
+  personalPhone          String?
+  email                  String    @unique
+  dob                    DateTime?
+  parentPhone            String?
+  emergencyContact       String?
+  referredBy             String?
+  // Address
+  addressLine1           String?
+  addressLine2           String?
+  city                   String?
+  state                  String?
+  zipCode                String?
+  // University
+  universityName         String?
+  universityLocation     String?
+  masters                String?
+  mastersCompletedDate   String?
+  dsoName                String?
+  dsoEmail               String?
+  dsoPhone               String?
+  // Visa
+  visaStatus             String?
+  visaStartDate          DateTime?
+  visaExpiryDate         DateTime?
+  // Onboarding
+  onboardingStartDate    DateTime?
+  offerLetterType        String?
+  payRate                String?
+  hasDL                  String?
+  hasSSN                 String?
+  passportNumber         String?
+  // Documents (stored filenames)
+  dlDocument             String?
+  passportDocument       String?
+  visaCopyDocument       String?
+  // Job Card
+  projectStatus          String?
+  jobTitle               String?
+  verbalConfirmationDate DateTime?
+  linkedInterviewId      String?
+  projectStartDate       DateTime?
+  billRate               String?
+  payroll                String?
+  workMode               String?
+  pmName                 String?
+  pmEmail                String?
+  pmPhone                String?
+  // Legacy / search
+  phoneNumber            String?
+  technology             String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  submissions   Submission[]
+  preMarketings PreMarketing[]
+  expenses      Expense[]      @relation("ExpenseConsultant")
+}
+
+model Submission {
+  id                   String   @id @default(cuid())
+  submissionId         String   @unique
+  submissionDate       DateTime
+  recruiterId          String
+  consultantId         String
+  technology           String
+  jobDescription       String?
+  payRate              String?
+  vendorCompany        String
+  vendorRecruiterName  String
+  vendorRecruiterEmail String
+  vendorRecruiterPhone String
+  implementationName   String?
+  implementationEmail  String?
+  implementationPhone  String?
+  clientName           String?
+  clientLocation       String?
+  status               String   @default("Submission Submitted")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  recruiter   User       @relation(fields: [recruiterId], references: [id])
+  consultant  Student    @relation(fields: [consultantId], references: [id])
+  interviews  Interview[]
+}
+
+model TechSupport {
+  id            String   @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String   @unique
+  phoneNumber   String
+  technology    String
+  location      String
+  availability  String?
+  calendarLink  String?
+  amount        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  interviews Interview[]
+}
+
+model Interview {
+  id                  String   @id @default(cuid())
+  interviewId         String   @unique
+  recruiterId         String
+  submissionId        String
+  interviewStartDate  DateTime
+  interviewEndDate    DateTime
+  interviewLevel      String
+  interviewStatus     String
+  techSupportId       String?
+  amount              String?
+  techSupportFeedback String?
+  otterLink           String?
+  interviewQuestions  String?
+  interviewFeedback   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  recruiter   User         @relation(fields: [recruiterId], references: [id])
+  submission  Submission   @relation(fields: [submissionId], references: [id])
+  techSupport TechSupport? @relation(fields: [techSupportId], references: [id])
+}
+
+model PreMarketing {
+  id                              String    @id @default(cuid())
+  consultantId                    String
+  dlAvailable                     String?
+  visaAvailable                   String?
+  ssnAvailable                    String?
+  marketingSheetReady             String?
+  marketingSheetExplained         String?
+  marketingSheetReverseKT         String?
+  allTrainingSessionsCompleted    String?
+  allTrainingAssignmentsCompleted String?
+  marketingEmail                  String?
+  marketingVisaStatus             String?
+  marketingStartDate              DateTime?
+  marketingEndDate                DateTime?
+  recruiterId                     String?
+  createdAt                       DateTime  @default(now())
+  updatedAt                       DateTime  @updatedAt
+
+  consultant Student @relation(fields: [consultantId], references: [id])
+  recruiter  User?   @relation("PreMarketingRecruiter", fields: [recruiterId], references: [id])
+}
+
+model Expense {
+  id           String    @id @default(cuid())
+  expenseId    String    @unique
+  date         DateTime
+  submittedById String
+  consultantId String?
+  category     String
+  description  String?
+  amount       Float
+  location     String
+  receiptFile  String?
+  status       String    @default("Pending")
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  submittedBy User     @relation("ExpenseSubmitter", fields: [submittedById], references: [id])
+  consultant  Student? @relation("ExpenseConsultant", fields: [consultantId], references: [id])
+}

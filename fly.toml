@@ -1,0 +1,42 @@
+# Fly.io configuration for IT Staffing Solutions
+# App name must be unique across all Fly.io apps — change if taken
+app = "gftvision"
+primary_region = "dfw"
+
+[build]
+
+[env]
+  NODE_ENV    = "production"
+  PORT        = "3000"
+  DATABASE_URL = "file:/data/dev.db"
+
+# Secrets (set these via CLI — never put real values here):
+#   fly secrets set JWT_SECRET="..."
+#   fly secrets set SMTP_USER="..."
+#   fly secrets set SMTP_PASS="..."
+#   fly secrets set SMTP_HOST="smtp.gmail.com"
+#   fly secrets set SMTP_PORT="587"
+#   fly secrets set NEXT_PUBLIC_APP_URL="https://gftvision.com"
+
+[http_service]
+  internal_port       = 3000
+  force_https         = true
+  auto_stop_machines  = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+# Persistent volume — stores SQLite DB and uploaded files
+[[mounts]]
+  source      = "it_staffing_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[[vm]]
+  memory   = "512mb"
+  cpu_kind = "shared"
+  cpus     = 1
