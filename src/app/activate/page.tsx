@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ActivateForm } from "./activate-form";
@@ -33,7 +35,7 @@ export default async function ActivatePage({
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-700 mb-4">
             <Briefcase className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">IT Staffing Solutions</h1>
+          <h1 className="text-2xl font-bold text-slate-900">GFT Vision</h1>
           <p className="text-sm text-slate-500 mt-1">Set your password to activate your account</p>
         </div>
 
