@@ -65,7 +65,7 @@ export function RecruiterList({ recruiters }: { recruiters: RecruiterUser[] }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-800">
               <tr>
-                {["Name", "Email", "Phone", "Business #", "Role", "Start", "End", "Status", "Toggle", "Resend Email"].map((h) => (
+                {["Name", "Email", "Phone", "Business #", "Role", "Start", "End", "Status", "Actions"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left font-semibold text-slate-300 whitespace-nowrap text-xs uppercase tracking-wide">
                     {h}
                   </th>
@@ -96,49 +96,47 @@ export function RecruiterList({ recruiters }: { recruiters: RecruiterUser[] }) {
                       </Badge>
                     </td>
 
-                    {/* Toggle Active / Disable */}
+                    {/* Actions: Toggle + Resend Email */}
                     <td className="px-4 py-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => toggleActive(r.id, active)}
-                        title={active ? "Disable recruiter" : "Activate recruiter"}
-                      >
-                        {active ? (
-                          <ToggleRight className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <ToggleLeft className="h-4 w-4 text-slate-400" />
-                        )}
-                        {active ? "Disable" : "Activate"}
-                      </Button>
-                    </td>
-
-                    {/* Resend Email — always visible, disabled once activated */}
-                    <td className="px-4 py-3">
-                      <div className="relative group inline-block">
+                      <div className="flex items-center gap-2">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          disabled={active || isResending}
-                          onClick={() => !active && resendActivation(r.id, r.email)}
-                          title={active ? "Account already activated" : "Resend activation email"}
-                          className={active ? "opacity-40 cursor-not-allowed" : ""}
+                          disabled={isPending}
+                          onClick={() => toggleActive(r.id, active)}
+                          title={active ? "Disable recruiter" : "Enable recruiter"}
                         >
-                          {isResending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                          {active ? (
+                            <ToggleRight className="h-4 w-4 text-green-600" />
                           ) : (
-                            <Mail className={`h-4 w-4 ${active ? "text-slate-400" : "text-indigo-600"}`} />
+                            <ToggleLeft className="h-4 w-4 text-slate-400" />
                           )}
-                          {isResending ? "Sending…" : "Resend Email"}
+                          {active ? "Disable" : "Enable"}
                         </Button>
 
-                        {active && (
-                          <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs text-white whitespace-nowrap group-hover:block z-10">
-                            Account already activated
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-                          </div>
-                        )}
+                        <div className="relative group inline-block">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={active || isResending}
+                            onClick={() => !active && resendActivation(r.id, r.email)}
+                            title={active ? "Account already activated" : "Resend activation email"}
+                            className={active ? "opacity-40 cursor-not-allowed" : "text-indigo-600 border-indigo-200 hover:bg-indigo-50"}
+                          >
+                            {isResending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4" />
+                            )}
+                            {isResending ? "Sending…" : "Resend"}
+                          </Button>
+                          {active && (
+                            <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs text-white whitespace-nowrap group-hover:block z-10">
+                              Already activated
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -146,7 +144,7 @@ export function RecruiterList({ recruiters }: { recruiters: RecruiterUser[] }) {
               })}
               {recruiters.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-slate-400">
+                  <td colSpan={9} className="py-10 text-center text-slate-400">
                     No recruiters yet. Onboard one above.
                   </td>
                 </tr>
