@@ -2,12 +2,124 @@ export const dynamic = "force-dynamic";
 
 import { Header } from "@/components/layout/header";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import {
   Users, UserPlus, Shield, Briefcase,
   GraduationCap, FileText, Calendar, CheckCircle2,
 } from "lucide-react";
 
 export default async function AdminDashboard() {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const isRecruiter = session.roleName === "Recruiter";
+
+  /* ── Recruiter dashboard ────────────────────────────────────── */
+  if (isRecruiter) {
+    const recruiter = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { firstName: true, lastName: true },
+    });
+
+    const [submissionCount, interviewCount, mySubmissions] = await Promise.all([
+      prisma.submission.count({ where: { recruiterId: session.userId } }),
+      prisma.interview.count({ where: { recruiterId: session.userId } }),
+      prisma.submission.count({
+        where: {
+          recruiterId: session.userId,
+          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+      }),
+    ]);
+
+    const name = recruiter
+      ? `${recruiter.firstName} ${recruiter.lastName}`
+      : session.email;
+
+    const stats = [
+      {
+        label: "My Submissions",
+        value: submissionCount,
+        icon: FileText,
+        bg: "bg-sky-600",
+        light: "bg-sky-50",
+        text: "text-sky-600",
+        border: "border-sky-100",
+      },
+      {
+        label: "My Interviews",
+        value: interviewCount,
+        icon: Calendar,
+        bg: "bg-orange-500",
+        light: "bg-orange-50",
+        text: "text-orange-600",
+        border: "border-orange-100",
+      },
+    ];
+
+    return (
+      <>
+        <Header title="Dashboard" />
+        <div className="p-6 space-y-6">
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 max-w-xl">
+            {stats.map(({ label, value, icon: Icon, bg, light, text, border }) => (
+              <div
+                key={label}
+                className={`relative overflow-hidden rounded-2xl border ${border} bg-white p-5 shadow-sm`}
+              >
+                <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${light} mb-4`}>
+                  <Icon className={`h-5 w-5 ${text}`} />
+                </div>
+                <p className="text-3xl font-bold text-slate-900 tabular-nums">{value}</p>
+                <p className="text-sm text-slate-500 mt-0.5">{label}</p>
+                <div className={`absolute top-0 left-0 h-1 w-full ${bg} rounded-t-2xl`} />
+              </div>
+            ))}
+          </div>
+
+          {/* Welcome + Quick summary */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 shadow-md shadow-indigo-200 shrink-0">
+                  <Briefcase className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Welcome, {name}!</h2>
+                  <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                    Track your submissions through the vendor pipeline and manage your interviews.
+                    Use <strong>Create Submission</strong> to log new submissions and
+                    <strong> Create Interview</strong> to schedule interviews.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-600 to-violet-600 p-6 shadow-sm text-white">
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200 mb-3">Quick summary</p>
+              <div className="space-y-2.5">
+                {[
+                  { label: "Total submissions", value: submissionCount },
+                  { label: "Total interviews", value: interviewCount },
+                  { label: "Submissions this week", value: mySubmissions },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-sm text-indigo-100">{label}</span>
+                    <span className="text-lg font-bold tabular-nums">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ── Admin dashboard (full) ─────────────────────────────────── */
   const recruiterRole = await prisma.role.findUnique({ where: { name: "Recruiter" } });
 
   const [
@@ -116,7 +228,6 @@ export default async function AdminDashboard() {
               </div>
               <p className="text-3xl font-bold text-slate-900 tabular-nums">{value}</p>
               <p className="text-sm text-slate-500 mt-0.5">{label}</p>
-              {/* Decorative bar */}
               <div className={`absolute top-0 left-0 h-1 w-full ${bg} rounded-t-2xl`} />
             </div>
           ))}
@@ -130,7 +241,7 @@ export default async function AdminDashboard() {
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">Welcome to IT Staffing Solutions</h2>
+                <h2 className="text-base font-bold text-slate-900">Welcome to GFT Vision</h2>
                 <p className="text-sm text-slate-500 mt-1 leading-relaxed">
                   Manage your entire staffing operation — onboard recruiters and consultants, track
                   submissions through the vendor pipeline, schedule interviews, and monitor placements.
