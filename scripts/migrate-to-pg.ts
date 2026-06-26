@@ -26,6 +26,20 @@ function rows<T>(sql: string): T[] {
 async function main() {
   console.log("Starting migration from SQLite →  PostgreSQL...\n");
 
+  // Clear existing seeded data (reverse dependency order)
+  console.log("Clearing existing data...");
+  await pg.expense.deleteMany();
+  await pg.preMarketing.deleteMany();
+  await pg.interview.deleteMany();
+  await pg.submission.deleteMany();
+  await pg.techSupport.deleteMany();
+  await pg.student.deleteMany();
+  await pg.user.deleteMany();
+  await pg.roleScreen.deleteMany();
+  await pg.screen.deleteMany();
+  await pg.role.deleteMany();
+  console.log("Done. Inserting SQLite data...\n");
+
   // ── Roles ────────────────────────────────────────────────────────────────
   const roles = rows<{ id: string; name: string; description: string | null; createdAt: string; updatedAt: string }>(
     "SELECT * FROM Role"
