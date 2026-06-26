@@ -28,9 +28,13 @@ export async function proxy(req: NextRequest) {
 
     const allowedScreens = payload.allowedScreens as string[] | null | undefined;
 
+    // undefined = old JWT without allowedScreens — force re-login to get a fresh token
+    if (allowedScreens === undefined) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+
     // null = super admin, unrestricted access
-    // undefined = old JWT without this field — treat as super admin for backwards compatibility
-    if (allowedScreens === null || allowedScreens === undefined) {
+    if (allowedScreens === null) {
       return NextResponse.next();
     }
 
