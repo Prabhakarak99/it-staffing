@@ -26,10 +26,11 @@ export async function proxy(req: NextRequest) {
       return NextResponse.next();
     }
 
-    const allowedScreens = payload.allowedScreens as string[] | null;
+    const allowedScreens = payload.allowedScreens as string[] | null | undefined;
 
     // null = super admin, unrestricted access
-    if (allowedScreens === null) {
+    // undefined = old JWT without this field — treat as super admin for backwards compatibility
+    if (allowedScreens === null || allowedScreens === undefined) {
       return NextResponse.next();
     }
 
