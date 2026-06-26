@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/sidebar";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {

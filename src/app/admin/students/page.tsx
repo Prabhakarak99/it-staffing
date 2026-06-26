@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 import { ConsultantForm } from "./consultant-form";
 import { ConsultantList } from "./consultant-list";
