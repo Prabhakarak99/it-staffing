@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -41,6 +42,7 @@ export default async function AdminDashboard() {
       {
         label: "My Submissions",
         value: submissionCount,
+        href: "/admin/submissions/list",
         icon: FileText,
         bg: "bg-sky-600",
         light: "bg-sky-50",
@@ -50,6 +52,7 @@ export default async function AdminDashboard() {
       {
         label: "My Interviews",
         value: interviewCount,
+        href: "/admin/interviews/list",
         icon: Calendar,
         bg: "bg-orange-500",
         light: "bg-orange-50",
@@ -63,24 +66,23 @@ export default async function AdminDashboard() {
         <Header title="Dashboard" />
         <div className="p-6 space-y-6">
 
-          {/* Stat cards */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 max-w-xl">
-            {stats.map(({ label, value, icon: Icon, bg, light, text, border }) => (
-              <div
+            {stats.map(({ label, value, href, icon: Icon, bg, light, text, border }) => (
+              <Link
                 key={label}
-                className={`relative overflow-hidden rounded-2xl border ${border} bg-white p-5 shadow-sm`}
+                href={href}
+                className={`relative overflow-hidden rounded-2xl border ${border} bg-white p-5 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-150 block`}
               >
                 <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${light} mb-4`}>
                   <Icon className={`h-5 w-5 ${text}`} />
                 </div>
-                <p className="text-3xl font-bold text-slate-900 tabular-nums">{value}</p>
+                <p className={`text-3xl font-bold tabular-nums ${text}`}>{value}</p>
                 <p className="text-sm text-slate-500 mt-0.5">{label}</p>
                 <div className={`absolute top-0 left-0 h-1 w-full ${bg} rounded-t-2xl`} />
-              </div>
+              </Link>
             ))}
           </div>
 
-          {/* Welcome + Quick summary */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start gap-4">
@@ -140,6 +142,7 @@ export default async function AdminDashboard() {
     {
       label: "Total Users",
       value: userCount,
+      href: "/admin/users",
       icon: Users,
       bg: "bg-indigo-600",
       light: "bg-indigo-50",
@@ -149,6 +152,7 @@ export default async function AdminDashboard() {
     {
       label: "Recruiters",
       value: recruiterCount,
+      href: "/admin/recruiters",
       icon: UserPlus,
       bg: "bg-emerald-600",
       light: "bg-emerald-50",
@@ -158,6 +162,7 @@ export default async function AdminDashboard() {
     {
       label: "Consultants",
       value: studentCount,
+      href: "/admin/students",
       icon: GraduationCap,
       bg: "bg-violet-600",
       light: "bg-violet-50",
@@ -167,6 +172,7 @@ export default async function AdminDashboard() {
     {
       label: "Submissions",
       value: submissionCount,
+      href: "/admin/submissions/list",
       icon: FileText,
       bg: "bg-sky-600",
       light: "bg-sky-50",
@@ -176,6 +182,7 @@ export default async function AdminDashboard() {
     {
       label: "Interviews",
       value: interviewCount,
+      href: "/admin/interviews/list",
       icon: Calendar,
       bg: "bg-orange-500",
       light: "bg-orange-50",
@@ -185,6 +192,7 @@ export default async function AdminDashboard() {
     {
       label: "Tech Support",
       value: techSupportCount,
+      href: "/admin/tech-support",
       icon: Briefcase,
       bg: "bg-pink-600",
       light: "bg-pink-50",
@@ -194,6 +202,7 @@ export default async function AdminDashboard() {
     {
       label: "Active Accounts",
       value: activeCount,
+      href: "/admin/users",
       icon: CheckCircle2,
       bg: "bg-teal-600",
       light: "bg-teal-50",
@@ -203,6 +212,7 @@ export default async function AdminDashboard() {
     {
       label: "Roles",
       value: roleCount,
+      href: "/admin/userrole",
       icon: Shield,
       bg: "bg-slate-700",
       light: "bg-slate-100",
@@ -216,24 +226,23 @@ export default async function AdminDashboard() {
       <Header title="Dashboard" />
       <div className="p-6 space-y-6">
 
-        {/* Stat cards */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-4">
-          {stats.map(({ label, value, icon: Icon, bg, light, text, border }) => (
-            <div
+          {stats.map(({ label, value, href, icon: Icon, bg, light, text, border }) => (
+            <Link
               key={label}
-              className={`relative overflow-hidden rounded-2xl border ${border} bg-white p-5 shadow-sm`}
+              href={href}
+              className={`relative overflow-hidden rounded-2xl border ${border} bg-white p-5 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-150 block`}
             >
               <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${light} mb-4`}>
                 <Icon className={`h-5 w-5 ${text}`} />
               </div>
-              <p className="text-3xl font-bold text-slate-900 tabular-nums">{value}</p>
+              <p className={`text-3xl font-bold tabular-nums ${text}`}>{value}</p>
               <p className="text-sm text-slate-500 mt-0.5">{label}</p>
               <div className={`absolute top-0 left-0 h-1 w-full ${bg} rounded-t-2xl`} />
-            </div>
+            </Link>
           ))}
         </div>
 
-        {/* Welcome / quick-actions */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-start gap-4">
