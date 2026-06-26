@@ -6,9 +6,8 @@ primary_region = "dfw"
 [build]
 
 [env]
-  NODE_ENV    = "production"
-  PORT        = "3000"
-  DATABASE_URL = "file:/data/dev.db"
+  NODE_ENV = "production"
+  PORT     = "3000"
 
 # Secrets (set these via CLI — never put real values here):
 #   fly secrets set JWT_SECRET="..."

@@ -1,16 +1,10 @@
 #!/bin/sh
 set -e
 
-# ── Persistent volume setup ──────────────────────────────────────────────────
-# /data is mounted as a Fly.io persistent volume
-# SQLite lives at /data/dev.db
-# Uploaded files live at /data/uploads/
-
+# ── Persistent volume setup (uploads only) ───────────────────────────────────
 mkdir -p /data/uploads/documents
 mkdir -p /data/uploads/receipts
 
-# Symlink public/uploads → /data/uploads so Next.js static serving works
-# and existing upload path code requires no changes
 if [ ! -L /app/public/uploads ]; then
   rm -rf /app/public/uploads
   ln -sf /data/uploads /app/public/uploads

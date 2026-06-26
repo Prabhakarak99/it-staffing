@@ -1,14 +1,9 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
-import path from "path";
 
-const rawUrl = process.env.DATABASE_URL ?? `file:${path.resolve(process.cwd(), "dev.db")}`;
-
-// Resolve file: URL to absolute path for better-sqlite3
-const dbPath = rawUrl.startsWith("file:") ? rawUrl.slice(5) : rawUrl;
-const adapter = new PrismaBetterSqlite3({ url: `file:${path.resolve(dbPath)}` });
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter } as never);
 
 const ROLES = [
