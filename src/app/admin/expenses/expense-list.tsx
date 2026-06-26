@@ -31,12 +31,12 @@ function fmt(d: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const v = status === "Approved" ? "emerald" : status === "Rejected" ? "rose" : "amber";
-  return <Badge variant={v as "emerald" | "rose" | "amber"}>{status}</Badge>;
+  const v = status === "Approved" ? "success" : status === "Rejected" ? "danger" : "warning";
+  return <Badge variant={v}>{status}</Badge>;
 }
 
 function LocationBadge({ location }: { location: string }) {
-  return <Badge variant={location === "Onsite" ? "indigo" : "amber"}>{location}</Badge>;
+  return <Badge variant={location === "Onsite" ? "info" : "warning"}>{location}</Badge>;
 }
 
 export function ExpenseList({ expenses }: Props) {
