@@ -11,9 +11,9 @@ if [ ! -L /app/public/uploads ]; then
 fi
 
 # ── Database migrations ──────────────────────────────────────────────────────
-echo "Running database migrations..."
-npx prisma migrate deploy
-echo "Migrations complete."
+echo "Applying database schema..."
+npx prisma db push --accept-data-loss
+echo "Schema applied."
 
 # ── Start Next.js ────────────────────────────────────────────────────────────
 echo "Starting Next.js..."
