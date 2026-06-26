@@ -10,16 +10,18 @@ import {
 import { GFTLogo } from "@/components/ui/logo";
 
 const ALL_NAV_ITEMS = [
-  { label: "Dashboard",          href: "/admin",              icon: LayoutDashboard, group: "main" },
-  { label: "User Roles",         href: "/admin/userrole",     icon: Shield,          group: "admin" },
-  { label: "Users",              href: "/admin/users",        icon: Users,           group: "admin" },
-  { label: "Onboard Recruiter",  href: "/admin/recruiters",   icon: UserPlus,        group: "people" },
-  { label: "Onboard Consultant", href: "/admin/students",     icon: GraduationCap,   group: "people" },
-  { label: "Premarketing",       href: "/admin/premarketing", icon: Send,            group: "work" },
-  { label: "Submissions",        href: "/admin/submissions",  icon: FileText,        group: "work" },
-  { label: "Interviews",         href: "/admin/interviews",   icon: Calendar,        group: "work" },
-  { label: "Onboard TechSupport",href: "/admin/tech-support", icon: Briefcase,       group: "work" },
-  { label: "Expenses",           href: "/admin/expenses",     icon: DollarSign,      group: "work" },
+  { label: "Dashboard",           href: "/admin",                  icon: LayoutDashboard, group: "main",   exact: true },
+  { label: "User Roles",          href: "/admin/userrole",         icon: Shield,          group: "admin",  exact: false },
+  { label: "Users",               href: "/admin/users",            icon: Users,           group: "admin",  exact: false },
+  { label: "Onboard Recruiter",   href: "/admin/recruiters",       icon: UserPlus,        group: "people", exact: false },
+  { label: "Onboard Consultant",  href: "/admin/students",         icon: GraduationCap,   group: "people", exact: false },
+  { label: "Premarketing",        href: "/admin/premarketing",     icon: Send,            group: "work",   exact: false },
+  { label: "Create Submission",   href: "/admin/submissions",      icon: FileText,        group: "work",   exact: true },
+  { label: "Total Submissions",   href: "/admin/submissions/list", icon: FileText,        group: "work",   exact: true },
+  { label: "Create Interview",    href: "/admin/interviews",       icon: Calendar,        group: "work",   exact: true },
+  { label: "Total Interviews",    href: "/admin/interviews/list",  icon: Calendar,        group: "work",   exact: true },
+  { label: "Onboard TechSupport", href: "/admin/tech-support",    icon: Briefcase,       group: "work",   exact: false },
+  { label: "Expenses",            href: "/admin/expenses",         icon: DollarSign,      group: "work",   exact: false },
 ];
 
 interface SidebarProps {
@@ -36,9 +38,7 @@ export function Sidebar({ allowedPaths, userEmail, roleName }: SidebarProps) {
       ? ALL_NAV_ITEMS
       : ALL_NAV_ITEMS.filter((item) =>
           allowedPaths.some((p) =>
-            item.href === "/admin"
-              ? p === "/admin"
-              : item.href === p || p.startsWith(item.href)
+            item.href === p || item.href.startsWith(p + "/")
           )
         );
 
@@ -53,9 +53,8 @@ export function Sidebar({ allowedPaths, userEmail, roleName }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {navItems.map(({ label, href, icon: Icon }) => {
-          const isActive =
-            href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+        {navItems.map(({ label, href, icon: Icon, exact }) => {
+          const isActive = exact ? pathname === href : pathname.startsWith(href);
           return (
             <Link
               key={href}

@@ -22,7 +22,7 @@ export default async function RecruitersPage() {
       <Header title="Onboard Recruiter" />
       <div className="p-6 space-y-6">
         <OnboardRecruiterForm roles={roles} />
-        <RecruiterList recruiters={recruiters} />
+        <RecruiterList recruiters={recruiters} roles={roles} />
       </div>
     </>
   );

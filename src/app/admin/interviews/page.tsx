@@ -5,19 +5,17 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { InterviewForm } from "./interview-form";
-import { InterviewList } from "./interview-list";
 
-export default async function InterviewsPage() {
+export default async function CreateInterviewPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [recruiter, count, mySubmissions, interviews] = await Promise.all([
+  const [recruiter, count, mySubmissions] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.userId },
       select: { firstName: true, lastName: true },
     }),
     prisma.interview.count(),
-    // Only this recruiter's submissions for the search dropdown
     prisma.submission.findMany({
       where: { recruiterId: session.userId },
       select: {
@@ -37,23 +35,6 @@ export default async function InterviewsPage() {
       },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.interview.findMany({
-      include: {
-        recruiter: { select: { firstName: true, lastName: true } },
-        submission: {
-          select: {
-            submissionId: true,
-            technology: true,
-            vendorCompany: true,
-            clientName: true,
-            clientLocation: true,
-            consultant: { select: { firstName: true, lastName: true } },
-          },
-        },
-        techSupport: { select: { firstName: true, lastName: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
   ]);
 
   const recruiterName = recruiter
@@ -64,15 +45,14 @@ export default async function InterviewsPage() {
 
   return (
     <>
-      <Header title="Interviews" />
-      <div className="p-6 space-y-6">
+      <Header title="Create Interview" />
+      <div className="p-6">
         <InterviewForm
           recruiterId={session.userId}
           recruiterName={recruiterName}
           nextInterviewId={nextInterviewId}
           mySubmissions={mySubmissions}
         />
-        <InterviewList interviews={interviews} />
       </div>
     </>
   );

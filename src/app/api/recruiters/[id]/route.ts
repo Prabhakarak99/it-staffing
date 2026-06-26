@@ -14,9 +14,14 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const user = await prisma.user.update({
     where: { id },
     data: {
-      isActive: body.isActive,
-      endDate: body.endDate ? new Date(body.endDate) : undefined,
-      roleId: body.roleId ?? undefined,
+      ...(body.isActive !== undefined && { isActive: body.isActive }),
+      ...(body.firstName !== undefined && { firstName: body.firstName }),
+      ...(body.lastName !== undefined && { lastName: body.lastName }),
+      ...(body.phoneNumber !== undefined && { phoneNumber: body.phoneNumber }),
+      ...(body.businessNumber !== undefined && { businessNumber: body.businessNumber }),
+      ...(body.roleId !== undefined && { roleId: body.roleId }),
+      ...(body.startDate !== undefined && { startDate: body.startDate ? new Date(body.startDate) : null }),
+      ...(body.endDate !== undefined && { endDate: body.endDate ? new Date(body.endDate) : null }),
     },
   });
 
