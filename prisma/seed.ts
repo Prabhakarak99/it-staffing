@@ -4,8 +4,11 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import bcrypt from "bcryptjs";
 import path from "path";
 
-const dbUrl = `file:${path.resolve(process.cwd(), "dev.db")}`;
-const adapter = new PrismaBetterSqlite3({ url: dbUrl });
+const rawUrl = process.env.DATABASE_URL ?? `file:${path.resolve(process.cwd(), "dev.db")}`;
+
+// Resolve file: URL to absolute path for better-sqlite3
+const dbPath = rawUrl.startsWith("file:") ? rawUrl.slice(5) : rawUrl;
+const adapter = new PrismaBetterSqlite3({ url: `file:${path.resolve(dbPath)}` });
 const prisma = new PrismaClient({ adapter } as never);
 
 const ROLES = [
