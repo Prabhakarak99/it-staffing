@@ -2,8 +2,9 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import path from "path";
 
-// Database is created at project root by `prisma migrate dev`
-const dbUrl = `file:${path.resolve(process.cwd(), "dev.db")}`;
+const rawUrl = process.env.DATABASE_URL ?? `file:${path.resolve(process.cwd(), "dev.db")}`;
+const dbPath = rawUrl.startsWith("file:") ? rawUrl.slice(5) : rawUrl;
+const dbUrl = `file:${path.resolve(dbPath)}`;
 
 function createPrismaClient() {
   const adapter = new PrismaBetterSqlite3({ url: dbUrl });
