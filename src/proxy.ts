@@ -19,7 +19,34 @@ export async function proxy(req: NextRequest) {
   }
 
   try {
-    await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, SECRET);
+
+    // Not an /admin route — just verify the user is logged in
+    if (!pathname.startsWith("/admin")) {
+      return NextResponse.next();
+    }
+
+    const allowedScreens = payload.allowedScreens as string[] | null;
+
+    // null = super admin, unrestricted access
+    if (allowedScreens === null) {
+      return NextResponse.next();
+    }
+
+    // Dashboard is always accessible to any authenticated user
+    if (pathname === "/admin") {
+      return NextResponse.next();
+    }
+
+    // A screen path like /admin/submissions also grants /admin/submissions/list
+    const isAllowed = allowedScreens.some(
+      (screen) => pathname === screen || pathname.startsWith(screen + "/")
+    );
+
+    if (!isAllowed) {
+      return NextResponse.redirect(new URL("/admin", req.url));
+    }
+
     return NextResponse.next();
   } catch {
     return NextResponse.redirect(new URL("/login", req.url));
