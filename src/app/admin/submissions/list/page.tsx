@@ -10,7 +10,11 @@ export default async function TotalSubmissionsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  // Recruiters see only their own submissions; super admin and other roles see all
+  const isRecruiter = session.roleName === "Recruiter";
+
   const submissions = await prisma.submission.findMany({
+    where: isRecruiter ? { recruiterId: session.userId } : {},
     include: {
       recruiter: { select: { firstName: true, lastName: true } },
       consultant: { select: { firstName: true, lastName: true, technology: true } },

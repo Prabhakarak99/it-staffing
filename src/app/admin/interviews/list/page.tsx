@@ -10,7 +10,11 @@ export default async function TotalInterviewsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  // Recruiters see only their own interviews; super admin and other roles see all
+  const isRecruiter = session.roleName === "Recruiter";
+
   const interviews = await prisma.interview.findMany({
+    where: isRecruiter ? { recruiterId: session.userId } : {},
     include: {
       recruiter: { select: { firstName: true, lastName: true } },
       submission: {
