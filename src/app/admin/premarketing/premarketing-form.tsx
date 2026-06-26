@@ -122,7 +122,7 @@ export function PreMarketingForm() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const selectConsultant = (c: Consultant) => {
+  const selectConsultant = (c: { id: string; firstName: string; lastName: string; email: string }) => {
     setForm((p) => ({ ...p, consultantId: c.id, consultantName: `${c.firstName} ${c.lastName}` }));
     setConsultantQuery(`${c.firstName} ${c.lastName}`);
     setShowConsultantDropdown(false);
