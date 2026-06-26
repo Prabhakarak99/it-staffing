@@ -107,12 +107,12 @@ export function PreMarketingList({ records }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     {r.consultant.technology
-                      ? <Badge variant="indigo">{r.consultant.technology}</Badge>
+                      ? <Badge variant="info">{r.consultant.technology}</Badge>
                       : <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {r.marketingVisaStatus
-                      ? <Badge variant="amber">{r.marketingVisaStatus}</Badge>
+                      ? <Badge variant="warning">{r.marketingVisaStatus}</Badge>
                       : <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center"><YesNoBadge value={r.dlAvailable} /></td>

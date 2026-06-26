@@ -114,7 +114,7 @@ export function ExpenseList({ expenses }: Props) {
                     {e.consultant ? `${e.consultant.firstName} ${e.consultant.lastName}` : <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge variant="indigo">{e.category}</Badge>
+                    <Badge variant="info">{e.category}</Badge>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
                     ${e.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
