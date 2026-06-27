@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -89,8 +90,13 @@ export function SubmissionList({ submissions }: { submissions: SubmissionRecord[
             <tbody className="divide-y divide-slate-100">
               {submissions.map((s) => (
                 <tr key={s.id} className="hover:bg-indigo-50/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-700 whitespace-nowrap">
-                    {s.submissionId}
+                  <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
+                    <Link
+                      href={`/admin/submissions/${s.id}`}
+                      className="text-blue-700 hover:text-blue-900 hover:underline"
+                    >
+                      {s.submissionId}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
                     {fmt(s.submissionDate)}

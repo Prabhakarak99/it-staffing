@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -34,7 +35,7 @@ function calcDuration(start: string | Date, end: string | Date): string {
 }
 
 interface InterviewRecord {
-  id: string;
+  id: string;        // DB cuid — used for detail page URL
   interviewId: string;
   interviewStartDate: string | Date;
   interviewEndDate: string | Date;
@@ -109,8 +110,13 @@ export function InterviewList({ interviews }: { interviews: InterviewRecord[] })
             <tbody className="divide-y divide-slate-100">
               {interviews.map((iv) => (
                 <tr key={iv.id} className="hover:bg-indigo-50/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-700 whitespace-nowrap">
-                    {iv.interviewId}
+                  <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
+                    <Link
+                      href={`/admin/interviews/${iv.id}`}
+                      className="text-blue-700 hover:text-blue-900 hover:underline"
+                    >
+                      {iv.interviewId}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
                     {iv.submission.submissionId}
