@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Header } from "@/components/layout/header";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -19,15 +20,12 @@ export default async function PreMarketingPage() {
   });
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Pre-Marketing</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Track consultant marketing readiness, documents, and recruiter assignments.
-        </p>
+    <>
+      <Header title="Pre-Marketing" />
+      <div className="p-6 space-y-6">
+        <PreMarketingForm />
+        <PreMarketingList records={JSON.parse(JSON.stringify(records))} />
       </div>
-      <PreMarketingForm />
-      <PreMarketingList records={JSON.parse(JSON.stringify(records))} />
-    </div>
+    </>
   );
 }
