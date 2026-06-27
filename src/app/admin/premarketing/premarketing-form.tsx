@@ -300,8 +300,8 @@ export function PreMarketingForm() {
       <div className="p-6 space-y-5">
 
         {/* Consultant Search */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
             <User className="h-4 w-4 text-indigo-500" />
             <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Consultant</span>
             <span className="ml-1 text-rose-500 text-xs font-bold">*</span>
@@ -464,8 +464,8 @@ export function PreMarketingForm() {
         </div>
 
         {/* Recruiter */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
             <UserSearch className="h-4 w-4 text-rose-500" />
             <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Assigned Recruiter</span>
             {form.marketingStartDate && <span className="ml-1 text-rose-500 text-xs font-bold">*</span>}
