@@ -1,33 +1,56 @@
 export const dynamic = "force-dynamic";
 
-import { Header } from "@/components/layout/header";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { SubmissionList } from "../submission-list";
+import { SubmissionsView } from "../submissions-view";
 
 export default async function TotalSubmissionsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Recruiters see only their own submissions; super admin and other roles see all
   const isRecruiter = session.roleName === "Recruiter";
 
-  const submissions = await prisma.submission.findMany({
-    where: isRecruiter ? { recruiterId: session.userId } : {},
-    include: {
-      recruiter: { select: { firstName: true, lastName: true } },
-      consultant: { select: { firstName: true, lastName: true, technology: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [submissions, recruiter, count] = await Promise.all([
+    prisma.submission.findMany({
+      where: isRecruiter ? { recruiterId: session.userId } : {},
+      select: {
+        id: true,
+        submissionId: true,
+        submissionDate: true,
+        technology: true,
+        payRate: true,
+        vendorCompany: true,
+        vendorRecruiterName: true,
+        vendorRecruiterEmail: true,
+        vendorRecruiterPhone: true,
+        clientName: true,
+        clientLocation: true,
+        status: true,
+        createdAt: true,
+        recruiter: { select: { firstName: true, lastName: true } },
+        consultant: { select: { firstName: true, lastName: true, technology: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { firstName: true, lastName: true },
+    }),
+    prisma.submission.count(),
+  ]);
+
+  const recruiterName = recruiter
+    ? `${recruiter.firstName} ${recruiter.lastName}`
+    : session.email;
+  const nextSubmissionId = `Sub-${String(count + 1).padStart(3, "0")}`;
 
   return (
-    <>
-      <Header title="Total Submissions" />
-      <div className="p-6">
-        <SubmissionList submissions={submissions} />
-      </div>
-    </>
+    <SubmissionsView
+      submissions={submissions}
+      recruiterId={session.userId}
+      recruiterName={recruiterName}
+      nextSubmissionId={nextSubmissionId}
+    />
   );
 }

@@ -60,7 +60,7 @@ function initials(name: string) {
   return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
-export function PreMarketingForm() {
+export function PreMarketingForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY, string>>>({});
   const [isPending, startTransition] = useTransition();
@@ -203,6 +203,7 @@ export function PreMarketingForm() {
         setConsultantQuery("");
         setRecruiterQuery("");
         router.refresh();
+        onSuccess?.();
       } catch (err: unknown) {
         show(err instanceof Error ? err.message : "Error saving record", "error");
       }

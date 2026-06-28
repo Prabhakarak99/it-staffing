@@ -2,23 +2,15 @@
 
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
-import { FileText, Loader2, Search, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { FileText, Loader2, Search, X, Building2, Users, Globe, Hash } from "lucide-react";
 import { isValidEmail, isValidPhone, validateOptionalEmail, validateOptionalPhone } from "@/lib/validators";
 
-const TECHNOLOGIES = [
-  ".Net", "Java", "DE", "DS/GenAi/ML", "Devops",
-  "Mainframes", "Networking", "BA", "Sales Force",
-];
-
-const STATUSES = [
-  "Submission Submitted", "In Review", "Rejected",
-  "Moved to Client", "Confirmation",
-];
+const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force"];
+const STATUSES = ["Submission Submitted", "In Review", "Rejected", "Moved to Client", "Confirmation"];
 
 interface Consultant {
   id: string;
@@ -32,38 +24,81 @@ interface Props {
   recruiterId: string;
   recruiterName: string;
   nextSubmissionId: string;
+  onSuccess?: () => void;
+}
+
+function initials(name: string) {
+  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function SectionCard({ icon: Icon, title, subtitle, color, children }: {
+  icon: React.ElementType; title: string; subtitle?: string; color: string; children: React.ReactNode;
+}) {
+  const colorMap: Record<string, { bg: string; border: string; icon: string }> = {
+    blue:   { bg: "bg-blue-50",   border: "border-blue-100",   icon: "text-blue-500" },
+    violet: { bg: "bg-violet-50", border: "border-violet-100", icon: "text-violet-500" },
+    amber:  { bg: "bg-amber-50",  border: "border-amber-100",  icon: "text-amber-500" },
+    emerald:{ bg: "bg-emerald-50",border: "border-emerald-100",icon: "text-emerald-500" },
+    slate:  { bg: "bg-slate-50",  border: "border-slate-100",  icon: "text-slate-500" },
+    rose:   { bg: "bg-rose-50",   border: "border-rose-100",   icon: "text-rose-500" },
+  };
+  const c = colorMap[color] ?? colorMap.slate;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={cn("flex items-center gap-2.5 rounded-t-xl border-b px-4 py-3", c.bg, c.border)}>
+        <Icon className={cn("h-4 w-4 shrink-0", c.icon)} />
+        <div>
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-700">{title}</span>
+          {subtitle && <span className="ml-2 text-[10px] text-slate-400">{subtitle}</span>}
+        </div>
+      </div>
+      <div className="p-4 space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function PillChips({ label, value, options, onChange, required }: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void; required?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}{required && " *"}
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt) => (
+          <button key={opt} type="button" onClick={() => onChange(value === opt ? "" : opt)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
+              value === opt
+                ? "border-blue-500 bg-blue-500 text-white shadow-sm"
+                : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50"
+            )}>{opt}</button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const EMPTY = {
-  consultantId: "",
-  consultantName: "",
-  technology: "",
-  jobDescription: "",
-  payRate: "",
-  vendorCompany: "",
-  vendorRecruiterName: "",
-  vendorRecruiterEmail: "",
-  vendorRecruiterPhone: "",
-  implementationName: "",
-  implementationEmail: "",
-  implementationPhone: "",
-  clientName: "",
-  clientLocation: "",
-  status: "Submission Submitted",
+  consultantId: "", consultantName: "", technology: "", jobDescription: "",
+  payRate: "", vendorCompany: "", vendorRecruiterName: "",
+  vendorRecruiterEmail: "", vendorRecruiterPhone: "",
+  implementationName: "", implementationEmail: "", implementationPhone: "",
+  clientName: "", clientLocation: "", status: "Submission Submitted",
 };
 
-export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId }: Props) {
+export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, onSuccess }: Props) {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY, string>>>({});
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
   const router = useRouter();
-
-  // Consultant search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Consultant[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -72,14 +107,10 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId }:
     setIsSearching(true);
     try {
       const res = await fetch(`/api/students/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setSearchResults(data);
+      setSearchResults(await res.json());
       setShowDropdown(true);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+    } catch { setSearchResults([]); }
+    finally { setIsSearching(false); }
   }, []);
 
   useEffect(() => {
@@ -88,29 +119,23 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId }:
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [searchQuery, searchConsultants]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowDropdown(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const selectConsultant = (c: Consultant) => {
-    setForm((prev) => ({
-      ...prev,
-      consultantId: c.id,
-      consultantName: `${c.firstName} ${c.lastName}`,
-      technology: c.technology ?? prev.technology,
-    }));
+    setSelectedConsultant(c);
+    setForm((prev) => ({ ...prev, consultantId: c.id, consultantName: `${c.firstName} ${c.lastName}`, technology: c.technology ?? prev.technology }));
     setSearchQuery(`${c.firstName} ${c.lastName}`);
     setShowDropdown(false);
   };
 
   const clearConsultant = () => {
+    setSelectedConsultant(null);
     setForm((prev) => ({ ...prev, consultantId: "", consultantName: "", technology: "" }));
     setSearchQuery("");
     setSearchResults([]);
@@ -141,34 +166,28 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId }:
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
-
     startTransition(async () => {
       try {
         const res = await fetch("/api/submissions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            consultantId: form.consultantId,
-            technology: form.technology,
-            jobDescription: form.jobDescription,
-            payRate: form.payRate,
-            vendorCompany: form.vendorCompany,
-            vendorRecruiterName: form.vendorRecruiterName,
-            vendorRecruiterEmail: form.vendorRecruiterEmail,
-            vendorRecruiterPhone: form.vendorRecruiterPhone,
-            implementationName: form.implementationName,
-            implementationEmail: form.implementationEmail,
-            implementationPhone: form.implementationPhone,
-            clientName: form.clientName,
-            clientLocation: form.clientLocation,
-            status: form.status,
+            consultantId: form.consultantId, technology: form.technology,
+            jobDescription: form.jobDescription, payRate: form.payRate,
+            vendorCompany: form.vendorCompany, vendorRecruiterName: form.vendorRecruiterName,
+            vendorRecruiterEmail: form.vendorRecruiterEmail, vendorRecruiterPhone: form.vendorRecruiterPhone,
+            implementationName: form.implementationName, implementationEmail: form.implementationEmail,
+            implementationPhone: form.implementationPhone, clientName: form.clientName,
+            clientLocation: form.clientLocation, status: form.status,
           }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to create submission");
         show(`Submission ${data.submissionId} created successfully`, "success");
+        onSuccess?.();
         setForm(EMPTY);
         setSearchQuery("");
+        setSelectedConsultant(null);
         router.refresh();
       } catch (err: unknown) {
         show(err instanceof Error ? err.message : "Error creating submission", "error");
@@ -177,131 +196,105 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId }:
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-indigo-600" />
-          New Submission
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-
-        {/* Row 1 — Auto fields */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Submission ID *</label>
-            <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-mono text-slate-600 select-none">
-              {nextSubmissionId}
-            </div>
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Gradient header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-5">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
+        <div className="relative flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <FileText className="h-6 w-6 text-white" />
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Submission Date *</label>
-            <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 select-none">
-              {new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
-            </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">New Submission</h2>
+            <p className="text-sm text-white/70">Create a job submission for a consultant</p>
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Recruiter Name *</label>
-            <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 select-none">
-              {recruiterName}
+          <div className="ml-auto flex items-center gap-3">
+            <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Sub ID</p>
+              <p className="text-xs font-bold text-white font-mono">{nextSubmissionId}</p>
+            </div>
+            <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Recruiter</p>
+              <p className="text-xs font-semibold text-white">{recruiterName}</p>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Row 2 — Consultant search + Technology */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Consultant search */}
-          <div className="flex flex-col gap-1" ref={searchRef}>
-            <label className="text-sm font-medium text-slate-700">Consultant Name *</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search consultant by name…"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  if (form.consultantId) clearConsultant();
-                }}
-                className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              {isSearching && (
-                <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
-              )}
-              {form.consultantId && !isSearching && (
-                <button
-                  type="button"
-                  onClick={clearConsultant}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+      <div className="p-6 space-y-5">
 
-              {showDropdown && searchResults.length > 0 && (
-                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                  {searchResults.map((c) => (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); selectConsultant(c); }}
-                        className="flex w-full flex-col px-3 py-2 text-left hover:bg-blue-50 transition-colors"
-                      >
-                        <span className="text-sm font-medium text-slate-900">
-                          {c.firstName} {c.lastName}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {c.email}{c.technology ? ` · ${c.technology}` : ""}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {showDropdown && searchResults.length === 0 && !isSearching && (
-                <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-4 text-center text-sm text-slate-400 shadow-lg">
-                  No consultants found
+        {/* Consultant */}
+        <SectionCard icon={Users} title="Consultant" color="blue">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div ref={searchRef}>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Consultant Name *
+              </label>
+              {selectedConsultant ? (
+                <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                    {initials(`${selectedConsultant.firstName} ${selectedConsultant.lastName}`)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{selectedConsultant.firstName} {selectedConsultant.lastName}</p>
+                    <p className="text-xs text-slate-500 truncate">{selectedConsultant.email}</p>
+                  </div>
+                  <button type="button" onClick={clearConsultant}
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Search by name…" value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); if (form.consultantId) clearConsultant(); }}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20" />
+                  {isSearching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />}
+                  {showDropdown && searchResults.length > 0 && (
+                    <ul className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                      {searchResults.map((c) => (
+                        <li key={c.id}>
+                          <button type="button" onMouseDown={(e) => { e.preventDefault(); selectConsultant(c); }}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition-colors">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                              {initials(`${c.firstName} ${c.lastName}`)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-900">{c.firstName} {c.lastName}</p>
+                              <p className="text-xs text-slate-500 truncate">{c.email}{c.technology ? ` · ${c.technology}` : ""}</p>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {showDropdown && !isSearching && searchResults.length === 0 && searchQuery && (
+                    <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-4 text-center text-sm text-slate-400 shadow-xl">
+                      No consultants found
+                    </div>
+                  )}
                 </div>
               )}
+              {errors.consultantId && <p className="mt-1 text-xs text-rose-500">{errors.consultantId}</p>}
             </div>
-            {errors.consultantId && <p className="text-xs text-rose-500">{errors.consultantId}</p>}
-            {form.consultantId && (
-              <p className="text-xs text-green-600">✓ {form.consultantName} selected</p>
-            )}
+            <div>
+              <PillChips label="Technology *" value={form.technology} options={TECHNOLOGIES}
+                onChange={(v) => setForm((p) => ({ ...p, technology: p.technology === v ? "" : v }))} required />
+              {errors.technology && <p className="mt-1 text-xs text-rose-500">{errors.technology}</p>}
+            </div>
           </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Job Description</label>
+            <textarea rows={4} placeholder="Paste the job description here…" value={form.jobDescription}
+              onChange={set("jobDescription")}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 resize-y" />
+          </div>
+        </SectionCard>
 
-          <Select
-            id="technology"
-            label="Technology *"
-            options={TECHNOLOGIES.map((t) => ({ value: t, label: t }))}
-            placeholder="Select technology"
-            value={form.technology}
-            onChange={set("technology")}
-            error={errors.technology}
-          />
-        </div>
-
-        {/* Job Description */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="jobDescription" className="text-sm font-medium text-slate-700">
-            Job Description
-          </label>
-          <textarea
-            id="jobDescription"
-            rows={5}
-            placeholder="Paste the job description here…"
-            value={form.jobDescription}
-            onChange={set("jobDescription")}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-y"
-          />
-        </div>
-
-        {/* Vendor Section */}
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Vendor Details</p>
+        {/* Vendor Details */}
+        <SectionCard icon={Building2} title="Vendor Details" color="violet">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Input id="payRate" label="Pay Rate" placeholder="e.g. $65/hr" value={form.payRate} onChange={set("payRate")} />
             <Input id="vendorCompany" label="Vendor Company *" placeholder="Company name" value={form.vendorCompany} onChange={set("vendorCompany")} error={errors.vendorCompany} />
@@ -309,43 +302,36 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId }:
             <Input id="vendorRecruiterEmail" label="Vendor Recruiter Email *" type="email" placeholder="recruiter@vendor.com" value={form.vendorRecruiterEmail} onChange={set("vendorRecruiterEmail")} error={errors.vendorRecruiterEmail} />
             <Input id="vendorRecruiterPhone" label="Vendor Recruiter Phone *" placeholder="+1 555-000-0000" value={form.vendorRecruiterPhone} onChange={set("vendorRecruiterPhone")} error={errors.vendorRecruiterPhone} />
           </div>
-        </div>
+        </SectionCard>
 
-        {/* Implementation Section */}
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Implementation (Optional)</p>
+        {/* Implementation */}
+        <SectionCard icon={Hash} title="Implementation" subtitle="Optional" color="amber">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Input id="implementationName" label="Implementation Name" placeholder="Contact name" value={form.implementationName} onChange={set("implementationName")} />
             <Input id="implementationEmail" label="Implementation Email" type="email" placeholder="impl@company.com" value={form.implementationEmail} onChange={set("implementationEmail")} error={errors.implementationEmail} />
             <Input id="implementationPhone" label="Implementation Phone" type="tel" placeholder="555-000-0000" value={form.implementationPhone} onChange={set("implementationPhone")} error={errors.implementationPhone} />
           </div>
-        </div>
+        </SectionCard>
 
-        {/* Client + Status */}
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Client & Status</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Client & Status */}
+        <SectionCard icon={Globe} title="Client & Status" color="emerald">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input id="clientName" label="Client Name" placeholder="End client name" value={form.clientName} onChange={set("clientName")} />
             <Input id="clientLocation" label="Client Location" placeholder="City, State" value={form.clientLocation} onChange={set("clientLocation")} />
-            <Select
-              id="status"
-              label="Status *"
-              options={STATUSES.map((s) => ({ value: s, label: s }))}
-              placeholder="Select status"
-              value={form.status}
-              onChange={set("status")}
-            />
           </div>
-        </div>
+          <PillChips label="Submission Status *" value={form.status} options={STATUSES}
+            onChange={(v) => setForm((p) => ({ ...p, status: p.status === v ? "Submission Submitted" : v }))} />
+        </SectionCard>
 
-        <div className="flex justify-end">
-          <Button onClick={submit} disabled={isPending}>
+        <div className="flex justify-end pt-2">
+          <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            {isPending ? "Saving…" : "Create Submission"}
+            {isPending ? "Creating…" : "Create Submission"}
           </Button>
         </div>
-      </CardContent>
+      </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
-    </Card>
+    </div>
   );
 }

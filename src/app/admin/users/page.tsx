@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { Header } from "@/components/layout/header";
 import { prisma } from "@/lib/prisma";
-import { UserList } from "./user-list";
-import { CreateUserForm } from "./create-user-form";
+import { UsersView } from "./users-view";
 
 export default async function UsersPage() {
   const [users, roles] = await Promise.all([
@@ -14,13 +12,5 @@ export default async function UsersPage() {
     prisma.role.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  return (
-    <>
-      <Header title="Users" />
-      <div className="p-6 space-y-6">
-        <CreateUserForm roles={roles} />
-        <UserList users={users} />
-      </div>
-    </>
-  );
+  return <UsersView users={users} roles={roles} />;
 }

@@ -2,12 +2,14 @@
 
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
-import { GraduationCap, Loader2, Upload, CheckCircle2, ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  GraduationCap, Loader2, Upload, CheckCircle2, ExternalLink,
+  User, MapPin, BookOpen, CreditCard, Briefcase, FolderKanban, FileCheck,
+} from "lucide-react";
 import { isValidEmail, validateOptionalEmail, validateOptionalPhone, validateOptionalUrl } from "@/lib/validators";
 
 const VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
@@ -28,43 +30,134 @@ type InterviewHit = {
 type FileState = { file: File | null; uploaded: boolean };
 const emptyFile = (): FileState => ({ file: null, uploaded: false });
 
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1">
-    {children}
-  </p>
-);
+function initials(name: string) {
+  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+}
 
-function FileUpload({ label, id, state, onChange }: {
+function SectionCard({ icon: Icon, title, color, children }: {
+  icon: React.ElementType; title: string; color: string; children: React.ReactNode;
+}) {
+  const colorMap: Record<string, { bg: string; border: string; icon: string; text: string }> = {
+    violet: { bg: "bg-violet-50", border: "border-violet-100", icon: "text-violet-500", text: "text-slate-600" },
+    blue: { bg: "bg-blue-50", border: "border-blue-100", icon: "text-blue-500", text: "text-slate-600" },
+    emerald: { bg: "bg-emerald-50", border: "border-emerald-100", icon: "text-emerald-500", text: "text-slate-600" },
+    amber: { bg: "bg-amber-50", border: "border-amber-100", icon: "text-amber-500", text: "text-slate-600" },
+    rose: { bg: "bg-rose-50", border: "border-rose-100", icon: "text-rose-500", text: "text-slate-600" },
+    indigo: { bg: "bg-indigo-50", border: "border-indigo-100", icon: "text-indigo-500", text: "text-slate-600" },
+    slate: { bg: "bg-slate-50", border: "border-slate-200", icon: "text-slate-500", text: "text-slate-600" },
+  };
+  const c = colorMap[color] ?? colorMap.slate;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={cn("flex items-center gap-2.5 rounded-t-xl border-b px-4 py-3", c.bg, c.border)}>
+        <Icon className={cn("h-4 w-4 shrink-0", c.icon)} />
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">{title}</span>
+      </div>
+      <div className="p-4 space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function PillChips({ label, value, options, onChange, required }: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void; required?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}{required && " *"}
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onChange(value === opt ? "" : opt)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
+              value === opt
+                ? "border-indigo-500 bg-indigo-500 text-white shadow-sm"
+                : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50"
+            )}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function YesNoToggle({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <div className="flex rounded-full border border-slate-200 bg-white p-0.5 gap-0.5">
+        {["Yes", "No"].map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(value === v ? "" : v)}
+            className={cn(
+              "rounded-full px-3.5 py-0.5 text-xs font-bold transition-all",
+              value === v && v === "Yes" ? "bg-emerald-500 text-white shadow-sm" :
+              value === v && v === "No" ? "bg-rose-500 text-white shadow-sm" :
+              "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FileUploadCard({ label, id, state, onChange }: {
   label: string; id: string; state: FileState; onChange: (f: File | null) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-sm font-medium text-slate-700">{label}</label>
-      <div
-        className={`flex items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 cursor-pointer transition-colors ${
-          state.file ? "border-green-400 bg-green-50" : "border-slate-300 hover:border-blue-400 bg-slate-50"
-        }`}
-        onClick={() => ref.current?.click()}
-      >
-        {state.file ? (
-          <><CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" /><span className="text-sm text-green-700 truncate">{state.file.name}</span></>
-        ) : (
-          <><Upload className="h-5 w-5 text-slate-400 shrink-0" /><span className="text-sm text-slate-500">Click to upload {label}</span></>
-        )}
-      </div>
+    <div
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-4 py-4 transition-all",
+        state.file
+          ? "border-emerald-400 bg-emerald-50"
+          : "border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/40"
+      )}
+      onClick={() => ref.current?.click()}
+    >
+      {state.file ? (
+        <>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-emerald-700">{label}</p>
+            <p className="truncate text-xs text-emerald-600">{state.file.name}</p>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200">
+            <Upload className="h-4 w-4 text-slate-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-600">{label}</p>
+            <p className="text-xs text-slate-400">Click to upload PDF or image</p>
+          </div>
+        </>
+      )}
       <input ref={ref} id={id} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
         onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
     </div>
   );
 }
 
-export function ConsultantForm() {
+export function ConsultantForm({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
 
-  // Personal
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [personalPhone, setPersonalPhone] = useState("");
@@ -73,15 +166,11 @@ export function ConsultantForm() {
   const [parentPhone, setParentPhone] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
   const [referredBy, setReferredBy] = useState("");
-
-  // Address
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
-
-  // University
   const [universityName, setUniversityName] = useState("");
   const [universityLocation, setUniversityLocation] = useState("");
   const [masters, setMasters] = useState("");
@@ -89,13 +178,9 @@ export function ConsultantForm() {
   const [dsoName, setDsoName] = useState("");
   const [dsoEmail, setDsoEmail] = useState("");
   const [dsoPhone, setDsoPhone] = useState("");
-
-  // Visa
   const [visaStatus, setVisaStatus] = useState("");
   const [visaStartDate, setVisaStartDate] = useState("");
   const [visaExpiryDate, setVisaExpiryDate] = useState("");
-
-  // Onboarding
   const [onboardingStartDate, setOnboardingStartDate] = useState("");
   const [offerLetterType, setOfferLetterType] = useState("");
   const [payRate, setPayRate] = useState("");
@@ -103,13 +188,9 @@ export function ConsultantForm() {
   const [hasSSN, setHasSSN] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
   const [technology, setTechnology] = useState("");
-
-  // Documents
   const [dlDoc, setDlDoc] = useState<FileState>(emptyFile());
   const [passportDoc, setPassportDoc] = useState<FileState>(emptyFile());
   const [visaCopyDoc, setVisaCopyDoc] = useState<FileState>(emptyFile());
-
-  // Job Card
   const [projectStatus, setProjectStatus] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [verbalConfirmationDate, setVerbalConfirmationDate] = useState("");
@@ -120,14 +201,11 @@ export function ConsultantForm() {
   const [pmName, setPmName] = useState("");
   const [pmEmail, setPmEmail] = useState("");
   const [pmPhone, setPmPhone] = useState("");
-
-  // Interview search
   const [interviewQuery, setInterviewQuery] = useState("");
   const [interviewResults, setInterviewResults] = useState<InterviewHit[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<InterviewHit | null>(null);
   const [showInterviewDropdown, setShowInterviewDropdown] = useState(false);
   const interviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const showInterviewSearch = projectStatus === "Verbal Confirmation" || projectStatus === "Confirmation";
 
   const searchInterviews = useCallback(async (q: string) => {
@@ -149,7 +227,6 @@ export function ConsultantForm() {
     if (!lastName.trim()) errs.lastName = "Required";
     if (!email.trim()) errs.email = "Required";
     else if (!isValidEmail(email)) errs.email = "Invalid email address";
-    // Optional phones
     const pPhone = validateOptionalPhone(personalPhone);
     if (pPhone) errs.personalPhone = pPhone;
     const parPhone = validateOptionalPhone(parentPhone);
@@ -160,12 +237,10 @@ export function ConsultantForm() {
     if (dsoPhoneErr) errs.dsoPhone = dsoPhoneErr;
     const pmPhoneErr = validateOptionalPhone(pmPhone);
     if (pmPhoneErr) errs.pmPhone = pmPhoneErr;
-    // Optional emails
     const dsoEmailErr = validateOptionalEmail(dsoEmail);
     if (dsoEmailErr) errs.dsoEmail = dsoEmailErr;
     const pmEmailErr = validateOptionalEmail(pmEmail);
     if (pmEmailErr) errs.pmEmail = pmEmailErr;
-    // Date order: visa start < expiry
     if (visaStartDate && visaExpiryDate && new Date(visaExpiryDate) <= new Date(visaStartDate))
       errs.visaExpiryDate = "Expiry must be after start date";
     return errs;
@@ -175,13 +250,10 @@ export function ConsultantForm() {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
-
     startTransition(async () => {
       try {
         const fd = new FormData();
-        fd.append("firstName", firstName);
-        fd.append("lastName", lastName);
-        fd.append("email", email);
+        fd.append("firstName", firstName); fd.append("lastName", lastName); fd.append("email", email);
         if (personalPhone) fd.append("personalPhone", personalPhone);
         if (dob) fd.append("dob", dob);
         if (parentPhone) fd.append("parentPhone", parentPhone);
@@ -223,11 +295,11 @@ export function ConsultantForm() {
         if (pmName) fd.append("pmName", pmName);
         if (pmEmail) fd.append("pmEmail", pmEmail);
         if (pmPhone) fd.append("pmPhone", pmPhone);
-
         const res = await fetch("/api/students", { method: "POST", body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to save consultant");
         show(`${firstName} ${lastName} added successfully`, "success");
+        onSuccess?.();
         router.refresh();
         setFirstName(""); setLastName(""); setEmail(""); setPersonalPhone(""); setDob("");
         setParentPhone(""); setEmergencyContact(""); setReferredBy("");
@@ -246,19 +318,37 @@ export function ConsultantForm() {
     });
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <GraduationCap className="h-5 w-5 text-indigo-600" />
-          Add Consultant
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-8">
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
 
-        {/* ── Personal Info ── */}
-        <div>
-          <SectionLabel>Personal Information</SectionLabel>
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Gradient header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-purple-700 px-6 py-5">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
+        <div className="relative flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <GraduationCap className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">Add Consultant</h2>
+            <p className="text-sm text-white/70">Onboard a new consultant with full profile</p>
+          </div>
+          {fullName && (
+            <div className="ml-auto flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-[9px] font-bold text-white">
+                {initials(fullName)}
+              </div>
+              <span className="text-xs font-semibold text-white">{fullName}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="p-6 space-y-5">
+
+        {/* Personal Information */}
+        <SectionCard icon={User} title="Personal Information" color="violet">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Input id="c-firstName" label="First Name *" placeholder="John" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errors.firstName} />
             <Input id="c-lastName" label="Last Name *" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.lastName} />
@@ -269,23 +359,23 @@ export function ConsultantForm() {
             <Input id="c-emergency" label="Emergency Contact" type="tel" placeholder="555-000-0000" value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} error={errors.emergencyContact} />
             <Input id="c-referredBy" label="Referred By" placeholder="Name or company" value={referredBy} onChange={(e) => setReferredBy(e.target.value)} />
           </div>
-        </div>
+        </SectionCard>
 
-        {/* ── Address ── */}
-        <div>
-          <SectionLabel>Address</SectionLabel>
+        {/* Address */}
+        <SectionCard icon={MapPin} title="Address" color="blue">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Input id="c-addr1" label="Address Line 1" placeholder="123 Main St" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} className="sm:col-span-2 lg:col-span-2" />
+            <div className="sm:col-span-2">
+              <Input id="c-addr1" label="Address Line 1" placeholder="123 Main St" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+            </div>
             <Input id="c-addr2" label="Address Line 2" placeholder="Apt 4B" value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
             <Input id="c-city" label="City" placeholder="Chicago" value={city} onChange={(e) => setCity(e.target.value)} />
             <Input id="c-state" label="State" placeholder="IL" value={state} onChange={(e) => setState(e.target.value)} />
             <Input id="c-zip" label="Zip Code" placeholder="60601" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
           </div>
-        </div>
+        </SectionCard>
 
-        {/* ── University ── */}
-        <div>
-          <SectionLabel>University</SectionLabel>
+        {/* University */}
+        <SectionCard icon={BookOpen} title="University" color="indigo">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Input id="c-uniName" label="University Name" placeholder="University of Illinois" value={universityName} onChange={(e) => setUniversityName(e.target.value)} />
             <Input id="c-uniLoc" label="University Location" placeholder="Champaign, IL" value={universityLocation} onChange={(e) => setUniversityLocation(e.target.value)} />
@@ -295,127 +385,90 @@ export function ConsultantForm() {
             <Input id="c-dsoEmail" label="DSO Email" type="email" placeholder="dso@university.edu" value={dsoEmail} onChange={(e) => setDsoEmail(e.target.value)} error={errors.dsoEmail} />
             <Input id="c-dsoPhone" label="DSO Phone" type="tel" placeholder="555-000-0000" value={dsoPhone} onChange={(e) => setDsoPhone(e.target.value)} error={errors.dsoPhone} />
           </div>
-        </div>
+        </SectionCard>
 
-        {/* ── Visa ── */}
-        <div>
-          <SectionLabel>Visa Information</SectionLabel>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Select
-              id="c-visaStatus" label="Visa Status"
-              options={VISA_STATUSES.map((v) => ({ value: v, label: v }))}
-              placeholder="Select visa status" value={visaStatus}
-              onChange={(e) => setVisaStatus(e.target.value)}
-            />
-            <Input id="c-visaStart" label="Visa Start Date" type="date" value={visaStartDate} onChange={(e) => setVisaStartDate(e.target.value)} />
-            <Input id="c-visaExpiry" label="Visa Expiry Date" type="date" value={visaExpiryDate} onChange={(e) => setVisaExpiryDate(e.target.value)} error={errors.visaExpiryDate} />
+        {/* Visa */}
+        <SectionCard icon={CreditCard} title="Visa Information" color="amber">
+          <div className="space-y-4">
+            <PillChips label="Visa Status" value={visaStatus} options={VISA_STATUSES} onChange={setVisaStatus} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input id="c-visaStart" label="Visa Start Date" type="date" value={visaStartDate} onChange={(e) => setVisaStartDate(e.target.value)} />
+              <Input id="c-visaExpiry" label="Visa Expiry Date" type="date" value={visaExpiryDate} onChange={(e) => setVisaExpiryDate(e.target.value)} error={errors.visaExpiryDate} />
+            </div>
           </div>
-        </div>
+        </SectionCard>
 
-        {/* ── Onboarding ── */}
-        <div>
-          <SectionLabel>Onboarding</SectionLabel>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Input id="c-obStart" label="Onboarding Start Date" type="date" value={onboardingStartDate} onChange={(e) => setOnboardingStartDate(e.target.value)} />
-            <Select
-              id="c-offerLetter" label="Offer Letter Type"
-              options={OFFER_LETTER_TYPES.map((o) => ({ value: o, label: o }))}
-              placeholder="Select offer letter type" value={offerLetterType}
-              onChange={(e) => setOfferLetterType(e.target.value)}
-            />
-            <Input
-              id="c-payRate" label="Pay Rate (USD/hr)" placeholder="$25"
-              value={payRate} onChange={(e) => setPayRate(e.target.value)}
-              disabled={offerLetterType !== "Paid-Stem"}
-            />
-            <Select
-              id="c-hasDL" label="Has Driver License?"
-              options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]}
-              placeholder="Select" value={hasDL}
-              onChange={(e) => setHasDL(e.target.value)}
-            />
-            <Select
-              id="c-hasSSN" label="Has SSN?"
-              options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]}
-              placeholder="Select" value={hasSSN}
-              onChange={(e) => setHasSSN(e.target.value)}
-            />
-            <Input id="c-passport" label="Passport Number" placeholder="AB1234567" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} />
-            <Select
-              id="c-tech" label="Technology"
-              options={TECHNOLOGIES.map((t) => ({ value: t, label: t }))}
-              placeholder="Select technology" value={technology}
-              onChange={(e) => setTechnology(e.target.value)}
-            />
+        {/* Onboarding */}
+        <SectionCard icon={Briefcase} title="Onboarding Details" color="emerald">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Input id="c-obStart" label="Onboarding Start Date" type="date" value={onboardingStartDate} onChange={(e) => setOnboardingStartDate(e.target.value)} />
+              <Input id="c-passport" label="Passport Number" placeholder="AB1234567" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} />
+            </div>
+            <PillChips label="Offer Letter Type" value={offerLetterType} options={OFFER_LETTER_TYPES} onChange={setOfferLetterType} />
+            {offerLetterType === "Paid-Stem" && (
+              <div className="max-w-xs">
+                <Input id="c-payRate" label="Pay Rate (USD/hr)" placeholder="$25" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
+              </div>
+            )}
+            <PillChips label="Technology" value={technology} options={TECHNOLOGIES} onChange={setTechnology} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <YesNoToggle label="Has Driver License?" value={hasDL} onChange={setHasDL} />
+              <YesNoToggle label="Has SSN?" value={hasSSN} onChange={setHasSSN} />
+            </div>
           </div>
-        </div>
+        </SectionCard>
 
-        {/* ── Document Uploads ── */}
-        <div>
-          <SectionLabel>Documents</SectionLabel>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FileUpload label="Driver License" id="doc-dl" state={dlDoc} onChange={(f) => setDlDoc({ file: f, uploaded: false })} />
-            <FileUpload label="Passport" id="doc-passport" state={passportDoc} onChange={(f) => setPassportDoc({ file: f, uploaded: false })} />
-            <FileUpload label="Visa Copy" id="doc-visa" state={visaCopyDoc} onChange={(f) => setVisaCopyDoc({ file: f, uploaded: false })} />
+        {/* Documents */}
+        <SectionCard icon={FileCheck} title="Documents" color="slate">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <FileUploadCard label="Driver License" id="doc-dl" state={dlDoc} onChange={(f) => setDlDoc({ file: f, uploaded: false })} />
+            <FileUploadCard label="Passport" id="doc-passport" state={passportDoc} onChange={(f) => setPassportDoc({ file: f, uploaded: false })} />
+            <FileUploadCard label="Visa Copy" id="doc-visa" state={visaCopyDoc} onChange={(f) => setVisaCopyDoc({ file: f, uploaded: false })} />
           </div>
-        </div>
+        </SectionCard>
 
-        {/* ── Job Card ── */}
-        <div>
-          <SectionLabel>Job Card</SectionLabel>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Select
-              id="c-projStatus" label="Project Status"
-              options={PROJECT_STATUSES.map((s) => ({ value: s, label: s }))}
-              placeholder="Select project status" value={projectStatus}
-              onChange={(e) => { setProjectStatus(e.target.value); setSelectedInterview(null); setInterviewQuery(""); }}
-            />
-            <Input id="c-jobTitle" label="Job Title" placeholder="Software Engineer" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-            <Input id="c-verbalDate" label="Verbal Confirmation Date" type="date" value={verbalConfirmationDate} onChange={(e) => setVerbalConfirmationDate(e.target.value)} />
+        {/* Job Card */}
+        <SectionCard icon={FolderKanban} title="Job Card" color="rose">
+          <div className="space-y-4">
+            <PillChips label="Project Status" value={projectStatus} options={PROJECT_STATUSES} onChange={(v) => { setProjectStatus(v); setSelectedInterview(null); setInterviewQuery(""); }} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Input id="c-jobTitle" label="Job Title" placeholder="Software Engineer" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+              <Input id="c-verbalDate" label="Verbal Confirmation Date" type="date" value={verbalConfirmationDate} onChange={(e) => setVerbalConfirmationDate(e.target.value)} />
+              <Input id="c-projStart" label="Project Start Date" type="date" value={projectStartDate} onChange={(e) => setProjectStartDate(e.target.value)} />
+            </div>
 
             {showInterviewSearch && (
-              <div className="relative flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
-                <label className="text-sm font-medium text-slate-700">Interview ID</label>
+              <div className="relative flex flex-col gap-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Interview ID</label>
                 {selectedInterview ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-green-400 bg-green-50 px-3 py-2">
-                    <a
-                      href="/admin/interviews"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      {selectedInterview.interviewId}
-                    </a>
-                    <span className="text-xs text-slate-500 ml-1">({selectedInterview.interviewStatus})</span>
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedInterview(null); setInterviewQuery(""); }}
-                      className="ml-auto text-xs text-rose-500 hover:text-rose-600"
-                    >
-                      ✕
-                    </button>
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <a href="/admin/interviews" target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:underline">
+                        <ExternalLink className="h-3.5 w-3.5" />{selectedInterview.interviewId}
+                      </a>
+                      <p className="text-xs text-slate-500">{selectedInterview.interviewStatus}</p>
+                    </div>
+                    <button type="button" onClick={() => { setSelectedInterview(null); setInterviewQuery(""); }}
+                      className="text-xs font-semibold text-rose-500 hover:text-rose-600">Clear</button>
                   </div>
                 ) : (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="Type 3+ chars (e.g. I-00)"
-                      value={interviewQuery}
+                  <div className="relative">
+                    <input type="text" placeholder="Type 3+ chars (e.g. I-00)" value={interviewQuery}
                       onChange={(e) => { setInterviewQuery(e.target.value); setShowInterviewDropdown(true); }}
                       onFocus={() => setShowInterviewDropdown(true)}
-                      className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
                     {showInterviewDropdown && interviewResults.length > 0 && (
-                      <div className="absolute top-full z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+                      <div className="absolute top-full z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-xl">
                         {interviewResults.map((hit) => (
-                          <button
-                            key={hit.id}
-                            type="button"
-                            className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedInterview(hit); setInterviewQuery(hit.interviewId); setShowInterviewDropdown(false); }}
-                          >
-                            <span className="font-medium text-slate-900">{hit.interviewId}</span>
+                          <button key={hit.id} type="button"
+                            className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-indigo-50 transition-colors"
+                            onClick={() => { setSelectedInterview(hit); setInterviewQuery(hit.interviewId); setShowInterviewDropdown(false); }}>
+                            <span className="font-semibold text-indigo-700 text-sm">{hit.interviewId}</span>
                             <span className="text-xs text-slate-500">({hit.interviewStatus})</span>
                             <span className="ml-auto text-xs text-slate-400">{hit.submission.submissionId}</span>
                           </button>
@@ -423,47 +476,39 @@ export function ConsultantForm() {
                       </div>
                     )}
                     {interviewQuery.length >= 3 && interviewResults.length === 0 && (
-                      <p className="text-xs text-slate-400 mt-1">No matching interviews found</p>
+                      <p className="mt-1 text-xs text-slate-400">No matching interviews found</p>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
-            <Input id="c-projStart" label="Project Start Date" type="date" value={projectStartDate} onChange={(e) => setProjectStartDate(e.target.value)} />
-            <Input id="c-billRate" label="Bill Rate (USD/hr)" placeholder="$85" value={billRate} onChange={(e) => setBillRate(e.target.value)} />
-            <Select
-              id="c-payroll" label="Payroll Split"
-              options={PAYROLLS.map((p) => ({ value: p, label: p }))}
-              placeholder="Select split" value={payroll}
-              onChange={(e) => setPayroll(e.target.value)}
-            />
-            <Select
-              id="c-workMode" label="Work Mode"
-              options={WORK_MODES.map((w) => ({ value: w, label: w }))}
-              placeholder="Select work mode" value={workMode}
-              onChange={(e) => setWorkMode(e.target.value)}
-            />
-          </div>
-
-          <div className="mt-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Project Manager</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Input id="c-pmName" label="PM Name" placeholder="Jane Smith" value={pmName} onChange={(e) => setPmName(e.target.value)} />
-              <Input id="c-pmEmail" label="PM Email" type="email" placeholder="pm@company.com" value={pmEmail} onChange={(e) => setPmEmail(e.target.value)} error={errors.pmEmail} />
-              <Input id="c-pmPhone" label="PM Phone" type="tel" placeholder="555-000-0000" value={pmPhone} onChange={(e) => setPmPhone(e.target.value)} error={errors.pmPhone} />
+              <Input id="c-billRate" label="Bill Rate (USD/hr)" placeholder="$85" value={billRate} onChange={(e) => setBillRate(e.target.value)} />
+            </div>
+            <PillChips label="Payroll Split" value={payroll} options={PAYROLLS} onChange={setPayroll} />
+            <PillChips label="Work Mode" value={workMode} options={WORK_MODES} onChange={setWorkMode} />
+
+            <div>
+              <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">Project Manager</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Input id="c-pmName" label="PM Name" placeholder="Jane Smith" value={pmName} onChange={(e) => setPmName(e.target.value)} />
+                <Input id="c-pmEmail" label="PM Email" type="email" placeholder="pm@company.com" value={pmEmail} onChange={(e) => setPmEmail(e.target.value)} error={errors.pmEmail} />
+                <Input id="c-pmPhone" label="PM Phone" type="tel" placeholder="555-000-0000" value={pmPhone} onChange={(e) => setPmPhone(e.target.value)} error={errors.pmPhone} />
+              </div>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="flex justify-end">
-          <Button onClick={submit} disabled={isPending}>
+        <div className="flex justify-end pt-2">
+          <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <GraduationCap className="h-4 w-4" />}
             {isPending ? "Saving…" : "Save Consultant"}
           </Button>
         </div>
-      </CardContent>
+      </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
-    </Card>
+    </div>
   );
 }

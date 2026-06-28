@@ -1,11 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { Header } from "@/components/layout/header";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { PreMarketingForm } from "./premarketing-form";
-import { PreMarketingList } from "./premarketing-list";
+import { PreMarketingView } from "./premarketing-view";
 
 export default async function PreMarketingPage() {
   const session = await getSession();
@@ -19,13 +17,5 @@ export default async function PreMarketingPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  return (
-    <>
-      <Header title="Pre-Marketing" />
-      <div className="p-6 space-y-6">
-        <PreMarketingForm />
-        <PreMarketingList records={JSON.parse(JSON.stringify(records))} />
-      </div>
-    </>
-  );
+  return <PreMarketingView records={JSON.parse(JSON.stringify(records))} />;
 }

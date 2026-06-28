@@ -2,65 +2,93 @@
 
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
-import { Calendar, Loader2, Search, X, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Calendar, Loader2, Search, X, Clock, Layers, MessageSquare,
+  Link2, Users, Building2, CheckCircle2,
+} from "lucide-react";
 import { validateOptionalUrl } from "@/lib/validators";
 
 const INTERVIEW_LEVELS = ["Screening", "Level 1", "Level 2", "Level 3", "Final"];
 const INTERVIEW_STATUSES = ["Rejected", "Moved To Next Round", "Confirmation"];
-const TECH_FEEDBACKS = [
-  "Technically Strong", "Average", "Poor Technical Skills",
-  "Taking AI support", "Other",
-];
+const TECH_FEEDBACKS = ["Technically Strong", "Average", "Poor Technical Skills", "Taking AI support", "Other"];
 
 interface MySubmission {
-  id: string;
-  submissionId: string;
-  technology: string;
-  vendorCompany: string;
-  vendorRecruiterName: string;
-  vendorRecruiterEmail: string;
-  vendorRecruiterPhone: string;
-  implementationName: string | null;
-  implementationEmail: string | null;
-  implementationPhone: string | null;
-  clientName: string | null;
-  clientLocation: string | null;
+  id: string; submissionId: string; technology: string; vendorCompany: string;
+  vendorRecruiterName: string; vendorRecruiterEmail: string; vendorRecruiterPhone: string;
+  implementationName: string | null; implementationEmail: string | null; implementationPhone: string | null;
+  clientName: string | null; clientLocation: string | null;
   consultant: { firstName: string; lastName: string };
 }
 
 interface TechSupportPerson {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneNumber: string | null;
+  id: string; firstName: string; lastName: string; email: string; phoneNumber: string | null;
 }
 
 interface Props {
-  recruiterId: string;
-  recruiterName: string;
-  nextInterviewId: string;
-  mySubmissions: MySubmission[];
+  recruiterId: string; recruiterName: string; nextInterviewId: string; mySubmissions: MySubmission[];
+  onSuccess?: () => void;
 }
 
-const EMPTY_FORM = {
-  submissionId: "",
-  interviewStartDate: "",
-  interviewEndDate: "",
-  interviewLevel: "",
-  interviewStatus: "",
-  techSupportId: "",
-  amount: "",
-  techSupportFeedback: "",
-  otterLink: "",
-  interviewQuestions: "",
-  interviewFeedback: "",
-};
+function initials(name: string) {
+  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function PillChips({ label, value, options, onChange, required, colorActive }: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void;
+  required?: boolean; colorActive?: string;
+}) {
+  const STATUS_COLOR: Record<string, string> = {
+    Rejected: "border-rose-500 bg-rose-500 text-white",
+    "Moved To Next Round": "border-amber-500 bg-amber-500 text-white",
+    Confirmation: "border-emerald-500 bg-emerald-500 text-white",
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}{required && " *"}
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt) => (
+          <button key={opt} type="button" onClick={() => onChange(value === opt ? "" : opt)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
+              value === opt
+                ? (STATUS_COLOR[opt] ?? `border-indigo-500 bg-indigo-500 text-white shadow-sm`)
+                : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50"
+            )}>{opt}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ icon: Icon, title, subtitle, color, children }: {
+  icon: React.ElementType; title: string; subtitle?: string; color: string; children: React.ReactNode;
+}) {
+  const colorMap: Record<string, { bg: string; border: string; icon: string }> = {
+    indigo: { bg: "bg-indigo-50", border: "border-indigo-100", icon: "text-indigo-500" },
+    violet: { bg: "bg-violet-50", border: "border-violet-100", icon: "text-violet-500" },
+    amber:  { bg: "bg-amber-50",  border: "border-amber-100",  icon: "text-amber-500" },
+    emerald:{ bg: "bg-emerald-50",border: "border-emerald-100",icon: "text-emerald-500" },
+    slate:  { bg: "bg-slate-50",  border: "border-slate-100",  icon: "text-slate-500" },
+    blue:   { bg: "bg-blue-50",   border: "border-blue-100",   icon: "text-blue-500" },
+  };
+  const c = colorMap[color] ?? colorMap.slate;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={cn("flex items-center gap-2.5 rounded-t-xl border-b px-4 py-3", c.bg, c.border)}>
+        <Icon className={cn("h-4 w-4 shrink-0", c.icon)} />
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-700">{title}</span>
+        {subtitle && <span className="ml-1 text-[10px] text-slate-400">{subtitle}</span>}
+      </div>
+      <div className="p-4 space-y-4">{children}</div>
+    </div>
+  );
+}
 
 function calcDuration(start: string, end: string): string {
   if (!start || !end) return "";
@@ -73,20 +101,23 @@ function calcDuration(start: string, end: string): string {
   return `${mins} min`;
 }
 
-export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }: Props) {
+const EMPTY_FORM = {
+  submissionId: "", interviewStartDate: "", interviewEndDate: "",
+  interviewLevel: "", interviewStatus: "", techSupportId: "",
+  amount: "", techSupportFeedback: "", otterLink: "",
+  interviewQuestions: "", interviewFeedback: "",
+};
+
+export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, onSuccess }: Props) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY_FORM, string>>>({});
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
   const router = useRouter();
-
-  // Selected submission details (auto-populated)
   const [selectedSub, setSelectedSub] = useState<MySubmission | null>(null);
   const [subQuery, setSubQuery] = useState("");
   const [showSubDropdown, setShowSubDropdown] = useState(false);
   const subRef = useRef<HTMLDivElement>(null);
-
-  // Tech support search
   const [tsQuery, setTsQuery] = useState("");
   const [tsResults, setTsResults] = useState<TechSupportPerson[]>([]);
   const [tsSearching, setTsSearching] = useState(false);
@@ -95,16 +126,12 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }:
   const tsRef = useRef<HTMLDivElement>(null);
   const tsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Filter submissions client-side
   const filteredSubs = mySubmissions.filter((s) => {
     const q = subQuery.toLowerCase();
-    return (
-      s.submissionId.toLowerCase().includes(q) ||
-      `${s.consultant.firstName} ${s.consultant.lastName}`.toLowerCase().includes(q)
-    );
+    return s.submissionId.toLowerCase().includes(q) ||
+      `${s.consultant.firstName} ${s.consultant.lastName}`.toLowerCase().includes(q);
   });
 
-  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (subRef.current && !subRef.current.contains(e.target as Node)) setShowSubDropdown(false);
@@ -119,8 +146,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }:
     setTsSearching(true);
     try {
       const res = await fetch(`/api/tech-support/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setTsResults(data);
+      setTsResults(await res.json());
       setShowTsDropdown(true);
     } catch { setTsResults([]); }
     finally { setTsSearching(false); }
@@ -139,11 +165,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }:
     setShowSubDropdown(false);
   };
 
-  const clearSubmission = () => {
-    setSelectedSub(null);
-    setSubQuery("");
-    setForm((p) => ({ ...p, submissionId: "" }));
-  };
+  const clearSubmission = () => { setSelectedSub(null); setSubQuery(""); setForm((p) => ({ ...p, submissionId: "" })); };
 
   const selectTechSupport = (ts: TechSupportPerson) => {
     setSelectedTs(ts);
@@ -152,11 +174,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }:
     setShowTsDropdown(false);
   };
 
-  const clearTechSupport = () => {
-    setSelectedTs(null);
-    setTsQuery("");
-    setForm((p) => ({ ...p, techSupportId: "" }));
-  };
+  const clearTechSupport = () => { setSelectedTs(null); setTsQuery(""); setForm((p) => ({ ...p, techSupportId: "" })); };
 
   const set = (field: keyof typeof EMPTY_FORM) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -182,29 +200,24 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }:
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
-
     startTransition(async () => {
       try {
         const res = await fetch("/api/interviews", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            submissionId: form.submissionId,
-            interviewStartDate: form.interviewStartDate,
-            interviewEndDate: form.interviewEndDate,
-            interviewLevel: form.interviewLevel,
-            interviewStatus: form.interviewStatus,
-            techSupportId: form.techSupportId || null,
-            amount: form.amount,
-            techSupportFeedback: form.techSupportFeedback,
-            otterLink: form.otterLink,
-            interviewQuestions: form.interviewQuestions,
+            submissionId: form.submissionId, interviewStartDate: form.interviewStartDate,
+            interviewEndDate: form.interviewEndDate, interviewLevel: form.interviewLevel,
+            interviewStatus: form.interviewStatus, techSupportId: form.techSupportId || null,
+            amount: form.amount, techSupportFeedback: form.techSupportFeedback,
+            otterLink: form.otterLink, interviewQuestions: form.interviewQuestions,
             interviewFeedback: form.interviewFeedback,
           }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to save interview");
         show(`Interview ${data.interviewId} created successfully`, "success");
+        onSuccess?.();
         setForm(EMPTY_FORM);
         setSubQuery(""); setSelectedSub(null);
         setTsQuery(""); setSelectedTs(null);
@@ -216,279 +229,275 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions }:
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-indigo-600" />
-          New Interview
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-
-        {/* Row 1 — Auto fields */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Interview ID *</label>
-            <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-mono text-slate-600 select-none">
-              {nextInterviewId}
-            </div>
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Gradient header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
+        <div className="relative flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <Calendar className="h-6 w-6 text-white" />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Recruiter Name *</label>
-            <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 select-none">
-              {recruiterName}
+          <div>
+            <h2 className="text-lg font-bold text-white">Schedule Interview</h2>
+            <p className="text-sm text-white/70">Log and track a new interview session</p>
+          </div>
+          <div className="ml-auto flex items-center gap-3">
+            <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Interview ID</p>
+              <p className="text-xs font-bold text-white font-mono">{nextInterviewId}</p>
+            </div>
+            <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Recruiter</p>
+              <p className="text-xs font-semibold text-white">{recruiterName}</p>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Submission search */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1" ref={subRef}>
-            <label className="text-sm font-medium text-slate-700">Submission ID *</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search by Sub ID or consultant…"
-                value={subQuery}
-                onChange={(e) => { setSubQuery(e.target.value); setShowSubDropdown(true); if (selectedSub) clearSubmission(); }}
-                onFocus={() => setShowSubDropdown(true)}
-                className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              {selectedSub && (
-                <button type="button" onClick={clearSubmission} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-              {showSubDropdown && filteredSubs.length > 0 && (
-                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                  {filteredSubs.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); selectSubmission(s); }}
-                        className="flex w-full flex-col px-3 py-2 text-left hover:bg-blue-50 transition-colors"
-                      >
-                        <span className="text-sm font-semibold text-blue-700">{s.submissionId}</span>
-                        <span className="text-xs text-slate-500">
-                          {s.consultant.firstName} {s.consultant.lastName} · {s.technology}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {showSubDropdown && filteredSubs.length === 0 && subQuery && (
-                <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-center text-sm text-slate-400 shadow-lg">
-                  No submissions found
+      <div className="p-6 space-y-5">
+
+        {/* Submission Selection */}
+        <SectionCard icon={Users} title="Submission" color="indigo">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Submission search */}
+            <div ref={subRef}>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Submission ID *
+              </label>
+              {selectedSub ? (
+                <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+                    {initials(`${selectedSub.consultant.firstName} ${selectedSub.consultant.lastName}`)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-indigo-700">{selectedSub.submissionId}</p>
+                    <p className="text-xs text-slate-600">{selectedSub.consultant.firstName} {selectedSub.consultant.lastName} · {selectedSub.technology}</p>
+                  </div>
+                  <button type="button" onClick={clearSubmission}
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Search by Sub ID or consultant…" value={subQuery}
+                    onChange={(e) => { setSubQuery(e.target.value); setShowSubDropdown(true); if (selectedSub) clearSubmission(); }}
+                    onFocus={() => setShowSubDropdown(true)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
+                  {selectedSub && (
+                    <button type="button" onClick={clearSubmission} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  {showSubDropdown && filteredSubs.length > 0 && (
+                    <ul className="absolute z-30 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                      {filteredSubs.map((s) => (
+                        <li key={s.id}>
+                          <button type="button" onMouseDown={(e) => { e.preventDefault(); selectSubmission(s); }}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-indigo-50 transition-colors">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+                              {initials(`${s.consultant.firstName} ${s.consultant.lastName}`)}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-indigo-700">{s.submissionId}</p>
+                              <p className="text-xs text-slate-500">{s.consultant.firstName} {s.consultant.lastName} · {s.technology}</p>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {showSubDropdown && filteredSubs.length === 0 && subQuery && (
+                    <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm text-slate-400 shadow-xl">
+                      No submissions found
+                    </div>
+                  )}
                 </div>
               )}
+              {errors.submissionId && <p className="mt-1 text-xs text-rose-500">{errors.submissionId}</p>}
             </div>
-            {errors.submissionId && <p className="text-xs text-rose-500">{errors.submissionId}</p>}
+
+            {/* Consultant auto-populated */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Consultant</label>
+              <div className="flex h-10 items-center rounded-xl border border-slate-100 bg-slate-50 px-3 text-sm text-slate-600">
+                {selectedSub ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[9px] font-bold text-indigo-700">
+                      {initials(`${selectedSub.consultant.firstName} ${selectedSub.consultant.lastName}`)}
+                    </div>
+                    <span>{selectedSub.consultant.firstName} {selectedSub.consultant.lastName}</span>
+                  </div>
+                ) : <span className="text-slate-400">Auto-populated from submission</span>}
+              </div>
+            </div>
           </div>
+        </SectionCard>
 
-          {/* Consultant — auto-populated */}
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Consultant Name</label>
-            <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 select-none">
-              {selectedSub
-                ? `${selectedSub.consultant.firstName} ${selectedSub.consultant.lastName}`
-                : <span className="text-slate-400">Auto-populated from submission</span>}
+        {/* Schedule */}
+        <SectionCard icon={Clock} title="Interview Schedule" color="violet">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 items-start">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Start Date & Time *</label>
+              <input id="startDate" type="datetime-local" value={form.interviewStartDate} onChange={set("interviewStartDate")}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
+              {errors.interviewStartDate && <p className="mt-1 text-xs text-rose-500">{errors.interviewStartDate}</p>}
             </div>
-          </div>
-        </div>
-
-        {/* Interview Date/Time + Duration */}
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Interview Schedule</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 items-end">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="startDate" className="text-sm font-medium text-slate-700">Start Date & Time *</label>
-              <input
-                id="startDate"
-                type="datetime-local"
-                value={form.interviewStartDate}
-                onChange={set("interviewStartDate")}
-                className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              {errors.interviewStartDate && <p className="text-xs text-rose-500">{errors.interviewStartDate}</p>}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">End Date & Time *</label>
+              <input id="endDate" type="datetime-local" value={form.interviewEndDate} onChange={set("interviewEndDate")}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
+              {errors.interviewEndDate && <p className="mt-1 text-xs text-rose-500">{errors.interviewEndDate}</p>}
             </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="endDate" className="text-sm font-medium text-slate-700">End Date & Time *</label>
-              <input
-                id="endDate"
-                type="datetime-local"
-                value={form.interviewEndDate}
-                onChange={set("interviewEndDate")}
-                className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              {errors.interviewEndDate && <p className="text-xs text-rose-500">{errors.interviewEndDate}</p>}
-            </div>
-
-            {/* Duration badge */}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-700">Duration</label>
-              <div className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium ${
-                duration
-                  ? "border-green-200 bg-green-50 text-green-700"
-                  : "border-slate-200 bg-slate-50 text-slate-400"
-              }`}>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Duration</label>
+              <div className={cn("flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium",
+                duration ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-100 bg-slate-50 text-slate-400")}>
                 <Clock className="h-4 w-4 shrink-0" />
                 {duration || "—"}
               </div>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
-        {/* Level + Status */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Select
-            id="interviewLevel"
-            label="Interview Level *"
-            options={INTERVIEW_LEVELS.map((l) => ({ value: l, label: l }))}
-            placeholder="Select level"
-            value={form.interviewLevel}
-            onChange={set("interviewLevel")}
-            error={errors.interviewLevel}
-          />
-          <Select
-            id="interviewStatus"
-            label="Interview Status *"
-            options={INTERVIEW_STATUSES.map((s) => ({ value: s, label: s }))}
-            placeholder="Select status"
-            value={form.interviewStatus}
-            onChange={set("interviewStatus")}
-            error={errors.interviewStatus}
-          />
-        </div>
-
-        {/* Tech Support section */}
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Tech Support</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {/* Tech support search */}
-            <div className="flex flex-col gap-1" ref={tsRef}>
-              <label className="text-sm font-medium text-slate-700">Tech Support</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search tech support…"
-                  value={tsQuery}
-                  onChange={(e) => { setTsQuery(e.target.value); if (selectedTs) clearTechSupport(); }}
-                  className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                {tsSearching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />}
-                {selectedTs && !tsSearching && (
-                  <button type="button" onClick={clearTechSupport} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                {showTsDropdown && tsResults.length > 0 && (
-                  <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                    {tsResults.map((ts) => (
-                      <li key={ts.id}>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => { e.preventDefault(); selectTechSupport(ts); }}
-                          className="flex w-full flex-col px-3 py-2 text-left hover:bg-blue-50 transition-colors"
-                        >
-                          <span className="text-sm font-medium text-slate-900">{ts.firstName} {ts.lastName}</span>
-                          <span className="text-xs text-slate-500">{ts.email}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {showTsDropdown && tsResults.length === 0 && !tsSearching && tsQuery && (
-                  <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-center text-sm text-slate-400 shadow-lg">
-                    No tech support found
-                  </div>
-                )}
-              </div>
+        {/* Level & Status */}
+        <SectionCard icon={Layers} title="Level & Outcome" color="indigo">
+          <div className="space-y-4">
+            <div>
+              <PillChips label="Interview Level *" value={form.interviewLevel} options={INTERVIEW_LEVELS}
+                onChange={(v) => setForm((p) => ({ ...p, interviewLevel: v }))} required />
+              {errors.interviewLevel && <p className="mt-1 text-xs text-rose-500">{errors.interviewLevel}</p>}
             </div>
-
-            <Input id="amount" label="Amount" placeholder="e.g. $500" value={form.amount} onChange={set("amount")} />
-
-            <Select
-              id="techSupportFeedback"
-              label="Tech Support Feedback"
-              options={TECH_FEEDBACKS.map((f) => ({ value: f, label: f }))}
-              placeholder="Select feedback"
-              value={form.techSupportFeedback}
-              onChange={set("techSupportFeedback")}
-            />
+            <div>
+              <PillChips label="Interview Status *" value={form.interviewStatus} options={INTERVIEW_STATUSES}
+                onChange={(v) => setForm((p) => ({ ...p, interviewStatus: v }))} required />
+              {errors.interviewStatus && <p className="mt-1 text-xs text-rose-500">{errors.interviewStatus}</p>}
+            </div>
           </div>
-        </div>
+        </SectionCard>
 
-        {/* Otter Link + Interview Questions */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input id="otterLink" label="Otter Link" placeholder="https://otter.ai/…" value={form.otterLink} onChange={set("otterLink")} error={errors.otterLink} />
-          <div /> {/* spacer */}
-        </div>
+        {/* Tech Support */}
+        <SectionCard icon={Users} title="Tech Support" color="amber">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div ref={tsRef}>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tech Support Person</label>
+              {selectedTs ? (
+                <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+                    {initials(`${selectedTs.firstName} ${selectedTs.lastName}`)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{selectedTs.firstName} {selectedTs.lastName}</p>
+                    <p className="text-xs text-slate-500 truncate">{selectedTs.email}</p>
+                  </div>
+                  <button type="button" onClick={clearTechSupport}
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Search tech support…" value={tsQuery}
+                    onChange={(e) => { setTsQuery(e.target.value); if (selectedTs) clearTechSupport(); }}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" />
+                  {tsSearching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />}
+                  {showTsDropdown && tsResults.length > 0 && (
+                    <ul className="absolute z-30 mt-1 max-h-40 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                      {tsResults.map((ts) => (
+                        <li key={ts.id}>
+                          <button type="button" onMouseDown={(e) => { e.preventDefault(); selectTechSupport(ts); }}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-amber-50 transition-colors">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[10px] font-bold text-amber-700">
+                              {initials(`${ts.firstName} ${ts.lastName}`)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">{ts.firstName} {ts.lastName}</p>
+                              <p className="text-xs text-slate-500">{ts.email}</p>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {showTsDropdown && tsResults.length === 0 && !tsSearching && tsQuery && (
+                    <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm text-slate-400 shadow-xl">
+                      No tech support found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <Input id="amount" label="Amount" placeholder="e.g. $500" value={form.amount} onChange={set("amount")} />
+            <div>
+              <PillChips label="Tech Feedback" value={form.techSupportFeedback} options={TECH_FEEDBACKS}
+                onChange={(v) => setForm((p) => ({ ...p, techSupportFeedback: v }))} />
+            </div>
+          </div>
+        </SectionCard>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="interviewQuestions" className="text-sm font-medium text-slate-700">Interview Questions</label>
-          <textarea
-            id="interviewQuestions"
-            rows={5}
-            placeholder="List the interview questions asked…"
-            value={form.interviewQuestions}
-            onChange={set("interviewQuestions")}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-y"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="interviewFeedback" className="text-sm font-medium text-slate-700">Interview Feedback</label>
-          <input
-            id="interviewFeedback"
-            type="text"
-            placeholder="Overall feedback from the interview…"
-            value={form.interviewFeedback}
-            onChange={set("interviewFeedback")}
-            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </div>
-
-        {/* Vendor/Implementation/Client — auto-populated from submission (disabled) */}
-        {selectedSub && (
+        {/* Notes & Links */}
+        <SectionCard icon={MessageSquare} title="Questions & Feedback" color="blue">
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Submission Details (auto-populated)
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Otter Link</label>
+            <div className="flex items-center gap-2">
+              <Link2 className="h-4 w-4 shrink-0 text-slate-400" />
+              <input id="otterLink" type="text" placeholder="https://otter.ai/…" value={form.otterLink} onChange={set("otterLink")}
+                className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20" />
+            </div>
+            {errors.otterLink && <p className="mt-1 text-xs text-rose-500">{errors.otterLink}</p>}
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Interview Questions</label>
+            <textarea id="interviewQuestions" rows={4} placeholder="List the interview questions asked…"
+              value={form.interviewQuestions} onChange={set("interviewQuestions")}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 resize-y" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Interview Feedback</label>
+            <input id="interviewFeedback" type="text" placeholder="Overall feedback from the interview…"
+              value={form.interviewFeedback} onChange={set("interviewFeedback")}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20" />
+          </div>
+        </SectionCard>
+
+        {/* Auto-populated submission details */}
+        {selectedSub && (
+          <SectionCard icon={Building2} title="Submission Details" subtitle="auto-populated" color="slate">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[
-                { label: "Vendor Company",           value: selectedSub.vendorCompany },
-                { label: "Vendor Recruiter Name",    value: selectedSub.vendorRecruiterName },
-                { label: "Vendor Recruiter Email",   value: selectedSub.vendorRecruiterEmail },
-                { label: "Vendor Recruiter Phone",   value: selectedSub.vendorRecruiterPhone },
-                { label: "Implementation Name",      value: selectedSub.implementationName },
-                { label: "Implementation Email",     value: selectedSub.implementationEmail },
-                { label: "Implementation Phone",     value: selectedSub.implementationPhone },
-                { label: "Client Name",              value: selectedSub.clientName },
-                { label: "Client Location",          value: selectedSub.clientLocation },
+                { label: "Vendor Company",          value: selectedSub.vendorCompany },
+                { label: "Vendor Recruiter",        value: selectedSub.vendorRecruiterName },
+                { label: "Vendor Email",            value: selectedSub.vendorRecruiterEmail },
+                { label: "Vendor Phone",            value: selectedSub.vendorRecruiterPhone },
+                { label: "Implementation Name",     value: selectedSub.implementationName },
+                { label: "Implementation Email",    value: selectedSub.implementationEmail },
+                { label: "Implementation Phone",    value: selectedSub.implementationPhone },
+                { label: "Client Name",             value: selectedSub.clientName },
+                { label: "Client Location",         value: selectedSub.clientLocation },
               ].map(({ label, value }) => (
                 <div key={label} className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">{label}</label>
-                  <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 select-none truncate">
-                    {value || <span className="text-slate-400">—</span>}
+                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</label>
+                  <div className="flex items-center rounded-lg bg-slate-50 border border-slate-100 px-3 h-9 text-sm text-slate-700">
+                    {value || <span className="text-slate-300">—</span>}
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </SectionCard>
         )}
 
-        <div className="flex justify-end">
-          <Button onClick={submit} disabled={isPending}>
+        <div className="flex justify-end pt-2">
+          <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
             {isPending ? "Saving…" : "Schedule Interview"}
           </Button>
         </div>
-      </CardContent>
+      </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
-    </Card>
+    </div>
   );
 }

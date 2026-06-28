@@ -1,18 +1,34 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
-import { Briefcase, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Briefcase, Trash2, Loader2, ExternalLink, MapPin, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import type { TechSupport } from "@/generated/prisma/client";
 
-const LOCATION_VARIANT: Record<string, "success" | "info" | "default"> = {
-  USA: "success",
-  India: "info",
-  Other: "default",
+type SortDir = "asc" | "desc";
+
+function initials(name: string) {
+  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+}
+
+const TECH_COLOR: Record<string, string> = {
+  ".Net": "bg-purple-100 text-purple-700",
+  "Java": "bg-orange-100 text-orange-700",
+  "DE": "bg-cyan-100 text-cyan-700",
+  "DS/GenAi/ML": "bg-pink-100 text-pink-700",
+  "Devops": "bg-teal-100 text-teal-700",
+  "Mainframes": "bg-slate-100 text-slate-700",
+  "Networking": "bg-blue-100 text-blue-700",
+  "BA": "bg-amber-100 text-amber-700",
+  "Sales Force": "bg-indigo-100 text-indigo-700",
+};
+
+const LOCATION_STYLE: Record<string, string> = {
+  USA: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  India: "border-blue-200 bg-blue-50 text-blue-700",
+  Other: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
 export function TechSupportList({ people }: { people: TechSupport[] }) {
@@ -20,6 +36,33 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
   const [, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast, show, hide } = useToast();
+  const [sortCol, setSortCol] = useState("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortCol !== col) return <ChevronsUpDown className="h-3 w-3 opacity-30" />;
+    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
+  }
+
+  const sorted = useMemo(() => {
+    return [...people].sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      switch (sortCol) {
+        case "name":         return dir * (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`);
+        case "email":        return dir * a.email.localeCompare(b.email);
+        case "technology":   return dir * a.technology.localeCompare(b.technology);
+        case "location":     return dir * a.location.localeCompare(b.location);
+        case "availability": return dir * (a.availability ?? "").localeCompare(b.availability ?? "");
+        case "amount":       return dir * (parseFloat(a.amount ?? "0") - parseFloat(b.amount ?? "0"));
+        default: return 0;
+      }
+    });
+  }, [people, sortCol, sortDir]);
 
   const deletePerson = (id: string, name: string) => {
     if (!confirm(`Remove ${name} from tech support?`)) return;
@@ -32,100 +75,140 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
         router.refresh();
       } catch {
         show("Failed to remove tech support person", "error");
-      } finally {
-        setDeletingId(null);
-      }
+      } finally { setDeletingId(null); }
     });
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Briefcase className="h-5 w-5 text-indigo-600" />
-          Tech Support Team ({people.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-800">
-              <tr>
-                {[
-                  "Name", "Email", "Phone", "Technology",
-                  "Location", "Availability (CST)", "Amount", "Calendar", "Action",
-                ].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold text-slate-300 whitespace-nowrap text-xs uppercase tracking-wide">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {people.map((p) => (
-                <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
-                    {p.firstName} {p.lastName}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{p.email}</td>
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{p.phoneNumber}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge variant="info">{p.technology}</Badge>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge variant={LOCATION_VARIANT[p.location] ?? "default"}>
-                      {p.location}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                    {p.availability ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                    {p.amount ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {p.calendarLink ? (
-                      <a
-                        href={p.calendarLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Book
-                      </a>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={deletingId === p.id}
-                      onClick={() => deletePerson(p.id, `${p.firstName} ${p.lastName}`)}
-                      className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                    >
-                      {deletingId === p.id
-                        ? <Loader2 className="h-4 w-4 animate-spin" />
-                        : <Trash2 className="h-4 w-4" />}
-                      Remove
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {people.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
-                    No tech support added yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+  const usaCount = people.filter((p) => p.location === "USA").length;
+  const indiaCount = people.filter((p) => p.location === "India").length;
+
+  if (people.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+          <Briefcase className="h-6 w-6 text-slate-400" />
         </div>
-      </CardContent>
+        <p className="text-sm font-semibold text-slate-700">No tech support added yet</p>
+        <p className="text-xs text-slate-400 mt-1">Add your first expert using the button above</p>
+      </div>
+    );
+  }
+
+  const thCls = "px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap cursor-pointer select-none hover:bg-slate-700 transition-colors";
+  const thFixed = "px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50">
+            <Briefcase className="h-4 w-4 text-amber-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Tech Support Team</h3>
+            <p className="text-xs text-slate-500">{people.length} expert{people.length !== 1 ? "s" : ""}</p>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-2">
+          {usaCount > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
+              <MapPin className="h-3 w-3 text-emerald-500" />
+              <span className="text-xs font-semibold text-emerald-700">{usaCount} USA</span>
+            </div>
+          )}
+          {indiaCount > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1">
+              <MapPin className="h-3 w-3 text-blue-500" />
+              <span className="text-xs font-semibold text-blue-700">{indiaCount} India</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-800 text-left">
+              <th className={thCls} onClick={() => toggleSort("name")}>
+                <span className="flex items-center gap-1.5">Expert <SortIcon col="name" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("email")}>
+                <span className="flex items-center gap-1.5">Contact <SortIcon col="email" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("technology")}>
+                <span className="flex items-center gap-1.5">Technology <SortIcon col="technology" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("location")}>
+                <span className="flex items-center gap-1.5">Location <SortIcon col="location" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("availability")}>
+                <span className="flex items-center gap-1.5">Availability <SortIcon col="availability" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("amount")}>
+                <span className="flex items-center gap-1.5">Amount <SortIcon col="amount" /></span>
+              </th>
+              <th className={thFixed}>Calendar</th>
+              <th className={thFixed} />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {sorted.map((p) => {
+              const name = `${p.firstName} ${p.lastName}`;
+              return (
+                <tr key={p.id} className="hover:bg-amber-50/20 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+                        {initials(name)}
+                      </div>
+                      <p className="font-semibold text-slate-900 whitespace-nowrap">{name}</p>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <p className="text-xs text-slate-600 truncate max-w-[160px]">{p.email}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{p.phoneNumber}</p>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", TECH_COLOR[p.technology] ?? "bg-slate-100 text-slate-700")}>
+                      {p.technology}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold", LOCATION_STYLE[p.location] ?? LOCATION_STYLE.Other)}>
+                      <MapPin className="h-3 w-3" />{p.location}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">
+                    {p.availability ?? <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                    {p.amount ?? <span className="text-slate-300 font-normal">—</span>}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {p.calendarLink ? (
+                      <a href={p.calendarLink} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition-colors">
+                        <ExternalLink className="h-3 w-3" /> Book
+                      </a>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <button
+                      disabled={deletingId === p.id}
+                      onClick={() => deletePerson(p.id, name)}
+                      className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-colors disabled:opacity-40"
+                      title="Remove">
+                      {deletingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
-    </Card>
+    </div>
   );
 }

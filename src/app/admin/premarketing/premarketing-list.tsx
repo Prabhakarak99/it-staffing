@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { Send, Trash2, CheckCircle2, XCircle, Minus, CalendarRange, Users } from "lucide-react";
+import { Send, Trash2, CheckCircle2, XCircle, Minus, CalendarRange, Users, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+
+type SortDir = "asc" | "desc";
 
 interface PreMarketingRecord {
   id: string;
@@ -60,15 +62,8 @@ function CheckDot({ value, label }: { value: string | null; label: string }) {
 
 function ReadinessBar({ score, total = 8 }: { score: number; total?: number }) {
   const pct = Math.round((score / total) * 100);
-  const color =
-    pct >= 80 ? "bg-emerald-500" :
-    pct >= 50 ? "bg-amber-400" :
-    "bg-rose-400";
-  const textColor =
-    pct >= 80 ? "text-emerald-700" :
-    pct >= 50 ? "text-amber-700" :
-    "text-rose-600";
-
+  const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-rose-400";
+  const textColor = pct >= 80 ? "text-emerald-700" : pct >= 50 ? "text-amber-700" : "text-rose-600";
   return (
     <div className="flex items-center gap-2 min-w-[100px]">
       <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
@@ -103,6 +98,32 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
   const { toast, show, hide } = useToast();
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sortCol, setSortCol] = useState("consultant");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortCol !== col) return <ChevronsUpDown className="h-3 w-3 opacity-30" />;
+    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
+  }
+
+  const sorted = useMemo(() => {
+    return [...list].sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      switch (sortCol) {
+        case "consultant": return dir * (`${a.consultant.firstName} ${a.consultant.lastName}`).localeCompare(`${b.consultant.firstName} ${b.consultant.lastName}`);
+        case "score":      return dir * (readinessScore(a) - readinessScore(b));
+        case "visa":       return dir * (a.marketingVisaStatus ?? "").localeCompare(b.marketingVisaStatus ?? "");
+        case "period":     return dir * (new Date(a.marketingStartDate ?? 0).getTime() - new Date(b.marketingStartDate ?? 0).getTime());
+        case "recruiter":  return dir * (`${a.recruiter?.firstName ?? ""} ${a.recruiter?.lastName ?? ""}`).localeCompare(`${b.recruiter?.firstName ?? ""} ${b.recruiter?.lastName ?? ""}`);
+        default: return 0;
+      }
+    });
+  }, [list, sortCol, sortDir]);
 
   const deleteRecord = (id: string, name: string) => {
     if (!confirm(`Delete pre-marketing record for ${name}?`)) return;
@@ -132,14 +153,16 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
           <Send className="h-6 w-6 text-slate-400" />
         </div>
         <p className="text-sm font-semibold text-slate-700">No pre-marketing records yet</p>
-        <p className="text-xs text-slate-400 mt-1">Create one above to start tracking consultant readiness</p>
+        <p className="text-xs text-slate-400 mt-1">Create one using the button above</p>
       </div>
     );
   }
 
+  const thCls = "px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap cursor-pointer select-none hover:bg-slate-700 transition-colors";
+  const thFixed = "px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap";
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* List header */}
       <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
@@ -150,7 +173,6 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
             <p className="text-xs text-slate-500">{list.length} consultant{list.length !== 1 ? "s" : ""} tracked</p>
           </div>
         </div>
-        {/* Summary chips */}
         <div className="hidden sm:flex items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
@@ -163,40 +185,41 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-800 text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Consultant</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Status</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Readiness</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap text-center">Documents</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap text-center">Mkt Sheet</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap text-center">Training</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Visa</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">
-                <div className="flex items-center gap-1"><CalendarRange className="h-3.5 w-3.5" /> Period</div>
+              <th className={thCls} onClick={() => toggleSort("consultant")}>
+                <span className="flex items-center gap-1.5">Consultant <SortIcon col="consultant" /></span>
               </th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Recruiter</th>
-              <th className="px-4 py-3" />
+              <th className={thCls} onClick={() => toggleSort("score")}>
+                <span className="flex items-center gap-1.5">Status <SortIcon col="score" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("score")}>
+                <span className="flex items-center gap-1.5">Readiness <SortIcon col="score" /></span>
+              </th>
+              <th className={`${thFixed} text-center`}>Documents</th>
+              <th className={`${thFixed} text-center`}>Mkt Sheet</th>
+              <th className={`${thFixed} text-center`}>Training</th>
+              <th className={thCls} onClick={() => toggleSort("visa")}>
+                <span className="flex items-center gap-1.5">Visa <SortIcon col="visa" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("period")}>
+                <span className="flex items-center gap-1.5"><CalendarRange className="h-3.5 w-3.5" /> Period <SortIcon col="period" /></span>
+              </th>
+              <th className={thCls} onClick={() => toggleSort("recruiter")}>
+                <span className="flex items-center gap-1.5">Recruiter <SortIcon col="recruiter" /></span>
+              </th>
+              <th className={thFixed} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {list.map((r) => {
+            {sorted.map((r) => {
               const score = readinessScore(r);
               const startDate = fmtDate(r.marketingStartDate);
               const endDate = fmtDate(r.marketingEndDate);
-
               return (
-                <tr
-                  key={r.id}
-                  className={cn(
-                    "transition-colors hover:bg-indigo-50/30",
-                    score === 8 && "bg-emerald-50/20",
-                  )}
-                >
-                  {/* Consultant */}
+                <tr key={r.id} className={cn("transition-colors hover:bg-indigo-50/30", score === 8 && "bg-emerald-50/20")}>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
@@ -219,18 +242,8 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
                       </div>
                     </div>
                   </td>
-
-                  {/* Status */}
-                  <td className="px-4 py-3.5 whitespace-nowrap">
-                    <StatusPill score={score} />
-                  </td>
-
-                  {/* Readiness bar */}
-                  <td className="px-4 py-3.5">
-                    <ReadinessBar score={score} />
-                  </td>
-
-                  {/* Documents: DL | Visa | SSN */}
+                  <td className="px-4 py-3.5 whitespace-nowrap"><StatusPill score={score} /></td>
+                  <td className="px-4 py-3.5"><ReadinessBar score={score} /></td>
                   <td className="px-4 py-3.5">
                     <div className="flex justify-center gap-3">
                       <CheckDot value={r.dlAvailable} label="DL" />
@@ -238,8 +251,6 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
                       <CheckDot value={r.ssnAvailable} label="SSN" />
                     </div>
                   </td>
-
-                  {/* Marketing Sheet: Ready | Explained | Rev KT */}
                   <td className="px-4 py-3.5">
                     <div className="flex justify-center gap-3">
                       <CheckDot value={r.marketingSheetReady} label="Ready" />
@@ -247,39 +258,27 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
                       <CheckDot value={r.marketingSheetReverseKT} label="KT" />
                     </div>
                   </td>
-
-                  {/* Training: Sessions | Assignments */}
                   <td className="px-4 py-3.5">
                     <div className="flex justify-center gap-3">
                       <CheckDot value={r.allTrainingSessionsCompleted} label="Sess." />
                       <CheckDot value={r.allTrainingAssignmentsCompleted} label="Asgn." />
                     </div>
                   </td>
-
-                  {/* Visa status */}
                   <td className="px-4 py-3.5 whitespace-nowrap">
                     {r.marketingVisaStatus ? (
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
                         {r.marketingVisaStatus === "H4Ead" ? "H4 EAD" : r.marketingVisaStatus}
                       </span>
-                    ) : (
-                      <span className="text-slate-400 text-xs">—</span>
-                    )}
+                    ) : <span className="text-slate-400 text-xs">—</span>}
                   </td>
-
-                  {/* Period */}
                   <td className="px-4 py-3.5 whitespace-nowrap">
                     {startDate ? (
                       <div className="text-xs text-slate-700">
                         <p className="font-medium">{startDate}</p>
                         {endDate && <p className="text-slate-400">→ {endDate}</p>}
                       </div>
-                    ) : (
-                      <span className="text-slate-400 text-xs">—</span>
-                    )}
+                    ) : <span className="text-slate-400 text-xs">—</span>}
                   </td>
-
-                  {/* Recruiter */}
                   <td className="px-4 py-3.5 whitespace-nowrap">
                     {r.recruiter ? (
                       <div className="flex items-center gap-2">
@@ -290,12 +289,8 @@ export function PreMarketingList({ records }: { records: PreMarketingRecord[] })
                           {r.recruiter.firstName} {r.recruiter.lastName}
                         </span>
                       </div>
-                    ) : (
-                      <span className="text-slate-400 text-xs">—</span>
-                    )}
+                    ) : <span className="text-slate-400 text-xs">—</span>}
                   </td>
-
-                  {/* Delete */}
                   <td className="px-4 py-3.5">
                     <button
                       onClick={() => deleteRecord(r.id, `${r.consultant.firstName} ${r.consultant.lastName}`)}
