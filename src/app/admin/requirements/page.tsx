@@ -32,9 +32,15 @@ export default async function RequirementsPage() {
 
   const [todayCount, remoteCount, c2cCount, avgRateAgg, lastJob] = stats;
 
+  const serializedJobs = initialJobs.map((j) => ({
+    ...j,
+    datePosted: j.datePosted?.toISOString() ?? null,
+    dateScraped: j.dateScraped.toISOString(),
+  }));
+
   return (
     <RequirementsView
-      initialJobs={initialJobs}
+      initialJobs={serializedJobs}
       initialTotal={total}
       todayCount={todayCount}
       remoteCount={remoteCount}
