@@ -42,6 +42,7 @@ export default async function RequirementsPage() {
     <RequirementsView
       initialJobs={serializedJobs}
       initialTotal={total}
+      isApifyConfigured={!!process.env.APIFY_TOKEN}
       todayCount={todayCount}
       remoteCount={remoteCount}
       c2cCount={c2cCount}

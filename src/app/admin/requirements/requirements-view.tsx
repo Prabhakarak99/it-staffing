@@ -21,6 +21,7 @@ interface Props {
   c2cCount: number;
   avgRate: number | null;
   lastScraped: string | null;
+  isApifyConfigured: boolean;
 }
 
 function fmtTime(d: string | null) {
@@ -43,6 +44,7 @@ export function RequirementsView({
   c2cCount,
   avgRate,
   lastScraped,
+  isApifyConfigured,
 }: Props) {
   const router = useRouter();
   const { toast, show, hide } = useToast();
@@ -116,7 +118,7 @@ export function RequirementsView({
   };
 
   const handleScrape = async () => {
-    if (!process.env.NEXT_PUBLIC_APIFY_CONFIGURED && isScraping) return;
+    if (isScraping) return;
     setIsScraping(true);
     setScrapeLog(null);
     try {
@@ -186,7 +188,7 @@ export function RequirementsView({
       )}
 
       {/* APIFY_TOKEN warning */}
-      {!process.env.NEXT_PUBLIC_APIFY_CONFIGURED && (
+      {!isApifyConfigured && (
         <div className="mx-6 mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
           <p className="text-[12px] text-amber-700 font-medium">
