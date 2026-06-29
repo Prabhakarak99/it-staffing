@@ -1,5 +1,5 @@
 import { apifyClient } from "./apifyClient";
-import { extractTechnologies, extractPrimaryTechnology, extractEmail, extractPhone, extractRate, extractVisaRequirements, detectJobType, isC2CJob, detectRemote, extractClientName } from "./parserService";
+import { extractTechnologies, extractPrimaryTechnology, extractEmail, extractPhone, extractRate, extractVisaRequirements, detectJobType, detectRemote, extractClientName } from "./parserService";
 import type { ScrapedJob } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,7 +13,7 @@ function adapt(item: any): ScrapedJob {
   const { min, max } = extractRate(desc);
   const postedRaw = item.date_posted ?? item.posted_at ?? item.datePosted ?? null;
   return {
-    jobId: `google_${item.job_id ?? item.id ?? `${company}_${titleText}`.replace(/\W+/g, "_").slice(0, 40)}_${Math.random().toString(36).slice(2, 6)}`,
+    jobId: `google_${item.job_id ?? item.id ?? `${String(company ?? "").replace(/\W+/g, "_")}_${String(titleText).replace(/\W+/g, "_")}`.slice(0, 50)}_${Math.random().toString(36).slice(2, 6)}`,
     source: "Google",
     title: titleText || null,
     vendorName: company,
@@ -48,11 +48,8 @@ export async function scrapeGoogle(): Promise<ScrapedJob[]> {
     maxResultsPerQuery: 50,
   };
 
-  // lhotanok/google-jobs-results-scraper is the correct actor for Google Jobs
   const run = await apifyClient.actor("lhotanok/google-jobs-results-scraper").call(input, { waitSecs: 300 });
   const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
 
-  return (items as Record<string, unknown>[])
-    .map(adapt)
-    .filter((j) => isC2CJob(j.jobDescription ?? "") || j.jobType !== "Contract");
+  return (items as Record<string, unknown>[]).map(adapt);
 }

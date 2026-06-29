@@ -1,15 +1,16 @@
 import { apifyClient } from "./apifyClient";
-import { extractTechnologies, extractPrimaryTechnology, extractEmail, extractPhone, extractRate, extractVisaRequirements, detectJobType, isC2CJob, detectRemote, extractClientName } from "./parserService";
+import { extractTechnologies, extractPrimaryTechnology, extractEmail, extractPhone, extractRate, extractVisaRequirements, detectJobType, detectRemote, extractClientName } from "./parserService";
 import type { ScrapedJob } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function adapt(item: any): ScrapedJob {
-  const desc = String(item.description ?? item.jobDescription ?? item.fullDescription ?? "");
-  const { min, max } = extractRate(desc);
-  const titleText = String(item.positionName ?? item.title ?? "");
+  const desc = String(item.description ?? item.jobDescription ?? item.fullDescription ?? item.descriptionHtml?.replace(/<[^>]+>/g, "") ?? "");
+  const titleText = String(item.positionName ?? item.title ?? item.jobTitle ?? "");
   const combined = `${titleText} ${desc}`;
+  const { min, max } = extractRate(desc);
+  const postedRaw = item.datePosted ?? item.postingDateParsed ?? item.scrapedAt ?? null;
   return {
-    jobId: `indeed_${item.id ?? item.jobKey ?? item.url ?? Math.random().toString(36).slice(2)}`,
+    jobId: `indeed_${item.id ?? item.jobKey ?? String(item.url ?? "").split("jk=")[1]?.slice(0, 16) ?? Math.random().toString(36).slice(2)}`,
     source: "Indeed",
     title: titleText || null,
     vendorName: item.company ?? item.companyName ?? null,
@@ -26,26 +27,27 @@ function adapt(item: any): ScrapedJob {
     rateMin: min,
     rateMax: max,
     applyLink: item.url ?? item.externalApplyLink ?? null,
-    datePosted: item.datePosted ?? item.postingDateParsed ? new Date(item.datePosted ?? item.postingDateParsed) : null,
+    datePosted: postedRaw ? new Date(postedRaw) : null,
     rawData: item,
   };
 }
 
 export async function scrapeIndeed(): Promise<ScrapedJob[]> {
+  // misceres/indeed-scraper expects queries as plain strings + shared location/country
   const input = {
     queries: [
-      { query: "MES Engineer C2C",    location: "United States", jobType: "contract" },
-      { query: "SAP S4HANA C2C",      location: "United States", jobType: "contract" },
-      { query: "PLM Teamcenter C2C",  location: "United States", jobType: "contract" },
-      { query: "Pharma IT C2C",       location: "United States", jobType: "contract" },
+      "MES Engineer C2C contract",
+      "SAP S4HANA C2C contract",
+      "PLM Teamcenter C2C contract",
+      "Pharma IT C2C contract",
     ],
+    location: "United States",
+    countryCode: "US",
     maxItems: 200,
   };
 
   const run = await apifyClient.actor("misceres/indeed-scraper").call(input, { waitSecs: 300 });
   const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
 
-  return (items as Record<string, unknown>[])
-    .map(adapt)
-    .filter((j) => isC2CJob(j.jobDescription ?? "") || j.jobType !== "Contract");
+  return (items as Record<string, unknown>[]).map(adapt);
 }
