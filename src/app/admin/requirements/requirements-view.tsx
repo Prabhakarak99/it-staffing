@@ -165,7 +165,7 @@ export function RequirementsView({
             <div>
               <h1 className="text-[18px] font-bold text-white">Requirements</h1>
               <p className="mt-0.5 text-[12px] text-white/65">
-                {liveStats.total} C2C contract jobs · Apify-powered scraping
+                {liveStats.total} C2C contract jobs
               </p>
             </div>
           </div>
