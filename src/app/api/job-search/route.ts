@@ -10,12 +10,9 @@ export async function GET(req: NextRequest) {
   const technology  = searchParams.get("technology")  ?? undefined;
   const source      = searchParams.get("source")      ?? undefined;
   const jobType     = searchParams.get("jobType")     ?? undefined;
-  const isRemote    = searchParams.get("isRemote");
   const location    = searchParams.get("location")    ?? undefined;
   const keyword     = searchParams.get("keyword")     ?? undefined;
   const dateFrom    = searchParams.get("dateFrom")    ?? undefined;
-  const rateMin     = searchParams.get("rateMin")     ?? undefined;
-  const rateMax     = searchParams.get("rateMax")     ?? undefined;
   const page        = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const limit       = Math.min(50, parseInt(searchParams.get("limit") ?? "20"));
 
@@ -24,9 +21,13 @@ export async function GET(req: NextRequest) {
 
   if (technology) where.technology = { equals: technology, mode: "insensitive" };
   if (source)     where.source     = source;
-  if (jobType)    where.jobType    = { contains: jobType, mode: "insensitive" };
-  if (isRemote === "true")  where.isRemote = true;
-  if (isRemote === "false") where.isRemote = false;
+
+  // Always scope to C2C / Contract / 1099 job types
+  if (jobType) {
+    where.jobType = { contains: jobType, mode: "insensitive" };
+  } else {
+    where.jobType = { in: ["C2C", "C2C/W2", "Contract", "1099"] };
+  }
 
   if (location) {
     where.location = { contains: location, mode: "insensitive" };
@@ -44,9 +45,6 @@ export async function GET(req: NextRequest) {
   if (dateFrom) {
     where.dateScraped = { gte: new Date(dateFrom) };
   }
-
-  if (rateMin) where.rateMin = { gte: parseInt(rateMin) };
-  if (rateMax) where.rateMax = { lte: parseInt(rateMax) };
 
   const [jobs, total] = await Promise.all([
     prisma.jobSearchResult.findMany({

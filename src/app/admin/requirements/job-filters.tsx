@@ -7,22 +7,16 @@ export interface Filters {
   keyword: string;
   technology: string;
   source: string;
-  jobType: string;
-  isRemote: string;
   location: string;
   dateFrom: string;
-  rateMin: string;
-  rateMax: string;
 }
 
 export const EMPTY_FILTERS: Filters = {
-  keyword: "", technology: "", source: "", jobType: "",
-  isRemote: "", location: "", dateFrom: "", rateMin: "", rateMax: "",
+  keyword: "", technology: "", source: "", location: "", dateFrom: "",
 };
 
 const TECHNOLOGIES = ["SAP", "MES", "PLM", "Teamcenter", "Windchill", "Opcenter", "Oracle", "Salesforce", "ServiceNow", "Workday", "Veeva", "Java", "Python", "Azure", "AWS", "DevOps"];
 const SOURCES = ["LinkedIn", "Indeed", "Google"];
-const JOB_TYPES = ["C2C", "C2C/W2", "W2", "1099", "Contract"];
 
 const DATE_OPTIONS = [
   { label: "All Time", value: "" },
@@ -125,48 +119,6 @@ export function JobFilters({ filters, onChange }: Props) {
           </div>
         </div>
 
-        {/* Job Type */}
-        <div>
-          <Label>Job Type</Label>
-          <div className="flex flex-wrap gap-1.5">
-            {["", ...JOB_TYPES].map((t) => (
-              <button
-                key={t}
-                onClick={() => set("jobType")(t)}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition-all",
-                  filters.jobType === t
-                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50"
-                )}
-              >
-                {t || "All"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Remote */}
-        <div>
-          <Label>Work Type</Label>
-          <div className="flex gap-2">
-            {[{ label: "All", value: "" }, { label: "Remote Only", value: "true" }, { label: "On-site", value: "false" }].map((o) => (
-              <button
-                key={o.value}
-                onClick={() => set("isRemote")(o.value)}
-                className={cn(
-                  "flex-1 rounded-lg border py-2 text-[11px] font-semibold transition-all",
-                  filters.isRemote === o.value
-                    ? "border-cyan-500 bg-cyan-50 text-cyan-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-200"
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Location */}
         <div>
           <Label>Location</Label>
@@ -200,27 +152,6 @@ export function JobFilters({ filters, onChange }: Props) {
           </div>
         </div>
 
-        {/* Rate Range */}
-        <div>
-          <Label>Rate ($/hr)</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              placeholder="Min"
-              value={filters.rateMin}
-              onChange={(e) => set("rateMin")(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-            />
-            <span className="shrink-0 text-slate-400 text-[12px]">–</span>
-            <input
-              type="number"
-              placeholder="Max"
-              value={filters.rateMax}
-              onChange={(e) => set("rateMax")(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-            />
-          </div>
-        </div>
       </div>
     </div>
   );

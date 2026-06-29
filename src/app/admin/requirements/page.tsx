@@ -7,9 +7,12 @@ export default async function RequirementsPage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  const DEFAULT_JOB_TYPES = ["C2C", "C2C/W2", "Contract", "1099"];
+  const defaultWhere = { isActive: true, jobType: { in: DEFAULT_JOB_TYPES } };
+
   const [initialJobs, total, stats] = await Promise.all([
     prisma.jobSearchResult.findMany({
-      where: { isActive: true },
+      where: defaultWhere,
       orderBy: { dateScraped: "desc" },
       take: 20,
       select: {
@@ -20,7 +23,7 @@ export default async function RequirementsPage() {
         visaRequirements: true, jobDescription: true,
       },
     }),
-    prisma.jobSearchResult.count({ where: { isActive: true } }),
+    prisma.jobSearchResult.count({ where: defaultWhere }),
     Promise.all([
       prisma.jobSearchResult.count({ where: { isActive: true, dateScraped: { gte: todayStart } } }),
       prisma.jobSearchResult.count({ where: { isActive: true, isRemote: true } }),
