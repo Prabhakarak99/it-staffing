@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useTransition } from "react";
+import { useState, useCallback, useEffect, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -48,6 +48,8 @@ export function RequirementsView({
 }: Props) {
   const router = useRouter();
   const { toast, show, hide } = useToast();
+  const showRef = useRef(show);
+  showRef.current = show;
   const [, startTransition] = useTransition();
 
   const [jobs, setJobs] = useState<JobResult[]>(initialJobs);
@@ -75,11 +77,12 @@ export function RequirementsView({
       setJobs(data.jobs);
       setTotal(data.total);
     } catch {
-      show("Failed to load jobs", "error");
+      showRef.current("Failed to load jobs", "error");
     } finally {
       setIsLoading(false);
     }
-  }, [show]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const refreshStats = useCallback(async () => {
     try {
@@ -128,7 +131,7 @@ export function RequirementsView({
       const { total: t, saved, skipped, errors, sources } = data;
       const sourceStr = Object.entries(sources as Record<string, number>).map(([k, v]) => `${k}: ${v}`).join(", ");
       setScrapeLog(`Found ${t} jobs (${saved} saved, ${skipped} skipped) — ${sourceStr}${errors.length ? ` | Errors: ${errors.join("; ")}` : ""}`);
-      show(`Scrape complete: ${saved} new jobs saved!`, "success");
+      show(`Done: ${saved} new jobs saved!`, "success");
       await refreshStats();
       fetchJobs(filters, 1);
     } catch (err) {
@@ -172,8 +175,8 @@ export function RequirementsView({
             className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-bold text-cyan-700 shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isScraping
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Scraping…</>
-              : <><RefreshCw className="h-4 w-4" /> Scrape Now</>
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Fetching…</>
+              : <><RefreshCw className="h-4 w-4" /> Get Latest</>
             }
           </button>
         </div>
@@ -283,7 +286,7 @@ export function RequirementsView({
               <Search className="mx-auto mb-4 h-10 w-10 text-slate-300" />
               <p className="text-[14px] font-semibold text-slate-600">No jobs found</p>
               <p className="mt-1 text-[12px] text-slate-400">
-                {Object.values(filters).some((v) => v) ? "Try adjusting your filters" : "Click \"Scrape Now\" to fetch the latest C2C jobs from LinkedIn, Indeed, and Google"}
+                {Object.values(filters).some((v) => v) ? "Try adjusting your filters" : "Click \"Get Latest\" to fetch C2C jobs from LinkedIn, Indeed, and Google"}
               </p>
               {!Object.values(filters).some((v) => v) && (
                 <button
@@ -292,7 +295,7 @@ export function RequirementsView({
                   className="mt-4 inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-[13px] font-bold text-white hover:bg-cyan-700 transition-colors disabled:opacity-50"
                 >
                   {isScraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {isScraping ? "Scraping…" : "Scrape Now"}
+                  {isScraping ? "Fetching…" : "Get Latest"}
                 </button>
               )}
             </div>
