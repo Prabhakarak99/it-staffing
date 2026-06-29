@@ -31,14 +31,23 @@ function adapt(item: any): ScrapedJob {
   };
 }
 
+const SEARCH_TERMS = [
+  "MES Engineer C2C contract",
+  "SAP S4HANA C2C contract",
+  "PLM Teamcenter C2C contract",
+  "Pharma IT C2C contract",
+  "OT Security C2C contract",
+  "Siemens Opcenter C2C contract",
+];
+
 export async function scrapeLinkedIn(): Promise<ScrapedJob[]> {
-  const input = {
-    queries: ["MES Engineer", "SAP S4HANA", "PLM Teamcenter", "Pharma IT", "OT Security", "Siemens Opcenter"],
-    location: "United States",
-    contractType: "CONTRACT",
-    datePosted: "past_week",
-    limit: 100,
-  };
+  // curious_coder/linkedin-jobs-scraper requires an array of LinkedIn search URLs
+  const urls = SEARCH_TERMS.map(
+    (q) =>
+      `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(q)}&location=United%20States&f_JT=C&f_TPR=r604800`
+  );
+
+  const input = { urls, limit: 100 };
 
   const run = await apifyClient.actor("curious_coder/linkedin-jobs-scraper").call(input, { waitSecs: 300 });
   const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
