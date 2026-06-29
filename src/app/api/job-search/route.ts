@@ -22,7 +22,15 @@ export async function GET(req: NextRequest) {
     { jobType: jobType ? { contains: jobType, mode: "insensitive" } : { in: ["C2C", "C2C/W2", "Contract", "1099"] } },
   ];
 
-  if (technology) must.push({ technology: { contains: technology, mode: "insensitive" } });
+  if (technology) {
+    must.push({
+      OR: [
+        { technology:    { contains: technology, mode: "insensitive" } },
+        { title:         { contains: technology, mode: "insensitive" } },
+        { jobDescription:{ contains: technology, mode: "insensitive" } },
+      ],
+    });
+  }
   if (source)     must.push({ source });
   if (location)   must.push({ location: { contains: location, mode: "insensitive" } });
   if (dateFrom)   must.push({ dateScraped: { gte: new Date(dateFrom) } });
