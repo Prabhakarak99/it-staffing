@@ -17,34 +17,29 @@ export async function GET(req: NextRequest) {
   const limit       = Math.min(50, parseInt(searchParams.get("limit") ?? "20"));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = { isActive: true };
+  const must: any[] = [
+    { isActive: true },
+    { jobType: jobType ? { contains: jobType, mode: "insensitive" } : { in: ["C2C", "C2C/W2", "Contract", "1099"] } },
+  ];
 
-  if (technology) where.technology = { equals: technology, mode: "insensitive" };
-  if (source)     where.source     = source;
-
-  // Always scope to C2C / Contract / 1099 job types
-  if (jobType) {
-    where.jobType = { contains: jobType, mode: "insensitive" };
-  } else {
-    where.jobType = { in: ["C2C", "C2C/W2", "Contract", "1099"] };
-  }
-
-  if (location) {
-    where.location = { contains: location, mode: "insensitive" };
-  }
+  if (technology) must.push({ technology: { contains: technology, mode: "insensitive" } });
+  if (source)     must.push({ source });
+  if (location)   must.push({ location: { contains: location, mode: "insensitive" } });
+  if (dateFrom)   must.push({ dateScraped: { gte: new Date(dateFrom) } });
 
   if (keyword) {
-    where.OR = [
-      { title:          { contains: keyword, mode: "insensitive" } },
-      { jobDescription: { contains: keyword, mode: "insensitive" } },
-      { vendorName:     { contains: keyword, mode: "insensitive" } },
-      { clientName:     { contains: keyword, mode: "insensitive" } },
-    ];
+    must.push({
+      OR: [
+        { title:        { contains: keyword, mode: "insensitive" } },
+        { jobDescription:{ contains: keyword, mode: "insensitive" } },
+        { vendorName:   { contains: keyword, mode: "insensitive" } },
+        { clientName:   { contains: keyword, mode: "insensitive" } },
+        { technology:   { contains: keyword, mode: "insensitive" } },
+      ],
+    });
   }
 
-  if (dateFrom) {
-    where.dateScraped = { gte: new Date(dateFrom) };
-  }
+  const where = { AND: must };
 
   const [jobs, total] = await Promise.all([
     prisma.jobSearchResult.findMany({
