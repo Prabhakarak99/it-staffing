@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { scrapeLinkedIn } from "./linkedinScraper";
 import { scrapeIndeed } from "./indeedScraper";
@@ -89,7 +90,7 @@ export async function runAllScrapers(sources?: ("LinkedIn" | "Indeed" | "Google"
           applyLink:        job.applyLink,
           datePosted:       job.datePosted,
           dateScraped:      new Date(),
-          rawData:          job.rawData,
+          rawData:          job.rawData as Prisma.InputJsonValue,
           isActive:         true,
         },
         update: {
