@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   Search, Briefcase, Loader2, RefreshCw, ChevronLeft, ChevronRight,
   Layers, Wifi, DollarSign, Clock, BarChart3, CheckCircle2, AlertCircle,
-  Linkedin, Database,
+  Server,
 } from "lucide-react";
 import { JobCard } from "./job-card";
 import { JobFilters, EMPTY_FILTERS, type Filters } from "./job-filters";
@@ -223,11 +223,8 @@ export function RequirementsView({
           </div>
         ))}
         <div className="flex items-center gap-1.5">
-          <Database className="h-3 w-3 text-slate-400" />
+          <Server className="h-3 w-3 text-slate-400" />
           <span className="text-[11px] text-slate-400">Powered by Apify</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Linkedin className="h-3 w-3 text-slate-400" />
         </div>
       </div>
 
