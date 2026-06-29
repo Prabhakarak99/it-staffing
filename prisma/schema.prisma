@@ -238,3 +238,32 @@ model Expense {
   submittedBy User     @relation("ExpenseSubmitter", fields: [submittedById], references: [id])
   consultant  Student? @relation("ExpenseConsultant", fields: [consultantId], references: [id])
 }
+
+model JobSearchResult {
+  id               String    @id @default(cuid())
+  jobId            String    @unique
+  technology       String?
+  technologies     String[]
+  source           String
+  vendorName       String?
+  vendorEmail      String?
+  vendorPhone      String?
+  location         String?
+  isRemote         Boolean   @default(false)
+  jobDescription   String?
+  clientName       String?
+  jobType          String?
+  title            String?
+  datePosted       DateTime?
+  dateScraped      DateTime  @default(now())
+  applyLink        String?
+  rateMin          Int?
+  rateMax          Int?
+  visaRequirements String[]
+  isActive         Boolean   @default(true)
+  rawData          Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("job_search_results")
+}
