@@ -1,26 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { GraduationCap, Plus, TrendingUp, Users } from "lucide-react";
+import { GraduationCap, Plus, TrendingUp, Users, Sparkles } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
+import { ConsultantDetail } from "./consultant-detail";
 import { ConsultantForm } from "./consultant-form";
 import { ConsultantList } from "./consultant-list";
 
 interface Consultant {
   id: string; firstName: string; lastName: string; email: string;
-  personalPhone: string | null; technology: string | null; visaStatus: string | null;
+  personalPhone: string | null; technology: string | null; visaStatus: string | null; marketingVisaStatus: string | null;
   projectStatus: string | null; offerLetterType: string | null; workMode: string | null;
-  city: string | null; state: string | null; createdAt: string;
+  driveLocation: string | null;
+  comments: unknown[]; onboardingStartDate: string | null; marketingStartDate: string | null; createdAt: string;
 }
 
 interface Props {
   consultants: Consultant[];
   inMarketCount: number;
   onProjectCount: number;
+  preMarketingCount: number;
 }
 
-export function ConsultantsView({ consultants, inMarketCount, onProjectCount }: Props) {
+export function ConsultantsView({ consultants, inMarketCount, onProjectCount, preMarketingCount }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const total = consultants.length;
 
   return (
@@ -38,13 +42,17 @@ export function ConsultantsView({ consultants, inMarketCount, onProjectCount }: 
             <div>
               <h1 className="text-[18px] font-bold text-white">Consultants</h1>
               <p className="mt-0.5 text-[12px] text-white/65">
-                {total} total &nbsp;·&nbsp; {inMarketCount} in market &nbsp;·&nbsp; {onProjectCount} on project
+                {total} total &nbsp;·&nbsp; {preMarketingCount} pre-marketing &nbsp;·&nbsp; {inMarketCount} in-market &nbsp;·&nbsp; {onProjectCount} in-project
               </p>
             </div>
           </div>
 
           {/* Stats pills */}
           <div className="hidden items-center gap-2 lg:flex">
+            <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+              <Sparkles className="h-3.5 w-3.5 text-amber-200" />
+              <span className="text-[12px] font-semibold text-white">{preMarketingCount} Pre-Marketing</span>
+            </div>
             <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
               <TrendingUp className="h-3.5 w-3.5 text-indigo-200" />
               <span className="text-[12px] font-semibold text-white">{inMarketCount} In Market</span>
@@ -67,8 +75,13 @@ export function ConsultantsView({ consultants, inMarketCount, onProjectCount }: 
 
       {/* ── List ── */}
       <div className="p-6">
-        <ConsultantList consultants={consultants} />
+        <ConsultantList consultants={consultants} onSelect={setSelectedId} />
       </div>
+
+      {/* ── Consultant detail slide-over ── */}
+      <SlideOver open={!!selectedId} onClose={() => setSelectedId(null)} maxWidth="max-w-4xl">
+        {selectedId && <ConsultantDetail consultantId={selectedId} />}
+      </SlideOver>
 
       {/* ── Add Consultant slide-over ── */}
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-4xl">

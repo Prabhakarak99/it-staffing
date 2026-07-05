@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Briefcase, Loader2, Globe, Zap, User } from "lucide-react";
-import { isValidEmail, isValidPhone, validateOptionalUrl } from "@/lib/validators";
+import { isValidEmail, isValidPhone } from "@/lib/validators";
 
 const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force"];
 const LOCATIONS = ["USA", "India", "Other"];
 
 const EMPTY = {
   firstName: "", lastName: "", email: "", phoneNumber: "",
-  technology: "", location: "", availability: "", calendarLink: "", amount: "",
+  technology: "", location: "", availability: "", amount: "",
 };
 
 type FormErrors = Partial<Record<keyof typeof EMPTY, string>>;
@@ -47,8 +47,30 @@ function initials(first: string, last: string) {
   return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
 }
 
-export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) {
-  const [form, setForm] = useState(EMPTY);
+export function TechSupportForm({
+  techSupportId,
+  initialData,
+  onSuccess,
+  onCancel,
+}: {
+  techSupportId?: string;
+  initialData?: Partial<typeof EMPTY> | null;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+} = {}) {
+  const [form, setForm] = useState(() => ({
+    ...EMPTY,
+    ...(initialData ? {
+      firstName: initialData.firstName ?? "",
+      lastName: initialData.lastName ?? "",
+      email: initialData.email ?? "",
+      phoneNumber: initialData.phoneNumber ?? "",
+      technology: initialData.technology ?? "",
+      location: initialData.location ?? "",
+      availability: initialData.availability ?? "",
+      amount: initialData.amount ?? "",
+    } : {}),
+  }));
   const [errors, setErrors] = useState<FormErrors>({});
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
@@ -68,8 +90,6 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
     else if (!isValidPhone(form.phoneNumber)) errs.phoneNumber = "Invalid phone format";
     if (!form.technology) errs.technology = "Required";
     if (!form.location) errs.location = "Required";
-    const urlErr = validateOptionalUrl(form.calendarLink);
-    if (urlErr) errs.calendarLink = urlErr;
     return errs;
   };
 
@@ -79,15 +99,15 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
     setErrors({});
     startTransition(async () => {
       try {
-        const res = await fetch("/api/tech-support", {
-          method: "POST",
+        const res = await fetch(techSupportId ? `/api/tech-support/${techSupportId}` : "/api/tech-support", {
+          method: techSupportId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Failed to add tech support");
-        show(`${form.firstName} ${form.lastName} added successfully`, "success");
-        setForm(EMPTY);
+        if (!res.ok) throw new Error(data.error ?? `Failed to ${techSupportId ? "update" : "add"} tech support`);
+        show(`${form.firstName} ${form.lastName} ${techSupportId ? "updated" : "added"} successfully`, "success");
+        if (!techSupportId) setForm(EMPTY);
         router.refresh();
         onSuccess?.();
       } catch (err: unknown) {
@@ -101,16 +121,16 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Gradient header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-5">
+      <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-3">
         <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
-            <Briefcase className="h-6 w-6 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <Briefcase className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Add Tech Support</h2>
-            <p className="text-sm text-white/70">Onboard a technical support expert</p>
+            <h2 className="text-[15px] font-bold text-white">{techSupportId ? "Edit Tech Support" : "Add Tech Support"}</h2>
+            <p className="text-sm text-white/70">{techSupportId ? "Update expert details" : "Onboard a technical support expert"}</p>
           </div>
           {fullName && (
             <div className="ml-auto flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5">
@@ -123,7 +143,7 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 space-y-3">
 
         {/* Identity */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -132,12 +152,11 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
             <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Identity & Contact</span>
           </div>
           <div className="p-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Input id="ts-firstName" label="First Name *" placeholder="Jane" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
-              <Input id="ts-lastName" label="Last Name *" placeholder="Smith" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
-              <Input id="ts-email" label="Email *" type="email" placeholder="jane@company.com" value={form.email} onChange={set("email")} error={errors.email} />
-              <Input id="ts-phone" label="Phone Number *" type="tel" placeholder="555-000-0000" value={form.phoneNumber} onChange={set("phoneNumber")} error={errors.phoneNumber} />
-              <Input id="ts-calendar" label="Calendar Link" placeholder="https://calendly.com/…" value={form.calendarLink} onChange={set("calendarLink")} error={errors.calendarLink} />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Input compact id="ts-firstName" label="First Name *" placeholder="Jane" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
+              <Input compact id="ts-lastName" label="Last Name *" placeholder="Smith" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
+              <Input compact id="ts-email" label="Email *" type="email" placeholder="jane@company.com" value={form.email} onChange={set("email")} error={errors.email} />
+              <Input compact id="ts-phone" label="Phone Number *" type="tel" placeholder="555-000-0000" value={form.phoneNumber} onChange={set("phoneNumber")} error={errors.phoneNumber} />
             </div>
           </div>
         </div>
@@ -154,9 +173,9 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
                 onChange={(v) => setForm((p) => ({ ...p, technology: v }))} required />
               {errors.technology && <p className="mt-1 text-xs text-rose-500">{errors.technology}</p>}
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input id="ts-availability" label="Availability (CST Time)" placeholder="e.g. 9 AM – 6 PM CST" value={form.availability} onChange={set("availability")} />
-              <Input id="ts-amount" label="Amount (USD)" placeholder="e.g. $75/hr" value={form.amount} onChange={set("amount")} />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Input compact id="ts-availability" label="Availability (CST Time)" placeholder="e.g. 9 AM – 6 PM CST" value={form.availability} onChange={set("availability")} />
+              <Input compact id="ts-amount" label="Amount (USD)" placeholder="e.g. $75/hr" value={form.amount} onChange={set("amount")} />
             </div>
           </div>
         </div>
@@ -181,10 +200,13 @@ export function TechSupportForm({ onSuccess }: { onSuccess?: () => void } = {}) 
           </div>
         </div>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end gap-2 pt-2">
+          {onCancel && (
+            <Button variant="outline" onClick={onCancel} disabled={isPending}>Cancel</Button>
+          )}
           <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />}
-            {isPending ? "Adding…" : "Add Tech Support"}
+            {isPending ? "Saving…" : techSupportId ? "Save Changes" : "Add Tech Support"}
           </Button>
         </div>
       </div>

@@ -50,6 +50,7 @@ const NAV: NavGroup[] = [
       { label: "Onboard Recruiter", href: "/admin/recruiters", icon: UserPlus },
       { label: "Onboard Consultant", href: "/admin/students", icon: GraduationCap },
       { label: "Tech Support", href: "/admin/tech-support", icon: Briefcase },
+      { label: "Leads", href: "/admin/leads", icon: Users },
     ],
   },
   {

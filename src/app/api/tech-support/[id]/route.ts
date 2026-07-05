@@ -4,6 +4,16 @@ import { getSession } from "@/lib/auth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+  const person = await prisma.techSupport.findUnique({ where: { id } });
+  if (!person) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(person);
+}
+
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,6 +28,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       lastName: body.lastName ?? undefined,
       email: body.email ?? undefined,
       phoneNumber: body.phoneNumber ?? undefined,
+      technology: body.technology ?? undefined,
+      location: body.location ?? undefined,
+      availability: body.availability !== undefined ? (body.availability || null) : undefined,
+      amount: body.amount !== undefined ? (body.amount || null) : undefined,
     },
   });
 

@@ -4,6 +4,40 @@ import { getSession } from "@/lib/auth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+  const submission = await prisma.submission.findUnique({
+    where: { id },
+    include: {
+      recruiter: { select: { id: true, firstName: true, lastName: true, email: true } },
+      consultant: { select: { id: true, firstName: true, lastName: true, email: true, technology: true } },
+      interviews: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          interviewId: true,
+          interviewStartDate: true,
+          interviewLevel: true,
+          interviewStatus: true,
+        },
+      },
+    },
+  });
+
+  if (!submission) {
+    return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+  }
+
+  if (session.roleName === "Recruiter" && submission.recruiterId !== session.userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  return NextResponse.json(submission);
+}
+
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,23 +48,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const submission = await prisma.submission.update({
     where: { id },
     data: {
-      status: body.status ?? undefined,
-      technology: body.technology ?? undefined,
-      jobDescription: body.jobDescription ?? undefined,
-      payRate: body.payRate ?? undefined,
-      vendorCompany: body.vendorCompany ?? undefined,
-      vendorRecruiterName: body.vendorRecruiterName ?? undefined,
-      vendorRecruiterEmail: body.vendorRecruiterEmail ?? undefined,
-      vendorRecruiterPhone: body.vendorRecruiterPhone ?? undefined,
-      implementationName: body.implementationName ?? undefined,
-      implementationEmail: body.implementationEmail ?? undefined,
-      implementationPhone: body.implementationPhone ?? undefined,
-      clientName: body.clientName ?? undefined,
-      clientLocation: body.clientLocation ?? undefined,
+      ...(body.consultantId !== undefined && { consultantId: body.consultantId }),
+      ...(body.status !== undefined && { status: body.status }),
+      ...(body.technology !== undefined && { technology: body.technology }),
+      ...(body.jobDescription !== undefined && { jobDescription: body.jobDescription }),
+      ...(body.payRate !== undefined && { payRate: body.payRate }),
+      ...(body.vendorCompany !== undefined && { vendorCompany: body.vendorCompany }),
+      ...(body.vendorRecruiterName !== undefined && { vendorRecruiterName: body.vendorRecruiterName }),
+      ...(body.vendorRecruiterEmail !== undefined && { vendorRecruiterEmail: body.vendorRecruiterEmail }),
+      ...(body.vendorRecruiterPhone !== undefined && { vendorRecruiterPhone: body.vendorRecruiterPhone }),
+      ...(body.implementationName !== undefined && { implementationName: body.implementationName }),
+      ...(body.implementationEmail !== undefined && { implementationEmail: body.implementationEmail }),
+      ...(body.implementationPhone !== undefined && { implementationPhone: body.implementationPhone }),
+      ...(body.clientName !== undefined && { clientName: body.clientName }),
+      ...(body.clientLocation !== undefined && { clientLocation: body.clientLocation }),
     },
     include: {
-      recruiter: { select: { firstName: true, lastName: true } },
-      consultant: { select: { firstName: true, lastName: true } },
+      recruiter: { select: { id: true, firstName: true, lastName: true, email: true } },
+      consultant: { select: { id: true, firstName: true, lastName: true, email: true, technology: true } },
     },
   });
 

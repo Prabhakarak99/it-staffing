@@ -5,6 +5,7 @@ import { Briefcase, Plus } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
 import { TechSupportForm } from "./tech-support-form";
 import { TechSupportList } from "./tech-support-list";
+import { TechSupportDetail } from "./tech-support-detail";
 import type { TechSupport } from "@/generated/prisma/client";
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 
 export function TechSupportView({ people }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (
     <>
@@ -46,8 +48,12 @@ export function TechSupportView({ people }: Props) {
 
       {/* ── List ── */}
       <div className="p-6">
-        <TechSupportList people={people} />
+        <TechSupportList people={people} onSelect={setSelectedId} />
       </div>
+
+      <SlideOver open={!!selectedId} onClose={() => setSelectedId(null)} maxWidth="max-w-4xl">
+        {selectedId && <TechSupportDetail personId={selectedId} />}
+      </SlideOver>
 
       {/* ── Add Expert slide-over ── */}
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-3xl">

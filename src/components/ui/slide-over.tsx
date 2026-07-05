@@ -11,7 +11,7 @@ interface SlideOverProps {
   maxWidth?: string;
 }
 
-export function SlideOver({ open, onClose, children, maxWidth = "max-w-4xl" }: SlideOverProps) {
+export function SlideOver({ open, onClose, children, maxWidth = "max-w-6xl" }: SlideOverProps) {
   // Lock body scroll while open
   useEffect(() => {
     if (!open) return;

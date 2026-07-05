@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { label: "Submissions",   href: "/admin/submissions/list",   match: "/admin/submissions",   exact: false },
   { label: "Interviews",    href: "/admin/interviews/list",    match: "/admin/interviews",    exact: false },
   { label: "Recruiters",    href: "/admin/recruiters",         match: "/admin/recruiters",    exact: false },
+  { label: "Leads",         href: "/admin/leads",              match: "/admin/leads",         exact: false },
   { label: "Pre-Marketing", href: "/admin/premarketing",       match: "/admin/premarketing",  exact: false },
   { label: "Tech Support",   href: "/admin/tech-support",       match: "/admin/tech-support",    exact: false },
   { label: "Requirements",  href: "/admin/requirements",       match: "/admin/requirements",    exact: false },

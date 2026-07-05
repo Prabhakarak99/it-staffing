@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useMemo, useTransition } from "react";
 import { Toast, useToast } from "@/components/ui/toast";
+import { TabSearchBar } from "@/components/ui/tab-search-bar";
+import { HighlightText } from "@/components/ui/highlight-text";
+import { filterBySearch, searchBlob } from "@/lib/table-search";
 import { cn } from "@/lib/utils";
 import {
   Users, ToggleLeft, ToggleRight, Mail, Loader2, Trash2,
@@ -22,7 +25,7 @@ function SortIcon({ col, sortCol, sortDir }: { col: string; sortCol: string; sor
   return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
 }
 
-export function UserList({ users }: { users: UserWithRole[] }) {
+export function UserList({ users, onSelect }: { users: UserWithRole[]; onSelect?: (id: string) => void }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -30,14 +33,22 @@ export function UserList({ users }: { users: UserWithRole[] }) {
   const { toast, show, hide } = useToast();
   const [sortCol, setSortCol] = useState("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [searchQuery, setSearchQuery] = useState("");
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortCol(col); setSortDir("asc"); }
   }
 
+  const filtered = useMemo(() => {
+    return filterBySearch(users, searchQuery, (u) => searchBlob(
+      u.firstName, u.lastName, u.email, u.phoneNumber, u.role?.name,
+      u.isActive ? "Active" : "Pending",
+    ));
+  }, [users, searchQuery]);
+
   const sorted = useMemo(() => {
-    return [...users].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortCol) {
         case "name":   return dir * (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`);
@@ -47,7 +58,7 @@ export function UserList({ users }: { users: UserWithRole[] }) {
         default: return 0;
       }
     });
-  }, [users, sortCol, sortDir]);
+  }, [filtered, sortCol, sortDir]);
 
   const isActive = (user: UserWithRole) => Boolean(user.isActive);
 
@@ -68,11 +79,13 @@ export function UserList({ users }: { users: UserWithRole[] }) {
     startTransition(async () => {
       try {
         const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("Failed to delete");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Failed to delete user");
         show(`${name} deleted`, "success");
         router.refresh();
-      } catch { show("Failed to delete user", "error"); }
-      finally { setDeletingId(null); }
+      } catch (err: unknown) {
+        show(err instanceof Error ? err.message : "Failed to delete user", "error");
+      } finally { setDeletingId(null); }
     });
   };
 
@@ -113,17 +126,19 @@ export function UserList({ users }: { users: UserWithRole[] }) {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
             <Users className="h-4 w-4 text-indigo-600" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">All Users</h3>
-            <p className="text-xs text-slate-500">{users.length} total</p>
+            <p className="text-xs text-slate-500">
+              {searchQuery ? `${sorted.length} of ${users.length} shown` : `${users.length} total`}
+            </p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
           <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             <span className="text-xs font-semibold text-emerald-700">{activeCount} Active</span>
@@ -134,6 +149,7 @@ export function UserList({ users }: { users: UserWithRole[] }) {
               <span className="text-xs font-semibold text-amber-700">{pendingCount} Pending</span>
             </div>
           )}
+          <TabSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search users…" />
         </div>
       </div>
 
@@ -171,17 +187,29 @@ export function UserList({ users }: { users: UserWithRole[] }) {
                       )}>
                         {initials(name)}
                       </div>
-                      <p className="font-semibold text-slate-900 whitespace-nowrap">{name}</p>
+                      <button
+                        type="button"
+                        onClick={() => onSelect?.(user.id)}
+                        className="font-semibold text-slate-900 whitespace-nowrap text-left transition-colors hover:text-indigo-600 hover:underline"
+                      >
+                        <HighlightText text={name} query={searchQuery} />
+                      </button>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <p className="text-xs text-slate-600 truncate max-w-[160px]">{user.email}</p>
-                    {user.phoneNumber && <p className="text-xs text-slate-400 mt-0.5">{user.phoneNumber}</p>}
+                    <p className="text-xs text-slate-600 truncate max-w-[160px]">
+                      <HighlightText text={user.email} query={searchQuery} />
+                    </p>
+                    {user.phoneNumber && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        <HighlightText text={user.phoneNumber} query={searchQuery} />
+                      </p>
+                    )}
                   </td>
                   <td className="px-5 py-3.5">
                     {user.role ? (
                       <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
-                        {user.role.name}
+                        <HighlightText text={user.role.name} query={searchQuery} />
                       </span>
                     ) : <span className="text-slate-300">—</span>}
                   </td>

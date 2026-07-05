@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Toast, useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
-
-type SortDir = "asc" | "desc";
+import { Calendar } from "lucide-react";
+import { TabSearchBar } from "@/components/ui/tab-search-bar";
+import { HighlightText } from "@/components/ui/highlight-text";
+import { filterBySearch, searchBlob } from "@/lib/table-search";
+import {
+  CheckboxHeaderFilter,
+  DateHeaderFilter,
+  matchesDateFilters,
+  buildCascadingFilterOptions,
+  pruneStaleFilters,
+  type DatePreset,
+  type SortDir,
+} from "@/components/ui/table-column-filters";
 
 const INTERVIEW_STATUSES = ["Rejected", "Moved To Next Round", "Confirmation"];
 
@@ -50,26 +59,148 @@ interface InterviewRecord {
   techSupport: { firstName: string; lastName: string } | null;
 }
 
-export function InterviewList({ interviews }: { interviews: InterviewRecord[] }) {
+type SortCol =
+  | "interviewId"
+  | "date"
+  | "consultant"
+  | "recruiter"
+  | "submission"
+  | "level"
+  | "vendor"
+  | "client"
+  | "techSupport"
+  | "amount"
+  | "status";
+
+type FilterKey = Exclude<SortCol, "date">;
+type Filters = Record<FilterKey, Set<string>>;
+const FILTER_KEYS: FilterKey[] = [
+  "interviewId", "consultant", "recruiter", "submission", "level",
+  "vendor", "client", "techSupport", "amount", "status",
+];
+
+const EMPTY_FILTERS = (): Filters => ({
+  interviewId: new Set(),
+  consultant: new Set(),
+  recruiter: new Set(),
+  submission: new Set(),
+  level: new Set(),
+  vendor: new Set(),
+  client: new Set(),
+  techSupport: new Set(),
+  amount: new Set(),
+  status: new Set(),
+});
+
+function getFilterValue(interview: InterviewRecord, key: FilterKey): string {
+  switch (key) {
+    case "interviewId":
+      return interview.interviewId;
+    case "consultant":
+      return `${interview.submission.consultant.firstName} ${interview.submission.consultant.lastName}`;
+    case "recruiter":
+      return `${interview.recruiter.firstName} ${interview.recruiter.lastName}`;
+    case "submission":
+      return interview.submission.submissionId;
+    case "level":
+      return interview.interviewLevel;
+    case "vendor":
+      return interview.submission.vendorCompany;
+    case "client":
+      return interview.submission.clientName?.trim() || "—";
+    case "techSupport":
+      return interview.techSupport
+        ? `${interview.techSupport.firstName} ${interview.techSupport.lastName}`
+        : "—";
+    case "amount":
+      return interview.amount?.trim() || "—";
+    case "status":
+      return interview.interviewStatus;
+  }
+}
+
+export function InterviewList({
+  interviews,
+  onSelect,
+  initialSearch = "",
+  initialIds,
+}: {
+  interviews: InterviewRecord[];
+  onSelect?: (id: string) => void;
+  initialSearch?: string;
+  initialIds?: string[];
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { toast, show, hide } = useToast();
-  const [sortCol, setSortCol] = useState("date");
+  const [sortCol, setSortCol] = useState<SortCol>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [datePresets, setDatePresets] = useState<Set<DatePreset>>(new Set());
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
 
-  function toggleSort(col: string) {
+  useEffect(() => {
+    setSearchQuery(initialSearch);
+  }, [initialSearch]);
+
+  const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortCol(col); setSortDir("asc"); }
-  }
+  };
 
-  function SortIcon({ col }: { col: string }) {
-    if (sortCol !== col) return <ChevronsUpDown className="h-3 w-3 opacity-30" />;
-    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
-  }
+  const setFilter = (key: FilterKey, next: Set<string>) =>
+    setFilters((prev) => ({ ...prev, [key]: next }));
+
+  const scoped = useMemo(() => {
+    if (!initialIds?.length) return interviews;
+    const idSet = new Set(initialIds);
+    return interviews.filter((iv) => idSet.has(iv.id));
+  }, [interviews, initialIds]);
+
+  const searched = useMemo(() => {
+    return filterBySearch(scoped, searchQuery, (iv) => searchBlob(
+      iv.interviewId, iv.interviewLevel, iv.interviewStatus, iv.amount, iv.techSupportFeedback,
+      iv.recruiter.firstName, iv.recruiter.lastName,
+      iv.submission.submissionId, iv.submission.technology, iv.submission.vendorCompany,
+      iv.submission.clientName, iv.submission.consultant.firstName, iv.submission.consultant.lastName,
+      iv.techSupport?.firstName, iv.techSupport?.lastName,
+    ));
+  }, [scoped, searchQuery]);
+
+  const filterOptions = useMemo(() => {
+    return buildCascadingFilterOptions(
+      searched,
+      filters,
+      FILTER_KEYS,
+      getFilterValue,
+      (interview) => matchesDateFilters(interview.interviewStartDate, datePresets, customFrom, customTo),
+    );
+  }, [searched, filters, datePresets, customFrom, customTo]);
+
+  useEffect(() => {
+    setFilters((prev) => {
+      const pruned = pruneStaleFilters(prev, filterOptions);
+      return pruned ?? prev;
+    });
+  }, [filterOptions]);
+
+  const filtered = useMemo(() => {
+    return searched.filter((interview) => {
+      const matchesFields = (Object.keys(filters) as FilterKey[]).every((key) => {
+        const selected = filters[key];
+        if (selected.size === 0) return true;
+        return selected.has(getFilterValue(interview, key));
+      });
+      if (!matchesFields) return false;
+      return matchesDateFilters(interview.interviewStartDate, datePresets, customFrom, customTo);
+    });
+  }, [searched, filters, datePresets, customFrom, customTo]);
 
   const sorted = useMemo(() => {
-    return [...interviews].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortCol) {
         case "interviewId":  return dir * a.interviewId.localeCompare(b.interviewId);
@@ -86,7 +217,13 @@ export function InterviewList({ interviews }: { interviews: InterviewRecord[] })
         default: return 0;
       }
     });
-  }, [interviews, sortCol, sortDir]);
+  }, [filtered, sortCol, sortDir]);
+
+  const activeFilterCount = useMemo(() => {
+    const fieldCount = (Object.values(filters) as Set<string>[]).filter((set) => set.size > 0).length;
+    const dateCount = datePresets.size > 0 || customFrom || customTo ? 1 : 0;
+    return fieldCount + dateCount;
+  }, [filters, datePresets, customFrom, customTo]);
 
   const fmtDate = (d: string | Date) =>
     new Date(d).toLocaleDateString("en-US", { dateStyle: "medium" });
@@ -110,128 +247,263 @@ export function InterviewList({ interviews }: { interviews: InterviewRecord[] })
     });
   };
 
-  const thCls = "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-300 whitespace-nowrap cursor-pointer select-none hover:bg-slate-700 transition-colors";
   const thFixed = "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-300 whitespace-nowrap";
+  const filterAccent = "text-indigo-600";
+  const filterHover = "hover:bg-indigo-50";
+  const openInterview = (id: string) => {
+    if (onSelect) onSelect(id);
+    else router.push(`/admin/interviews/${id}`);
+  };
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
-          <Calendar className="h-4 w-4 text-indigo-600" />
+      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
+            <Calendar className="h-4 w-4 text-indigo-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">All Interviews</h3>
+            <p className="text-xs text-slate-500">
+              {activeFilterCount > 0 || searchQuery || initialIds?.length
+                ? `${sorted.length} of ${initialIds?.length ? scoped.length : interviews.length} shown`
+                : `${interviews.length} total`}
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-sm font-bold text-slate-900">All Interviews</h3>
-          <p className="text-xs text-slate-500">{interviews.length} total</p>
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setFilters(EMPTY_FILTERS());
+              setDatePresets(new Set());
+              setCustomFrom("");
+              setCustomTo("");
+            }}
+            className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+          >
+            Clear all filters ({activeFilterCount})
+          </button>
+        )}
+          <TabSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search interviews…" />
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-800">
             <tr>
-              <th className={thCls} onClick={() => toggleSort("interviewId")}>
-                <span className="flex items-center gap-1.5">Interview ID <SortIcon col="interviewId" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("date")}>
-                <span className="flex items-center gap-1.5">Date <SortIcon col="date" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("consultant")}>
-                <span className="flex items-center gap-1.5">Consultant <SortIcon col="consultant" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("recruiter")}>
-                <span className="flex items-center gap-1.5">Recruiter <SortIcon col="recruiter" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("submission")}>
-                <span className="flex items-center gap-1.5">Submission <SortIcon col="submission" /></span>
-              </th>
+              <CheckboxHeaderFilter
+                label="Interview ID"
+                sortCol="interviewId"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.interviewId}
+                selected={filters.interviewId}
+                onChange={(next) => setFilter("interviewId", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <DateHeaderFilter
+                sortCol="date"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                selectedPresets={datePresets}
+                onPresetsChange={setDatePresets}
+                customFrom={customFrom}
+                customTo={customTo}
+                onCustomFromChange={setCustomFrom}
+                onCustomToChange={setCustomTo}
+                accentClass={filterAccent}
+              />
+              <CheckboxHeaderFilter
+                label="Consultant"
+                sortCol="consultant"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.consultant}
+                selected={filters.consultant}
+                onChange={(next) => setFilter("consultant", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Recruiter"
+                sortCol="recruiter"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.recruiter}
+                selected={filters.recruiter}
+                onChange={(next) => setFilter("recruiter", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Submission"
+                sortCol="submission"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.submission}
+                selected={filters.submission}
+                onChange={(next) => setFilter("submission", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
               <th className={thFixed}>Duration</th>
-              <th className={thCls} onClick={() => toggleSort("level")}>
-                <span className="flex items-center gap-1.5">Level <SortIcon col="level" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("vendor")}>
-                <span className="flex items-center gap-1.5">Vendor <SortIcon col="vendor" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("client")}>
-                <span className="flex items-center gap-1.5">Client <SortIcon col="client" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("techSupport")}>
-                <span className="flex items-center gap-1.5">Tech Support <SortIcon col="techSupport" /></span>
-              </th>
-              <th className={thCls} onClick={() => toggleSort("amount")}>
-                <span className="flex items-center gap-1.5">Amount <SortIcon col="amount" /></span>
-              </th>
-              <th className={thFixed}>Status</th>
+              <CheckboxHeaderFilter
+                label="Level"
+                sortCol="level"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.level}
+                selected={filters.level}
+                onChange={(next) => setFilter("level", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Vendor"
+                sortCol="vendor"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.vendor}
+                selected={filters.vendor}
+                onChange={(next) => setFilter("vendor", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Client"
+                sortCol="client"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.client}
+                selected={filters.client}
+                onChange={(next) => setFilter("client", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Tech Support"
+                sortCol="techSupport"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.techSupport}
+                selected={filters.techSupport}
+                onChange={(next) => setFilter("techSupport", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Amount"
+                sortCol="amount"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.amount}
+                selected={filters.amount}
+                onChange={(next) => setFilter("amount", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
+              <CheckboxHeaderFilter
+                label="Status"
+                sortCol="status"
+                sortDir={sortDir}
+                currentSort={sortCol}
+                onSort={toggleSort}
+                options={filterOptions.status}
+                selected={filters.status}
+                onChange={(next) => setFilter("status", next)}
+                accentClass={filterAccent}
+                hoverClass={filterHover}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sorted.map((iv) => (
-              <tr key={iv.id} className="hover:bg-indigo-50/30 transition-colors">
-                <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
-                  <Link
-                    href={`/admin/interviews/${iv.id}`}
-                    className="text-blue-700 hover:text-blue-900 hover:underline"
-                  >
-                    {iv.interviewId}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                  {fmtDate(iv.interviewStartDate)}
-                </td>
-                <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap text-xs">
-                  {iv.submission.consultant.firstName} {iv.submission.consultant.lastName}
-                </td>
-                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                  {iv.recruiter.firstName} {iv.recruiter.lastName}
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
-                  {iv.submission.submissionId}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                    {calcDuration(iv.interviewStartDate, iv.interviewEndDate)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <Badge variant={LEVEL_VARIANT[iv.interviewLevel] ?? "default"}>
-                    {iv.interviewLevel}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                  {iv.submission.vendorCompany}
-                </td>
-                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                  {iv.submission.clientName ?? "—"}
-                  {iv.submission.clientLocation && (
-                    <span className="block text-xs text-slate-400">{iv.submission.clientLocation}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                  {iv.techSupport
-                    ? `${iv.techSupport.firstName} ${iv.techSupport.lastName}`
-                    : "—"}
-                </td>
-                <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
-                  {iv.amount ?? "—"}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <select
-                    value={iv.interviewStatus}
-                    disabled={updatingId === iv.id}
-                    onChange={(e) => updateStatus(iv.id, e.target.value)}
-                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 disabled:opacity-50"
-                  >
-                    {INTERVIEW_STATUSES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-            ))}
-            {interviews.length === 0 && (
+            {sorted.length === 0 ? (
               <tr>
                 <td colSpan={12} className="py-12 text-center text-slate-400">
-                  No interviews yet.
+                  {interviews.length === 0 ? "No interviews yet." : "No interviews match the selected filters."}
                 </td>
               </tr>
+            ) : (
+              sorted.map((iv) => (
+                <tr key={iv.id} className="hover:bg-indigo-50/30 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => openInterview(iv.id)}
+                      className="text-blue-700 hover:text-blue-900 hover:underline"
+                    >
+                      <HighlightText text={iv.interviewId} query={searchQuery} />
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                    <HighlightText text={fmtDate(iv.interviewStartDate)} query={searchQuery} />
+                  </td>
+                  <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap text-xs">
+                    <HighlightText text={`${iv.submission.consultant.firstName} ${iv.submission.consultant.lastName}`} query={searchQuery} />
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                    <HighlightText text={`${iv.recruiter.firstName} ${iv.recruiter.lastName}`} query={searchQuery} />
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
+                    <HighlightText text={iv.submission.submissionId} query={searchQuery} />
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                      <HighlightText text={calcDuration(iv.interviewStartDate, iv.interviewEndDate)} query={searchQuery} />
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <Badge variant={LEVEL_VARIANT[iv.interviewLevel] ?? "default"}>
+                      <HighlightText text={iv.interviewLevel} query={searchQuery} />
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                    <HighlightText text={iv.submission.vendorCompany} query={searchQuery} />
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                    <HighlightText text={iv.submission.clientName} query={searchQuery} />
+                    {iv.submission.clientLocation && (
+                      <span className="block text-xs text-slate-400">
+                        <HighlightText text={iv.submission.clientLocation} query={searchQuery} />
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                    <HighlightText
+                      text={iv.techSupport ? `${iv.techSupport.firstName} ${iv.techSupport.lastName}` : undefined}
+                      query={searchQuery}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                    <HighlightText text={iv.amount} query={searchQuery} />
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <select
+                      value={iv.interviewStatus}
+                      disabled={updatingId === iv.id}
+                      onChange={(e) => updateStatus(iv.id, e.target.value)}
+                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 disabled:opacity-50"
+                    >
+                      {INTERVIEW_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>

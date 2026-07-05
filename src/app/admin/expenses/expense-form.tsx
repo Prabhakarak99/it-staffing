@@ -118,22 +118,70 @@ function PersonSearch({ label, query, setQuery, results, isSearching, showDropdo
   );
 }
 
-export function ExpenseForm() {
-  const [form, setForm] = useState(EMPTY);
+export function ExpenseForm({
+  existingExpense,
+  onSuccess,
+  onCancel,
+}: {
+  existingExpense?: {
+    id: string;
+    expenseId: string;
+    date: string;
+    category: string;
+    description: string | null;
+    amount: number;
+    location: string;
+    receiptFile?: string | null;
+    status: string;
+    notes: string | null;
+    submittedBy: { id: string; firstName: string; lastName: string };
+    consultant: { id: string; firstName: string; lastName: string } | null;
+  };
+  onSuccess?: (expense?: {
+    id: string;
+    expenseId: string;
+    date: string;
+    category: string;
+    description: string | null;
+    amount: number;
+    location: string;
+    receiptFile: string | null;
+    status: string;
+    notes: string | null;
+    submittedBy: { id: string; firstName: string; lastName: string; email: string };
+    consultant: { id: string; firstName: string; lastName: string } | null;
+  }) => void;
+  onCancel?: () => void;
+} = {}) {
+  const toDateInput = (d: string) => new Date(d).toISOString().split("T")[0];
+
+  const [form, setForm] = useState(() => existingExpense ? {
+    date: toDateInput(existingExpense.date),
+    submittedById: existingExpense.submittedBy.id,
+    submittedByName: `${existingExpense.submittedBy.firstName} ${existingExpense.submittedBy.lastName}`,
+    consultantId: existingExpense.consultant?.id ?? "",
+    consultantName: existingExpense.consultant ? `${existingExpense.consultant.firstName} ${existingExpense.consultant.lastName}` : "",
+    category: existingExpense.category,
+    description: existingExpense.description ?? "",
+    amount: String(existingExpense.amount),
+    location: existingExpense.location,
+    status: existingExpense.status,
+    notes: existingExpense.notes ?? "",
+  } : EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY | "receiptFile", string>>>({});
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
   const router = useRouter();
 
-  const [submitterQuery, setSubmitterQuery] = useState("");
+  const [submitterQuery, setSubmitterQuery] = useState(existingExpense ? `${existingExpense.submittedBy.firstName} ${existingExpense.submittedBy.lastName}` : "");
   const [submitterResults, setSubmitterResults] = useState<Person[]>([]);
   const [isSubmitterSearching, setIsSubmitterSearching] = useState(false);
   const [showSubmitterDropdown, setShowSubmitterDropdown] = useState(false);
   const submitterRef = useRef<HTMLDivElement>(null);
   const submitterDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [consultantQuery, setConsultantQuery] = useState("");
+  const [consultantQuery, setConsultantQuery] = useState(existingExpense?.consultant ? `${existingExpense.consultant.firstName} ${existingExpense.consultant.lastName}` : "");
   const [consultantResults, setConsultantResults] = useState<Person[]>([]);
   const [isConsultantSearching, setIsConsultantSearching] = useState(false);
   const [showConsultantDropdown, setShowConsultantDropdown] = useState(false);
@@ -215,12 +263,18 @@ export function ExpenseForm() {
         fd.append("notes", form.notes);
         if (form.consultantId) fd.append("consultantId", form.consultantId);
         if (receiptFile) fd.append("receiptFile", receiptFile);
-        const res = await fetch("/api/expenses", { method: "POST", body: fd });
+        const res = await fetch(existingExpense ? `/api/expenses/${existingExpense.id}` : "/api/expenses", {
+          method: existingExpense ? "PATCH" : "POST",
+          body: fd,
+        });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Failed to save expense");
-        show(`Expense ${data.expenseId} saved successfully`, "success");
-        setForm(EMPTY);
-        setSubmitterQuery(""); setConsultantQuery(""); setReceiptFile(null);
+        if (!res.ok) throw new Error(data.error ?? `Failed to ${existingExpense ? "update" : "save"} expense`);
+        show(`Expense ${data.expenseId ?? existingExpense?.expenseId} ${existingExpense ? "updated" : "saved"} successfully`, "success");
+        if (!existingExpense) {
+          setForm(EMPTY);
+          setSubmitterQuery(""); setConsultantQuery(""); setReceiptFile(null);
+        }
+        onSuccess?.(data);
         router.refresh();
       } catch (err: unknown) {
         show(err instanceof Error ? err.message : "Error saving expense", "error");
@@ -231,31 +285,31 @@ export function ExpenseForm() {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Gradient header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-teal-600 to-emerald-600 px-6 py-5">
+      <div className="relative overflow-hidden bg-gradient-to-r from-teal-600 to-emerald-600 px-4 py-3">
         <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
-            <DollarSign className="h-6 w-6 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <DollarSign className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">New Expense</h2>
-            <p className="text-sm text-white/70">Log and track an expense record</p>
+            <h2 className="text-[15px] font-bold text-white">{existingExpense ? "Edit Expense" : "New Expense"}</h2>
+            <p className="text-sm text-white/70">{existingExpense ? `Update ${existingExpense.expenseId}` : "Log and track an expense record"}</p>
           </div>
           {form.amount && (
             <div className="ml-auto rounded-xl bg-white/15 px-4 py-2 text-center">
               <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Amount</p>
-              <p className="text-lg font-bold text-white">${parseFloat(form.amount || "0").toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+              <p className="text-[15px] font-bold text-white">${parseFloat(form.amount || "0").toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
             </div>
           )}
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 space-y-3">
 
         {/* Who & When */}
         <SectionCard icon={DollarSign} title="Submitter & Date" color="teal">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <PersonSearch
               label="Submitted By" query={submitterQuery} setQuery={setSubmitterQuery}
               results={submitterResults} isSearching={isSubmitterSearching}
@@ -264,7 +318,7 @@ export function ExpenseForm() {
               onClear={() => { setForm((f) => ({ ...f, submittedById: "", submittedByName: "" })); setSubmitterQuery(""); }}
               boxRef={submitterRef} error={errors.submittedById} required avatarColor="teal"
             />
-            <Input id="exp-date" label="Expense Date *" type="date" value={form.date} onChange={set("date")} error={errors.date} />
+            <Input compact id="exp-date" label="Expense Date *" type="date" value={form.date} onChange={set("date")} error={errors.date} />
           </div>
           <PersonSearch
             label="Related Consultant (optional)" query={consultantQuery} setQuery={setConsultantQuery}
@@ -296,8 +350,8 @@ export function ExpenseForm() {
             </div>
             {errors.category && <p className="mt-1 text-xs text-rose-500">{errors.category}</p>}
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input id="exp-amount" label="Amount (USD) *" type="number" placeholder="0.00" min="0" step="0.01" value={form.amount} onChange={set("amount")} error={errors.amount} />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Input compact id="exp-amount" label="Amount (USD) *" type="number" placeholder="0.00" min="0" step="0.01" value={form.amount} onChange={set("amount")} error={errors.amount} />
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
               <div className="flex gap-2">
@@ -346,7 +400,7 @@ export function ExpenseForm() {
             <textarea id="exp-desc" rows={3} placeholder="Describe the expense…" value={form.description} onChange={set("description")}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 resize-y" />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
               <textarea id="exp-notes" rows={2} placeholder="Any additional notes…" value={form.notes} onChange={set("notes")}
@@ -373,10 +427,15 @@ export function ExpenseForm() {
           </div>
         </SectionCard>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end gap-2 pt-2">
+          {onCancel && (
+            <Button variant="outline" onClick={onCancel} disabled={isPending}>
+              Cancel
+            </Button>
+          )}
           <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
-            {isPending ? "Saving…" : "Save Expense"}
+            {isPending ? "Saving…" : existingExpense ? "Save Changes" : "Save Expense"}
           </Button>
         </div>
       </div>

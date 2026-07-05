@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { UserPlus, Loader2, Mail, Shield } from "lucide-react";
+import { Loader2, Mail, Shield, UserPlus } from "lucide-react";
 import type { Role } from "@/generated/prisma/client";
 import { isValidEmail, validateOptionalPhone } from "@/lib/validators";
 
@@ -14,7 +14,8 @@ interface Props { roles: Role[]; onSuccess?: () => void; }
 
 const EMPTY = {
   firstName: "", lastName: "", email: "",
-  phoneNumber: "", businessNumber: "", startDate: "", endDate: "", roleId: "",
+  phoneNumber: "", businessNumber: "",
+  startDate: "", endDate: "", roleId: "",
 };
 
 function initials(first: string, last: string) {
@@ -52,10 +53,11 @@ export function OnboardRecruiterForm({ roles, onSuccess }: Props) {
     setErrors({});
     startTransition(async () => {
       try {
+        const payload = new FormData();
+        Object.entries(form).forEach(([key, value]) => payload.append(key, value));
         const res = await fetch("/api/recruiters", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: payload,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to onboard recruiter");
@@ -78,15 +80,15 @@ export function OnboardRecruiterForm({ roles, onSuccess }: Props) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Gradient header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5">
+      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3">
         <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
-            <UserPlus className="h-6 w-6 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <UserPlus className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Onboard New Recruiter</h2>
+            <h2 className="text-[15px] font-bold text-white">Onboard New Recruiter</h2>
             <p className="text-sm text-white/70">Create account and send activation email</p>
           </div>
           {fullName && (
@@ -100,9 +102,9 @@ export function OnboardRecruiterForm({ roles, onSuccess }: Props) {
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 space-y-3">
         {/* Email notification banner */}
-        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5">
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100">
             <Mail className="h-4 w-4 text-blue-600" />
           </div>
@@ -123,26 +125,26 @@ export function OnboardRecruiterForm({ roles, onSuccess }: Props) {
             <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Personal Details</span>
           </div>
           <div className="p-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Input id="rec-firstName" label="First Name *" placeholder="Jane" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
-              <Input id="rec-lastName" label="Last Name *" placeholder="Smith" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
-              <Input id="rec-email" label="Email *" type="email" placeholder="jane@company.com" value={form.email} onChange={set("email")} error={errors.email} />
-              <Input id="rec-phone" label="Phone Number" type="tel" placeholder="555-000-0000" value={form.phoneNumber} onChange={set("phoneNumber")} error={errors.phoneNumber} />
-              <Input id="rec-business" label="Business Number" type="tel" placeholder="555-000-0000" value={form.businessNumber} onChange={set("businessNumber")} error={errors.businessNumber} />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Input compact id="rec-firstName" label="First Name *" placeholder="Jane" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
+              <Input compact id="rec-lastName" label="Last Name *" placeholder="Smith" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
+              <Input compact id="rec-email" label="Email *" type="email" placeholder="jane@company.com" value={form.email} onChange={set("email")} error={errors.email} />
+              <Input compact id="rec-phone" label="Phone Number" type="tel" placeholder="555-000-0000" value={form.phoneNumber} onChange={set("phoneNumber")} error={errors.phoneNumber} />
+              <Input compact id="rec-business" label="Business Number" type="tel" placeholder="555-000-0000" value={form.businessNumber} onChange={set("businessNumber")} error={errors.businessNumber} />
             </div>
           </div>
         </div>
 
-        {/* Role & Dates */}
+        {/* Role & Employment */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center gap-2.5 rounded-t-xl border-b border-blue-100 bg-blue-50 px-4 py-3">
             <Shield className="h-4 w-4 text-blue-500" />
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Role & Dates</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Role & Employment</span>
           </div>
           <div className="p-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {/* Role selector as pills */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 lg:col-span-3">
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Role</label>
                 <div className="flex flex-wrap gap-1.5">
                   {roles.map((r) => (
@@ -159,8 +161,8 @@ export function OnboardRecruiterForm({ roles, onSuccess }: Props) {
                   ))}
                 </div>
               </div>
-              <Input id="rec-start" label="Start Date *" type="date" value={form.startDate} onChange={set("startDate")} error={errors.startDate} />
-              <Input id="rec-end" label="End Date" type="date" value={form.endDate} onChange={set("endDate")} />
+              <Input compact id="rec-start" label="Start Date *" type="date" value={form.startDate} onChange={set("startDate")} error={errors.startDate} />
+              <Input compact id="rec-end" label="End Date" type="date" value={form.endDate} onChange={set("endDate")} />
             </div>
           </div>
         </div>

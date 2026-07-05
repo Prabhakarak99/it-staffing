@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { writeFile } from "fs/promises";
 import path from "path";
+import { emptyChecklist } from "@/lib/premarketing-checklist";
+import { parseDateInput } from "@/lib/dates";
 
 export async function GET() {
   const session = await getSession();
@@ -55,12 +57,18 @@ export async function POST(req: NextRequest) {
       saveFile("visaCopyDocument"),
     ]);
 
-    const dob = get("dob") ? new Date(get("dob")!) : undefined;
-    const visaStartDate = get("visaStartDate") ? new Date(get("visaStartDate")!) : undefined;
-    const visaExpiryDate = get("visaExpiryDate") ? new Date(get("visaExpiryDate")!) : undefined;
-    const onboardingStartDate = get("onboardingStartDate") ? new Date(get("onboardingStartDate")!) : undefined;
-    const verbalConfirmationDate = get("verbalConfirmationDate") ? new Date(get("verbalConfirmationDate")!) : undefined;
-    const projectStartDate = get("projectStartDate") ? new Date(get("projectStartDate")!) : undefined;
+    const dob = get("dob") ? parseDateInput(get("dob")!) : undefined;
+    const visaStartDate = get("visaStartDate") ? parseDateInput(get("visaStartDate")!) : undefined;
+    const visaExpiryDate = get("visaExpiryDate") ? parseDateInput(get("visaExpiryDate")!) : undefined;
+    const onboardingStartDate = get("onboardingStartDate") ? parseDateInput(get("onboardingStartDate")!) : undefined;
+    const verbalConfirmationDate = get("verbalConfirmationDate") ? parseDateInput(get("verbalConfirmationDate")!) : undefined;
+    const projectStartDate = get("projectStartDate") ? parseDateInput(get("projectStartDate")!) : undefined;
+
+    const projectStatus = get("projectStatus");
+
+    if (projectStatus === "Verbal Confirmation" && !get("verbalConfirmationDate")) {
+      return NextResponse.json({ error: "Verbal confirmation date is required for Verbal Confirmation status" }, { status: 400 });
+    }
 
     const student = await prisma.student.create({
       data: {
@@ -96,7 +104,7 @@ export async function POST(req: NextRequest) {
         dlDocument: dlDocument ?? null,
         passportDocument: passportDocument ?? null,
         visaCopyDocument: visaCopyDocument ?? null,
-        projectStatus: get("projectStatus"),
+        projectStatus: projectStatus ?? null,
         jobTitle: get("jobTitle"),
         verbalConfirmationDate,
         linkedInterviewId: get("linkedInterviewId"),
@@ -107,9 +115,16 @@ export async function POST(req: NextRequest) {
         pmName: get("pmName"),
         pmEmail: get("pmEmail"),
         pmPhone: get("pmPhone"),
+        driveLocation: get("driveLocation"),
         technology: get("technology"),
       },
     });
+
+    if (projectStatus === "Pre-Marketing") {
+      await prisma.preMarketing.create({
+        data: { consultantId: student.id, checklist: emptyChecklist() },
+      });
+    }
 
     return NextResponse.json(student, { status: 201 });
   } catch (err) {

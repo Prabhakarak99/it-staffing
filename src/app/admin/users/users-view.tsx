@@ -5,6 +5,7 @@ import { Users, UserPlus } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
 import { CreateUserForm } from "./create-user-form";
 import { UserList } from "./user-list";
+import { UserDetail } from "./user-detail";
 import type { User, Role } from "@/generated/prisma/client";
 
 type UserWithRole = User & { role: Role | null };
@@ -16,6 +17,7 @@ interface Props {
 
 export function UsersView({ users, roles }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (
     <>
@@ -49,8 +51,12 @@ export function UsersView({ users, roles }: Props) {
 
       {/* ── List ── */}
       <div className="p-6">
-        <UserList users={users} />
+        <UserList users={users} onSelect={setSelectedId} />
       </div>
+
+      <SlideOver open={!!selectedId} onClose={() => setSelectedId(null)} maxWidth="max-w-4xl">
+        {selectedId && <UserDetail userId={selectedId} roles={roles} />}
+      </SlideOver>
 
       {/* ── New User slide-over ── */}
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-3xl">

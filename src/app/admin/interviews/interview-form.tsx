@@ -8,7 +8,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
   Calendar, Loader2, Search, X, Clock, Layers, MessageSquare,
-  Link2, Users, Building2, CheckCircle2,
+  Link2, Users, Building2,
 } from "lucide-react";
 import { validateOptionalUrl } from "@/lib/validators";
 
@@ -28,8 +28,26 @@ interface TechSupportPerson {
   id: string; firstName: string; lastName: string; email: string; phoneNumber: string | null;
 }
 
+interface ExistingInterview {
+  id: string;
+  interviewId: string;
+  interviewStartDate: string;
+  interviewEndDate: string;
+  interviewLevel: string;
+  interviewStatus: string;
+  techSupportFeedback: string | null;
+  amount: string | null;
+  otterLink: string | null;
+  interviewQuestions: string | null;
+  interviewFeedback: string | null;
+  submission: MySubmission;
+  techSupport: TechSupportPerson | null;
+}
+
 interface Props {
   recruiterId: string; recruiterName: string; nextInterviewId: string; mySubmissions: MySubmission[];
+  existingInterview?: ExistingInterview;
+  onCancel?: () => void;
   onSuccess?: () => void;
 }
 
@@ -37,9 +55,9 @@ function initials(name: string) {
   return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
-function PillChips({ label, value, options, onChange, required, colorActive }: {
+function PillChips({ label, value, options, onChange, required }: {
   label: string; value: string; options: string[]; onChange: (v: string) => void;
-  required?: boolean; colorActive?: string;
+  required?: boolean;
 }) {
   const STATUS_COLOR: Record<string, string> = {
     Rejected: "border-rose-500 bg-rose-500 text-white",
@@ -101,6 +119,13 @@ function calcDuration(start: string, end: string): string {
   return `${mins} min`;
 }
 
+function toDateTimeLocal(value: string | Date | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const EMPTY_FORM = {
   submissionId: "", interviewStartDate: "", interviewEndDate: "",
   interviewLevel: "", interviewStatus: "", techSupportId: "",
@@ -108,23 +133,47 @@ const EMPTY_FORM = {
   interviewQuestions: "", interviewFeedback: "",
 };
 
-export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, onSuccess }: Props) {
-  const [form, setForm] = useState(EMPTY_FORM);
+function buildInitialInterviewForm(existingInterview?: ExistingInterview) {
+  if (!existingInterview) return EMPTY_FORM;
+  return {
+    submissionId: existingInterview.submission.id,
+    interviewStartDate: toDateTimeLocal(existingInterview.interviewStartDate),
+    interviewEndDate: toDateTimeLocal(existingInterview.interviewEndDate),
+    interviewLevel: existingInterview.interviewLevel ?? "",
+    interviewStatus: existingInterview.interviewStatus ?? "",
+    techSupportId: existingInterview.techSupport?.id ?? "",
+    amount: existingInterview.amount ?? "",
+    techSupportFeedback: existingInterview.techSupportFeedback ?? "",
+    otterLink: existingInterview.otterLink ?? "",
+    interviewQuestions: existingInterview.interviewQuestions ?? "",
+    interviewFeedback: existingInterview.interviewFeedback ?? "",
+  };
+}
+
+export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, existingInterview, onCancel, onSuccess }: Props) {
+  const [form, setForm] = useState(() => buildInitialInterviewForm(existingInterview));
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY_FORM, string>>>({});
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
   const router = useRouter();
-  const [selectedSub, setSelectedSub] = useState<MySubmission | null>(null);
-  const [subQuery, setSubQuery] = useState("");
+  const [selectedSub, setSelectedSub] = useState<MySubmission | null>(existingInterview?.submission ?? null);
+  const [subQuery, setSubQuery] = useState(() =>
+    existingInterview
+      ? `${existingInterview.submission.submissionId} — ${existingInterview.submission.consultant.firstName} ${existingInterview.submission.consultant.lastName}`
+      : ""
+  );
   const [showSubDropdown, setShowSubDropdown] = useState(false);
   const subRef = useRef<HTMLDivElement>(null);
-  const [tsQuery, setTsQuery] = useState("");
+  const [tsQuery, setTsQuery] = useState(() =>
+    existingInterview?.techSupport ? `${existingInterview.techSupport.firstName} ${existingInterview.techSupport.lastName}` : ""
+  );
   const [tsResults, setTsResults] = useState<TechSupportPerson[]>([]);
   const [tsSearching, setTsSearching] = useState(false);
   const [showTsDropdown, setShowTsDropdown] = useState(false);
-  const [selectedTs, setSelectedTs] = useState<TechSupportPerson | null>(null);
+  const [selectedTs, setSelectedTs] = useState<TechSupportPerson | null>(existingInterview?.techSupport ?? null);
   const tsRef = useRef<HTMLDivElement>(null);
   const tsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isEdit = !!existingInterview;
 
   const filteredSubs = mySubmissions.filter((s) => {
     const q = subQuery.toLowerCase();
@@ -202,28 +251,36 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
     setErrors({});
     startTransition(async () => {
       try {
-        const res = await fetch("/api/interviews", {
-          method: "POST",
+        const payload = {
+          submissionId: form.submissionId,
+          interviewStartDate: form.interviewStartDate,
+          interviewEndDate: form.interviewEndDate,
+          interviewLevel: form.interviewLevel,
+          interviewStatus: form.interviewStatus,
+          techSupportId: form.techSupportId || null,
+          amount: form.amount.trim() || null,
+          techSupportFeedback: form.techSupportFeedback || null,
+          otterLink: form.otterLink.trim() || null,
+          interviewQuestions: form.interviewQuestions.trim() || null,
+          interviewFeedback: form.interviewFeedback.trim() || null,
+        };
+        const res = await fetch(isEdit ? `/api/interviews/${existingInterview.id}` : "/api/interviews", {
+          method: isEdit ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            submissionId: form.submissionId, interviewStartDate: form.interviewStartDate,
-            interviewEndDate: form.interviewEndDate, interviewLevel: form.interviewLevel,
-            interviewStatus: form.interviewStatus, techSupportId: form.techSupportId || null,
-            amount: form.amount, techSupportFeedback: form.techSupportFeedback,
-            otterLink: form.otterLink, interviewQuestions: form.interviewQuestions,
-            interviewFeedback: form.interviewFeedback,
-          }),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Failed to save interview");
-        show(`Interview ${data.interviewId} created successfully`, "success");
+        if (!res.ok) throw new Error(data.error ?? `Failed to ${isEdit ? "update" : "save"} interview`);
+        show(`Interview ${data.interviewId} ${isEdit ? "updated" : "created"} successfully`, "success");
         onSuccess?.();
-        setForm(EMPTY_FORM);
-        setSubQuery(""); setSelectedSub(null);
-        setTsQuery(""); setSelectedTs(null);
+        if (!isEdit) {
+          setForm(EMPTY_FORM);
+          setSubQuery(""); setSelectedSub(null);
+          setTsQuery(""); setSelectedTs(null);
+        }
         router.refresh();
       } catch (err: unknown) {
-        show(err instanceof Error ? err.message : "Error saving interview", "error");
+        show(err instanceof Error ? err.message : `Error ${isEdit ? "updating" : "saving"} interview`, "error");
       }
     });
   };
@@ -231,21 +288,21 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Gradient header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5">
+      <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3">
         <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
-            <Calendar className="h-6 w-6 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <Calendar className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Schedule Interview</h2>
-            <p className="text-sm text-white/70">Log and track a new interview session</p>
+            <h2 className="text-[15px] font-bold text-white">{isEdit ? "Edit Interview" : "Schedule Interview"}</h2>
+            <p className="text-sm text-white/70">{isEdit ? "Update interview details and save changes" : "Log and track a new interview session"}</p>
           </div>
           <div className="ml-auto flex items-center gap-3">
             <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
               <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Interview ID</p>
-              <p className="text-xs font-bold text-white font-mono">{nextInterviewId}</p>
+              <p className="text-xs font-bold text-white font-mono">{existingInterview?.interviewId ?? nextInterviewId}</p>
             </div>
             <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
               <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Recruiter</p>
@@ -255,11 +312,11 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 space-y-3">
 
         {/* Submission Selection */}
         <SectionCard icon={Users} title="Submission" color="indigo">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {/* Submission search */}
             <div ref={subRef}>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -274,10 +331,12 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
                     <p className="text-xs font-bold text-indigo-700">{selectedSub.submissionId}</p>
                     <p className="text-xs text-slate-600">{selectedSub.consultant.firstName} {selectedSub.consultant.lastName} · {selectedSub.technology}</p>
                   </div>
-                  <button type="button" onClick={clearSubmission}
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  {!isEdit && (
+                    <button type="button" onClick={clearSubmission}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="relative">
@@ -338,7 +397,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
 
         {/* Schedule */}
         <SectionCard icon={Clock} title="Interview Schedule" color="violet">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 items-start">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 items-start">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Start Date & Time *</label>
               <input id="startDate" type="datetime-local" value={form.interviewStartDate} onChange={set("interviewStartDate")}
@@ -380,7 +439,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
 
         {/* Tech Support */}
         <SectionCard icon={Users} title="Tech Support" color="amber">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div ref={tsRef}>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tech Support Person</label>
               {selectedTs ? (
@@ -430,7 +489,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
                 </div>
               )}
             </div>
-            <Input id="amount" label="Amount" placeholder="e.g. $500" value={form.amount} onChange={set("amount")} />
+            <Input compact id="amount" label="Amount" placeholder="e.g. $500" value={form.amount} onChange={set("amount")} />
             <div>
               <PillChips label="Tech Feedback" value={form.techSupportFeedback} options={TECH_FEEDBACKS}
                 onChange={(v) => setForm((p) => ({ ...p, techSupportFeedback: v }))} />
@@ -489,10 +548,15 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, o
           </SectionCard>
         )}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end gap-2 pt-2">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
+              Cancel
+            </Button>
+          )}
           <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
-            {isPending ? "Saving…" : "Schedule Interview"}
+            {isPending ? "Saving…" : isEdit ? "Save Changes" : "Schedule Interview"}
           </Button>
         </div>
       </div>

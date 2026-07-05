@@ -20,10 +20,31 @@ interface Consultant {
   technology: string | null;
 }
 
+interface ExistingSubmission {
+  id: string;
+  submissionId: string;
+  technology: string;
+  jobDescription: string | null;
+  payRate: string | null;
+  vendorCompany: string;
+  vendorRecruiterName: string;
+  vendorRecruiterEmail: string;
+  vendorRecruiterPhone: string;
+  implementationName: string | null;
+  implementationEmail: string | null;
+  implementationPhone: string | null;
+  clientName: string | null;
+  clientLocation: string | null;
+  status: string;
+  consultant: Consultant;
+}
+
 interface Props {
   recruiterId: string;
   recruiterName: string;
   nextSubmissionId: string;
+  existingSubmission?: ExistingSubmission;
+  onCancel?: () => void;
   onSuccess?: () => void;
 }
 
@@ -88,19 +109,44 @@ const EMPTY = {
   clientName: "", clientLocation: "", status: "Submission Submitted",
 };
 
-export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, onSuccess }: Props) {
-  const [form, setForm] = useState(EMPTY);
+function buildInitialForm(existingSubmission?: ExistingSubmission) {
+  if (!existingSubmission) return EMPTY;
+  return {
+    consultantId: existingSubmission.consultant.id,
+    consultantName: `${existingSubmission.consultant.firstName} ${existingSubmission.consultant.lastName}`,
+    technology: existingSubmission.technology ?? existingSubmission.consultant.technology ?? "",
+    jobDescription: existingSubmission.jobDescription ?? "",
+    payRate: existingSubmission.payRate ?? "",
+    vendorCompany: existingSubmission.vendorCompany ?? "",
+    vendorRecruiterName: existingSubmission.vendorRecruiterName ?? "",
+    vendorRecruiterEmail: existingSubmission.vendorRecruiterEmail ?? "",
+    vendorRecruiterPhone: existingSubmission.vendorRecruiterPhone ?? "",
+    implementationName: existingSubmission.implementationName ?? "",
+    implementationEmail: existingSubmission.implementationEmail ?? "",
+    implementationPhone: existingSubmission.implementationPhone ?? "",
+    clientName: existingSubmission.clientName ?? "",
+    clientLocation: existingSubmission.clientLocation ?? "",
+    status: existingSubmission.status ?? "Submission Submitted",
+  };
+}
+
+export function SubmissionForm({ recruiterId: _recruiterId, recruiterName, nextSubmissionId, existingSubmission, onCancel, onSuccess }: Props) {
+  const [form, setForm] = useState(() => buildInitialForm(existingSubmission));
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY, string>>>({});
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() =>
+    existingSubmission ? `${existingSubmission.consultant.firstName} ${existingSubmission.consultant.lastName}` : ""
+  );
   const [searchResults, setSearchResults] = useState<Consultant[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(null);
+  const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(existingSubmission?.consultant ?? null);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isEdit = !!existingSubmission;
+  void _recruiterId;
 
   const searchConsultants = useCallback(async (q: string) => {
     if (!q.trim()) { setSearchResults([]); setShowDropdown(false); return; }
@@ -168,29 +214,39 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, o
     setErrors({});
     startTransition(async () => {
       try {
-        const res = await fetch("/api/submissions", {
-          method: "POST",
+        const payload = {
+          consultantId: form.consultantId,
+          technology: form.technology,
+          jobDescription: form.jobDescription.trim() || null,
+          payRate: form.payRate.trim() || null,
+          vendorCompany: form.vendorCompany.trim(),
+          vendorRecruiterName: form.vendorRecruiterName.trim(),
+          vendorRecruiterEmail: form.vendorRecruiterEmail.trim(),
+          vendorRecruiterPhone: form.vendorRecruiterPhone.trim(),
+          implementationName: form.implementationName.trim() || null,
+          implementationEmail: form.implementationEmail.trim() || null,
+          implementationPhone: form.implementationPhone.trim() || null,
+          clientName: form.clientName.trim() || null,
+          clientLocation: form.clientLocation.trim() || null,
+          status: form.status,
+        };
+        const res = await fetch(isEdit ? `/api/submissions/${existingSubmission.id}` : "/api/submissions", {
+          method: isEdit ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            consultantId: form.consultantId, technology: form.technology,
-            jobDescription: form.jobDescription, payRate: form.payRate,
-            vendorCompany: form.vendorCompany, vendorRecruiterName: form.vendorRecruiterName,
-            vendorRecruiterEmail: form.vendorRecruiterEmail, vendorRecruiterPhone: form.vendorRecruiterPhone,
-            implementationName: form.implementationName, implementationEmail: form.implementationEmail,
-            implementationPhone: form.implementationPhone, clientName: form.clientName,
-            clientLocation: form.clientLocation, status: form.status,
-          }),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Failed to create submission");
-        show(`Submission ${data.submissionId} created successfully`, "success");
+        if (!res.ok) throw new Error(data.error ?? `Failed to ${isEdit ? "update" : "create"} submission`);
+        show(`Submission ${data.submissionId} ${isEdit ? "updated" : "created"} successfully`, "success");
         onSuccess?.();
-        setForm(EMPTY);
-        setSearchQuery("");
-        setSelectedConsultant(null);
+        if (!isEdit) {
+          setForm(EMPTY);
+          setSearchQuery("");
+          setSelectedConsultant(null);
+        }
         router.refresh();
       } catch (err: unknown) {
-        show(err instanceof Error ? err.message : "Error creating submission", "error");
+        show(err instanceof Error ? err.message : `Error ${isEdit ? "updating" : "creating"} submission`, "error");
       }
     });
   };
@@ -198,21 +254,21 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, o
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Gradient header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-5">
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-3">
         <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
-            <FileText className="h-6 w-6 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <FileText className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">New Submission</h2>
-            <p className="text-sm text-white/70">Create a job submission for a consultant</p>
+            <h2 className="text-[15px] font-bold text-white">{isEdit ? "Edit Submission" : "New Submission"}</h2>
+            <p className="text-sm text-white/70">{isEdit ? "Update submission details and save changes" : "Create a job submission for a consultant"}</p>
           </div>
           <div className="ml-auto flex items-center gap-3">
             <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
               <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Sub ID</p>
-              <p className="text-xs font-bold text-white font-mono">{nextSubmissionId}</p>
+              <p className="text-xs font-bold text-white font-mono">{existingSubmission?.submissionId ?? nextSubmissionId}</p>
             </div>
             <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
               <p className="text-[9px] font-bold uppercase tracking-wider text-white/60">Recruiter</p>
@@ -222,11 +278,11 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, o
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 space-y-3">
 
         {/* Consultant */}
         <SectionCard icon={Users} title="Consultant" color="blue">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div ref={searchRef}>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Consultant Name *
@@ -240,10 +296,12 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, o
                     <p className="text-sm font-semibold text-slate-900">{selectedConsultant.firstName} {selectedConsultant.lastName}</p>
                     <p className="text-xs text-slate-500 truncate">{selectedConsultant.email}</p>
                   </div>
-                  <button type="button" onClick={clearConsultant}
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  {!isEdit && (
+                    <button type="button" onClick={clearConsultant}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 hover:text-slate-600 shadow-sm">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="relative">
@@ -295,38 +353,43 @@ export function SubmissionForm({ recruiterId, recruiterName, nextSubmissionId, o
 
         {/* Vendor Details */}
         <SectionCard icon={Building2} title="Vendor Details" color="violet">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Input id="payRate" label="Pay Rate" placeholder="e.g. $65/hr" value={form.payRate} onChange={set("payRate")} />
-            <Input id="vendorCompany" label="Vendor Company *" placeholder="Company name" value={form.vendorCompany} onChange={set("vendorCompany")} error={errors.vendorCompany} />
-            <Input id="vendorRecruiterName" label="Vendor Recruiter Name *" placeholder="Full name" value={form.vendorRecruiterName} onChange={set("vendorRecruiterName")} error={errors.vendorRecruiterName} />
-            <Input id="vendorRecruiterEmail" label="Vendor Recruiter Email *" type="email" placeholder="recruiter@vendor.com" value={form.vendorRecruiterEmail} onChange={set("vendorRecruiterEmail")} error={errors.vendorRecruiterEmail} />
-            <Input id="vendorRecruiterPhone" label="Vendor Recruiter Phone *" placeholder="+1 555-000-0000" value={form.vendorRecruiterPhone} onChange={set("vendorRecruiterPhone")} error={errors.vendorRecruiterPhone} />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <Input compact id="payRate" label="Pay Rate" placeholder="e.g. $65/hr" value={form.payRate} onChange={set("payRate")} />
+            <Input compact id="vendorCompany" label="Vendor Company *" placeholder="Company name" value={form.vendorCompany} onChange={set("vendorCompany")} error={errors.vendorCompany} />
+            <Input compact id="vendorRecruiterName" label="Vendor Recruiter Name *" placeholder="Full name" value={form.vendorRecruiterName} onChange={set("vendorRecruiterName")} error={errors.vendorRecruiterName} />
+            <Input compact id="vendorRecruiterEmail" label="Vendor Recruiter Email *" type="email" placeholder="recruiter@vendor.com" value={form.vendorRecruiterEmail} onChange={set("vendorRecruiterEmail")} error={errors.vendorRecruiterEmail} />
+            <Input compact id="vendorRecruiterPhone" label="Vendor Recruiter Phone *" placeholder="+1 555-000-0000" value={form.vendorRecruiterPhone} onChange={set("vendorRecruiterPhone")} error={errors.vendorRecruiterPhone} />
           </div>
         </SectionCard>
 
         {/* Implementation */}
         <SectionCard icon={Hash} title="Implementation" subtitle="Optional" color="amber">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Input id="implementationName" label="Implementation Name" placeholder="Contact name" value={form.implementationName} onChange={set("implementationName")} />
-            <Input id="implementationEmail" label="Implementation Email" type="email" placeholder="impl@company.com" value={form.implementationEmail} onChange={set("implementationEmail")} error={errors.implementationEmail} />
-            <Input id="implementationPhone" label="Implementation Phone" type="tel" placeholder="555-000-0000" value={form.implementationPhone} onChange={set("implementationPhone")} error={errors.implementationPhone} />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <Input compact id="implementationName" label="Implementation Name" placeholder="Contact name" value={form.implementationName} onChange={set("implementationName")} />
+            <Input compact id="implementationEmail" label="Implementation Email" type="email" placeholder="impl@company.com" value={form.implementationEmail} onChange={set("implementationEmail")} error={errors.implementationEmail} />
+            <Input compact id="implementationPhone" label="Implementation Phone" type="tel" placeholder="555-000-0000" value={form.implementationPhone} onChange={set("implementationPhone")} error={errors.implementationPhone} />
           </div>
         </SectionCard>
 
         {/* Client & Status */}
         <SectionCard icon={Globe} title="Client & Status" color="emerald">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input id="clientName" label="Client Name" placeholder="End client name" value={form.clientName} onChange={set("clientName")} />
-            <Input id="clientLocation" label="Client Location" placeholder="City, State" value={form.clientLocation} onChange={set("clientLocation")} />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Input compact id="clientName" label="Client Name" placeholder="End client name" value={form.clientName} onChange={set("clientName")} />
+            <Input compact id="clientLocation" label="Client Location" placeholder="City, State" value={form.clientLocation} onChange={set("clientLocation")} />
           </div>
           <PillChips label="Submission Status *" value={form.status} options={STATUSES}
             onChange={(v) => setForm((p) => ({ ...p, status: p.status === v ? "Submission Submitted" : v }))} />
         </SectionCard>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end gap-2 pt-2">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
+              Cancel
+            </Button>
+          )}
           <Button onClick={submit} disabled={isPending} className="px-8">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            {isPending ? "Creating…" : "Create Submission"}
+            {isPending ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save Changes" : "Create Submission"}
           </Button>
         </div>
       </div>
