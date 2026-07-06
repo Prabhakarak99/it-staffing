@@ -3,8 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { ExpenseForm } from "./expense-form";
-import { ExpenseList } from "./expense-list";
+import { ExpensesView } from "./expenses-view";
 
 export default async function ExpensesPage() {
   const session = await getSession();
@@ -19,15 +18,6 @@ export default async function ExpensesPage() {
   });
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Expenses</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Track and manage expense submissions with receipts.
-        </p>
-      </div>
-      <ExpenseForm />
-      <ExpenseList expenses={JSON.parse(JSON.stringify(expenses))} />
-    </div>
+    <ExpensesView expenses={JSON.parse(JSON.stringify(expenses))} />
   );
 }

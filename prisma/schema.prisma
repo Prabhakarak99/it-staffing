@@ -43,21 +43,30 @@ model RoleScreen {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  firstName        String
-  lastName         String
-  email            String    @unique
-  phoneNumber      String?
-  password         String
-  roleId           String?
-  isActive         Boolean   @default(false)
-  activationToken  String?   @unique
-  activationExpiry DateTime?
-  businessNumber   String?
-  startDate        DateTime?
-  endDate          DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  firstName           String
+  lastName            String
+  email               String    @unique
+  phoneNumber         String?
+  password            String
+  roleId              String?
+  isActive            Boolean   @default(false)
+  activationToken     String?   @unique
+  activationExpiry    DateTime?
+  businessNumber      String?
+  fullAddress         String?
+  experience          String?
+  salary              String?
+  bankName            String?
+  accountNumber       String?
+  ifscCode            String?
+  bankBranch          String?
+  accountType         String?
+  blackChequeDocument String?
+  startDate           DateTime?
+  endDate             DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   role          Role?          @relation(fields: [roleId], references: [id])
   submissions   Submission[]
@@ -118,15 +127,18 @@ model Student {
   pmName                 String?
   pmEmail                String?
   pmPhone                String?
+  driveLocation          String?
   // Legacy / search
   phoneNumber            String?
   technology             String?
+  comments               Json?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
   submissions   Submission[]
   preMarketings PreMarketing[]
   expenses      Expense[]      @relation("ExpenseConsultant")
+  leads         Lead[]
 }
 
 model Submission {
@@ -151,24 +163,24 @@ model Submission {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  recruiter   User       @relation(fields: [recruiterId], references: [id])
-  consultant  Student    @relation(fields: [consultantId], references: [id])
-  interviews  Interview[]
+  recruiter  User        @relation(fields: [recruiterId], references: [id])
+  consultant Student     @relation(fields: [consultantId], references: [id])
+  interviews Interview[]
 }
 
 model TechSupport {
-  id            String   @id @default(cuid())
-  firstName     String
-  lastName      String
-  email         String   @unique
-  phoneNumber   String
-  technology    String
-  location      String
-  availability  String?
-  calendarLink  String?
-  amount        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String   @unique
+  phoneNumber  String
+  technology   String
+  location     String
+  availability String?
+  calendarLink String?
+  amount       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   interviews Interview[]
 }
@@ -198,7 +210,8 @@ model Interview {
 
 model PreMarketing {
   id                              String    @id @default(cuid())
-  consultantId                    String
+  consultantId                    String    @unique
+  checklist                       Json?
   dlAvailable                     String?
   visaAvailable                   String?
   ssnAvailable                    String?
@@ -220,23 +233,36 @@ model PreMarketing {
 }
 
 model Expense {
-  id           String    @id @default(cuid())
-  expenseId    String    @unique
-  date         DateTime
+  id            String   @id @default(cuid())
+  expenseId     String   @unique
+  date          DateTime
   submittedById String
-  consultantId String?
-  category     String
-  description  String?
-  amount       Float
-  location     String
-  receiptFile  String?
-  status       String    @default("Pending")
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  consultantId  String?
+  category      String
+  description   String?
+  amount        Float
+  location      String
+  receiptFile   String?
+  status        String   @default("Pending")
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   submittedBy User     @relation("ExpenseSubmitter", fields: [submittedById], references: [id])
   consultant  Student? @relation("ExpenseConsultant", fields: [consultantId], references: [id])
+}
+
+model Lead {
+  id             String   @id @default(cuid())
+  consultantId   String?  @unique
+  consultantName String
+  phoneNumber    String?
+  email          String
+  comments       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  consultant Student? @relation(fields: [consultantId], references: [id])
 }
 
 model JobSearchResult {

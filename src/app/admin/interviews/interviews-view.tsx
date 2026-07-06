@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar, Plus } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
+import { useListDeepLink } from "@/lib/list-deep-link";
+import { InterviewDetail } from "./interview-detail";
 import { InterviewForm } from "./interview-form";
 import { InterviewList } from "./interview-list";
 
@@ -35,8 +37,14 @@ interface Props {
 }
 
 export function InterviewsView({ interviews, recruiterId, recruiterName, nextInterviewId, mySubmissions }: Props) {
+  const { initialOpen, initialSearch, initialIds } = useListDeepLink();
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nextId, setNextId] = useState(nextInterviewId);
+
+  useEffect(() => {
+    setSelectedId(initialOpen);
+  }, [initialOpen]);
 
   const handleSuccess = () => {
     setShowAdd(false);
@@ -46,7 +54,6 @@ export function InterviewsView({ interviews, recruiterId, recruiterName, nextInt
 
   return (
     <>
-      {/* ── Page header ── */}
       <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 px-6 py-5">
         <div className="absolute -right-6 -top-6 h-36 w-36 rounded-full bg-white/[0.05]" />
         <div className="absolute left-1/2 bottom-0 h-20 w-20 rounded-full bg-white/[0.04]" />
@@ -74,12 +81,15 @@ export function InterviewsView({ interviews, recruiterId, recruiterName, nextInt
         </div>
       </div>
 
-      {/* ── List ── */}
       <div className="p-6">
-        <InterviewList interviews={interviews} />
+        <InterviewList
+          interviews={interviews}
+          onSelect={setSelectedId}
+          initialSearch={initialSearch}
+          initialIds={initialIds}
+        />
       </div>
 
-      {/* ── New Interview slide-over ── */}
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-3xl">
         <InterviewForm
           recruiterId={recruiterId}
@@ -88,6 +98,10 @@ export function InterviewsView({ interviews, recruiterId, recruiterName, nextInt
           mySubmissions={mySubmissions}
           onSuccess={handleSuccess}
         />
+      </SlideOver>
+
+      <SlideOver open={!!selectedId} onClose={() => setSelectedId(null)} maxWidth="max-w-4xl">
+        {selectedId && <InterviewDetail interviewId={selectedId} recruiterId={recruiterId} />}
       </SlideOver>
     </>
   );

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Users } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
+import { buildRecruiterUrl, parseRecruiterUrl } from "@/lib/recruiter-nav";
 import { OnboardRecruiterForm } from "./onboard-recruiter-form";
-import { RecruiterList } from "./recruiter-list";
-import type { User, Role } from "@/generated/prisma/client";
-
-type RecruiterUser = User & { role: Role | null };
+import { RecruiterDetail } from "./recruiter-detail";
+import { RecruiterList, type RecruiterUser } from "./recruiter-list";
+import type { Role } from "@/generated/prisma/client";
 
 interface Props {
   recruiters: RecruiterUser[];
@@ -15,11 +16,40 @@ interface Props {
 }
 
 export function RecruitersView({ recruiters, roles }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlState = useMemo(() => parseRecruiterUrl(searchParams), [searchParams]);
+
   const [showAdd, setShowAdd] = useState(false);
+  const [editId, setEditId] = useState<string | null>(urlState.edit ?? null);
+
+  useEffect(() => {
+    setEditId(urlState.edit ?? null);
+  }, [urlState.edit]);
+
+  const editRecruiter = editId ? recruiters.find((r) => r.id === editId) : null;
+
+  const openEdit = (id: string) => {
+    setEditId(id);
+    router.replace(buildRecruiterUrl({ ...urlState, edit: id }), { scroll: false });
+  };
+
+  const closeEdit = () => {
+    setEditId(null);
+    const { edit: _edit, ...rest } = urlState;
+    router.replace(buildRecruiterUrl(rest), { scroll: false });
+  };
+
+  const handleExpandChange = (id: string | null) => {
+    if (id) {
+      router.replace(buildRecruiterUrl({ ...urlState, expanded: id, edit: undefined }), { scroll: false });
+    } else {
+      router.replace(buildRecruiterUrl({ ...urlState, expanded: undefined, edit: undefined }), { scroll: false });
+    }
+  };
 
   return (
     <>
-      {/* ── Page header ── */}
       <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 px-6 py-5">
         <div className="absolute -right-6 -top-6 h-36 w-36 rounded-full bg-white/[0.05]" />
         <div className="absolute left-1/2 bottom-0 h-20 w-20 rounded-full bg-white/[0.04]" />
@@ -47,12 +77,29 @@ export function RecruitersView({ recruiters, roles }: Props) {
         </div>
       </div>
 
-      {/* ── List ── */}
       <div className="p-6">
-        <RecruiterList recruiters={recruiters} roles={roles} />
+        <RecruiterList
+          recruiters={recruiters}
+          onEdit={openEdit}
+          initialExpandedId={urlState.expanded}
+          restoreFilters={urlState.filters}
+          restoreCandidateId={urlState.candidate}
+          onExpandChange={handleExpandChange}
+        />
       </div>
 
-      {/* ── Add Recruiter slide-over ── */}
+      <SlideOver open={!!editId} onClose={closeEdit} maxWidth="max-w-3xl">
+        {editRecruiter && (
+          <RecruiterDetail
+            key={editRecruiter.id}
+            recruiter={editRecruiter}
+            roles={roles}
+            onCancel={closeEdit}
+            onUpdated={closeEdit}
+          />
+        )}
+      </SlideOver>
+
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-3xl">
         <OnboardRecruiterForm roles={roles} onSuccess={() => setShowAdd(false)} />
       </SlideOver>

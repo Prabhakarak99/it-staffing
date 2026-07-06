@@ -7,8 +7,10 @@ const SECRET = new TextEncoder().encode(
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const refreshUrl = new URL("/api/auth/refresh-session", req.url);
+  refreshUrl.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
 
-  const publicPaths = ["/login", "/activate", "/api/auth/login", "/api/auth/activate"];
+  const publicPaths = ["/login", "/activate", "/api/auth/login", "/api/auth/activate", "/api/auth/refresh-session"];
   if (publicPaths.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
@@ -28,9 +30,9 @@ export async function proxy(req: NextRequest) {
 
     const allowedScreens = payload.allowedScreens as string[] | null | undefined;
 
-    // undefined = old JWT without allowedScreens — force re-login to get a fresh token
+    // undefined = stale JWT without allowedScreens — refresh it from DB
     if (allowedScreens === undefined) {
-      return NextResponse.redirect(new URL("/login", req.url));
+      return NextResponse.redirect(refreshUrl);
     }
 
     // null = super admin, unrestricted access
@@ -52,7 +54,7 @@ export async function proxy(req: NextRequest) {
     );
 
     if (!isAllowed) {
-      return NextResponse.redirect(new URL("/admin", req.url));
+      return NextResponse.redirect(refreshUrl);
     }
 
     return NextResponse.next();

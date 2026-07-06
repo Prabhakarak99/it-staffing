@@ -3,8 +3,11 @@
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Toast, useToast } from "@/components/ui/toast";
+import { TabSearchBar } from "@/components/ui/tab-search-bar";
+import { HighlightText } from "@/components/ui/highlight-text";
+import { filterBySearch, searchBlob } from "@/lib/table-search";
 import { cn } from "@/lib/utils";
-import { Briefcase, Trash2, Loader2, ExternalLink, MapPin, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { Briefcase, Trash2, Loader2, MapPin, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import type { TechSupport } from "@/generated/prisma/client";
 
 type SortDir = "asc" | "desc";
@@ -31,13 +34,14 @@ const LOCATION_STYLE: Record<string, string> = {
   Other: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
-export function TechSupportList({ people }: { people: TechSupport[] }) {
+export function TechSupportList({ people, onSelect }: { people: TechSupport[]; onSelect?: (id: string) => void }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast, show, hide } = useToast();
   const [sortCol, setSortCol] = useState("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [searchQuery, setSearchQuery] = useState("");
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -49,8 +53,14 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
     return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
   }
 
+  const filtered = useMemo(() => {
+    return filterBySearch(people, searchQuery, (p) => searchBlob(
+      p.firstName, p.lastName, p.email, p.phoneNumber, p.technology, p.location, p.availability, p.amount,
+    ));
+  }, [people, searchQuery]);
+
   const sorted = useMemo(() => {
-    return [...people].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       switch (sortCol) {
         case "name":         return dir * (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`);
@@ -62,7 +72,7 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
         default: return 0;
       }
     });
-  }, [people, sortCol, sortDir]);
+  }, [filtered, sortCol, sortDir]);
 
   const deletePerson = (id: string, name: string) => {
     if (!confirm(`Remove ${name} from tech support?`)) return;
@@ -99,16 +109,19 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50">
             <Briefcase className="h-4 w-4 text-amber-600" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Tech Support Team</h3>
-            <p className="text-xs text-slate-500">{people.length} expert{people.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-slate-500">
+              {searchQuery ? `${sorted.length} of ${people.length} shown` : `${people.length} expert${people.length !== 1 ? "s" : ""}`}
+            </p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
         <div className="hidden sm:flex items-center gap-2">
           {usaCount > 0 && (
             <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
@@ -122,6 +135,8 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
               <span className="text-xs font-semibold text-blue-700">{indiaCount} India</span>
             </div>
           )}
+        </div>
+          <TabSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search tech support…" />
         </div>
       </div>
 
@@ -147,7 +162,6 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
               <th className={thCls} onClick={() => toggleSort("amount")}>
                 <span className="flex items-center gap-1.5">Amount <SortIcon col="amount" /></span>
               </th>
-              <th className={thFixed}>Calendar</th>
               <th className={thFixed} />
             </tr>
           </thead>
@@ -161,36 +175,39 @@ export function TechSupportList({ people }: { people: TechSupport[] }) {
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
                         {initials(name)}
                       </div>
-                      <p className="font-semibold text-slate-900 whitespace-nowrap">{name}</p>
+                      <button
+                        type="button"
+                        onClick={() => onSelect?.(p.id)}
+                        className="font-semibold text-slate-900 whitespace-nowrap text-left transition-colors hover:text-amber-600 hover:underline"
+                      >
+                        <HighlightText text={name} query={searchQuery} />
+                      </button>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <p className="text-xs text-slate-600 truncate max-w-[160px]">{p.email}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{p.phoneNumber}</p>
+                    <p className="text-xs text-slate-600 truncate max-w-[160px]">
+                      <HighlightText text={p.email} query={searchQuery} />
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      <HighlightText text={p.phoneNumber} query={searchQuery} />
+                    </p>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", TECH_COLOR[p.technology] ?? "bg-slate-100 text-slate-700")}>
-                      {p.technology}
+                      <HighlightText text={p.technology} query={searchQuery} />
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold", LOCATION_STYLE[p.location] ?? LOCATION_STYLE.Other)}>
-                      <MapPin className="h-3 w-3" />{p.location}
+                      <MapPin className="h-3 w-3" />
+                      <HighlightText text={p.location} query={searchQuery} />
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">
-                    {p.availability ?? <span className="text-slate-300">—</span>}
+                    <HighlightText text={p.availability} query={searchQuery} />
                   </td>
                   <td className="px-5 py-3.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
-                    {p.amount ?? <span className="text-slate-300 font-normal">—</span>}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    {p.calendarLink ? (
-                      <a href={p.calendarLink} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition-colors">
-                        <ExternalLink className="h-3 w-3" /> Book
-                      </a>
-                    ) : <span className="text-slate-300">—</span>}
+                    <HighlightText text={p.amount} query={searchQuery} />
                   </td>
                   <td className="px-5 py-3.5">
                     <button

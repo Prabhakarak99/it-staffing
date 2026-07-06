@@ -39,7 +39,7 @@ export default async function AdminLayout({
         userName={userName}
         roleName={session.roleName}
       />
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }

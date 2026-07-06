@@ -37,8 +37,14 @@ export async function POST(req: NextRequest) {
       interviewQuestions, interviewFeedback,
     } = body;
 
-    if (!submissionId || !interviewStartDate || !interviewEndDate || !interviewLevel || !interviewStatus) {
+    if (!submissionId || !interviewStartDate || !interviewEndDate || !interviewLevel) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const endDate = new Date(interviewEndDate);
+    const statusRequired = new Date() >= endDate;
+    if (statusRequired && !interviewStatus) {
+      return NextResponse.json({ error: "Interview status is required after the scheduled end time" }, { status: 400 });
     }
 
     const count = await prisma.interview.count();
@@ -50,9 +56,9 @@ export async function POST(req: NextRequest) {
         recruiterId: session.userId,
         submissionId,
         interviewStartDate: new Date(interviewStartDate),
-        interviewEndDate: new Date(interviewEndDate),
+        interviewEndDate: endDate,
         interviewLevel,
-        interviewStatus,
+        interviewStatus: interviewStatus || "Scheduled",
         techSupportId: techSupportId || null,
         amount: amount || null,
         techSupportFeedback: techSupportFeedback || null,

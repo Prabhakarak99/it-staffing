@@ -80,15 +80,15 @@ export function CreateUserForm({ roles, onSuccess }: Props) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       {/* Gradient header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-5">
+      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3">
         <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-4 bottom-0 h-16 w-16 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
-            <UserPlus className="h-6 w-6 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+            <UserPlus className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Create New User</h2>
+            <h2 className="text-[15px] font-bold text-white">Create New User</h2>
             <p className="text-sm text-white/70">Create a system user account with role assignment</p>
           </div>
           {fullName && (
@@ -102,7 +102,7 @@ export function CreateUserForm({ roles, onSuccess }: Props) {
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 space-y-3">
 
         {/* Identity */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -111,11 +111,11 @@ export function CreateUserForm({ roles, onSuccess }: Props) {
             <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Identity</span>
           </div>
           <div className="p-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Input id="firstName" label="First Name *" placeholder="John" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
-              <Input id="lastName" label="Last Name *" placeholder="Doe" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
-              <Input id="email" label="Email *" type="email" placeholder="john@example.com" value={form.email} onChange={set("email")} error={errors.email} />
-              <Input id="phoneNumber" label="Phone Number" type="tel" placeholder="555-000-0000" value={form.phoneNumber} onChange={set("phoneNumber")} error={errors.phoneNumber} />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Input compact id="firstName" label="First Name *" placeholder="John" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
+              <Input compact id="lastName" label="Last Name *" placeholder="Doe" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
+              <Input compact id="email" label="Email *" type="email" placeholder="john@example.com" value={form.email} onChange={set("email")} error={errors.email} />
+              <Input compact id="phoneNumber" label="Phone Number" type="tel" placeholder="555-000-0000" value={form.phoneNumber} onChange={set("phoneNumber")} error={errors.phoneNumber} />
             </div>
           </div>
         </div>
@@ -128,7 +128,7 @@ export function CreateUserForm({ roles, onSuccess }: Props) {
           </div>
           <div className="p-4">
             <div className="max-w-sm">
-              <Input id="password" label="Password *" type="password" placeholder="Min 8 characters" value={form.password} onChange={set("password")} error={errors.password} />
+              <Input compact id="password" label="Password *" type="password" placeholder="Min 8 characters" value={form.password} onChange={set("password")} error={errors.password} />
             </div>
           </div>
         </div>

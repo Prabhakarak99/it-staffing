@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
           ],
         }
       : undefined,
-    select: { id: true, firstName: true, lastName: true, email: true, technology: true },
+    select: { id: true, firstName: true, lastName: true, email: true, technology: true, personalPhone: true, phoneNumber: true },
     orderBy: { firstName: "asc" },
     take: 20,
   });

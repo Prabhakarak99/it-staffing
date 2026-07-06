@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { label: "Submissions",   href: "/admin/submissions/list",   match: "/admin/submissions",   exact: false },
   { label: "Interviews",    href: "/admin/interviews/list",    match: "/admin/interviews",    exact: false },
   { label: "Recruiters",    href: "/admin/recruiters",         match: "/admin/recruiters",    exact: false },
+  { label: "Leads",         href: "/admin/leads",              match: "/admin/leads",         exact: false },
   { label: "Pre-Marketing", href: "/admin/premarketing",       match: "/admin/premarketing",  exact: false },
   { label: "Tech Support",   href: "/admin/tech-support",       match: "/admin/tech-support",    exact: false },
   { label: "Requirements",  href: "/admin/requirements",       match: "/admin/requirements",    exact: false },
@@ -80,16 +81,16 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
   return (
     <nav
       ref={navRef}
-      className="relative z-50 flex h-[58px] shrink-0 items-center gap-1 border-b border-white/[0.06] bg-[#0A0F1E] px-4"
+      className="relative z-50 flex h-[64px] shrink-0 items-center gap-1 border-b border-white/[0.06] bg-[#0A0F1E] px-4"
     >
       {/* ── Logo ── */}
       <Link href="/admin" className="mr-2 flex shrink-0 items-center gap-2">
-        <GFTMark size={28} />
+        <GFTMark size={32} />
         <div className="hidden leading-none md:block">
-          <p className="text-[13px] font-extrabold tracking-tight text-white">
+          <p className="text-[17px] font-extrabold tracking-tight text-white">
             GFT<span className="text-indigo-400"> Vision</span>
           </p>
-          <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-slate-600">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[0.2em] text-slate-600">
             Staffing
           </p>
         </div>
@@ -106,7 +107,7 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
               key={link.href}
               href={link.href}
               className={cn(
-                "whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all duration-100",
+                "whitespace-nowrap rounded-lg px-3 py-2 text-[16px] font-medium transition-all duration-100",
                 active
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-400 hover:bg-white/[0.08] hover:text-slate-100"
@@ -124,7 +125,7 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
           <button
             onClick={() => { setAdminOpen(!adminOpen); setUserOpen(false); }}
             className={cn(
-              "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-all duration-100",
+              "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-[16px] font-medium transition-all duration-100",
               adminActive || adminOpen
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-400 hover:bg-white/[0.08] hover:text-slate-100"
