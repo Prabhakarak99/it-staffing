@@ -223,8 +223,7 @@ export function RecruiterAssignedCandidates({
 
   const saveReturnUrl = () => {
     const returnUrl = buildRecruiterUrl({
-      expanded: variant === "inline" ? recruiterId : undefined,
-      detail: variant === "panel" ? recruiterId : undefined,
+      expanded: recruiterId,
       filters: filtersOpen,
       candidate: filters.candidateId || undefined,
     });

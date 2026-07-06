@@ -54,6 +54,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const body = await req.json();
 
+  const existing = await prisma.interview.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Interview not found" }, { status: 404 });
+  }
+
+  const endDate = body.interviewEndDate ? new Date(body.interviewEndDate) : existing.interviewEndDate;
+  const statusRequired = new Date() >= endDate;
+  const nextStatus = body.interviewStatus !== undefined ? body.interviewStatus : existing.interviewStatus;
+
+  if (statusRequired && !nextStatus) {
+    return NextResponse.json({ error: "Interview status is required after the scheduled end time" }, { status: 400 });
+  }
+
   const interview = await prisma.interview.update({
     where: { id },
     data: {

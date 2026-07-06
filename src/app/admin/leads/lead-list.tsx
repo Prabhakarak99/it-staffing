@@ -58,8 +58,15 @@ function getFilterValue(lead: Lead, key: FilterKey): string {
   }
 }
 
-export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: string) => void }) {
-  const [list, setList] = useState(leads);
+export function LeadList({
+  leads,
+  onSelect,
+  onLeadsChange,
+}: {
+  leads: Lead[];
+  onSelect?: (id: string) => void;
+  onLeadsChange?: React.Dispatch<React.SetStateAction<Lead[]>>;
+}) {
   const [sortCol, setSortCol] = useState<SortCol>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -80,10 +87,10 @@ export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: s
   };
 
   const searched = useMemo(() => {
-    return filterBySearch(list, searchQuery, (lead) => searchBlob(
+    return filterBySearch(leads, searchQuery, (lead) => searchBlob(
       lead.consultantName, lead.phoneNumber, lead.email, lead.comments,
     ));
-  }, [list, searchQuery]);
+  }, [leads, searchQuery]);
 
   const filterOptions = useMemo(() => {
     return buildCascadingFilterOptions(searched, filters, FILTER_KEYS, getFilterValue);
@@ -135,7 +142,7 @@ export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: s
       try {
         const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
         if (!res.ok) throw new Error("Failed to delete lead");
-        setList((prev) => prev.filter((lead) => lead.id !== id));
+        onLeadsChange?.((prev) => prev.filter((lead) => lead.id !== id));
         show(`Removed lead for ${consultantName}`, "success");
         router.refresh();
       } catch {
@@ -150,7 +157,7 @@ export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: s
         const res = await fetch(`/api/leads/${id}/convert`, { method: "POST" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to convert lead");
-        setList((prev) => prev.filter((lead) => lead.id !== id));
+        onLeadsChange?.((prev) => prev.filter((lead) => lead.id !== id));
         show(`${consultantName} added to Consultants and moved to Pre-Marketing`, "success");
         router.refresh();
       } catch (err) {
@@ -159,7 +166,7 @@ export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: s
     });
   };
 
-  if (list.length === 0) {
+  if (leads.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
@@ -181,7 +188,7 @@ export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: s
           <div>
             <h3 className="text-sm font-bold text-slate-900">Lead Records</h3>
             <p className="text-xs text-slate-500">
-              {activeFilterCount > 0 || searchQuery ? `${sorted.length} of ${list.length} shown` : `${list.length} total`}
+              {activeFilterCount > 0 || searchQuery ? `${sorted.length} of ${leads.length} shown` : `${leads.length} total`}
             </p>
           </div>
         </div>
@@ -238,7 +245,7 @@ export function LeadList({ leads, onSelect }: { leads: Lead[]; onSelect?: (id: s
                   </td>
                   <td className="w-[320px] max-w-[320px] px-5 py-3.5 align-top">
                     {lead.comments ? (
-                      <p className="whitespace-normal break-words text-xs leading-relaxed text-slate-600">
+                      <p className="whitespace-normal break-words text-[13.8px] leading-relaxed text-slate-600">
                         <HighlightText text={lead.comments} query={searchQuery} />
                       </p>
                     ) : (

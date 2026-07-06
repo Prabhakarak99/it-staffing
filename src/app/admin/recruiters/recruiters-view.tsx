@@ -21,38 +21,35 @@ export function RecruitersView({ recruiters, roles }: Props) {
   const urlState = useMemo(() => parseRecruiterUrl(searchParams), [searchParams]);
 
   const [showAdd, setShowAdd] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(urlState.detail ?? null);
-  const [editOnOpen, setEditOnOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(urlState.edit ?? null);
 
   useEffect(() => {
-    setSelectedId(urlState.detail ?? null);
-  }, [urlState.detail]);
+    setEditId(urlState.edit ?? null);
+  }, [urlState.edit]);
 
-  const selectedRecruiter = selectedId ? recruiters.find((r) => r.id === selectedId) : null;
+  const editRecruiter = editId ? recruiters.find((r) => r.id === editId) : null;
 
-  const openRecruiter = (id: string, edit = false) => {
-    setEditOnOpen(edit);
-    setSelectedId(id);
-    router.replace(buildRecruiterUrl({ detail: id }), { scroll: false });
+  const openEdit = (id: string) => {
+    setEditId(id);
+    router.replace(buildRecruiterUrl({ ...urlState, edit: id }), { scroll: false });
   };
 
-  const closeDetail = () => {
-    setSelectedId(null);
-    setEditOnOpen(false);
-    router.replace("/admin/recruiters", { scroll: false });
+  const closeEdit = () => {
+    setEditId(null);
+    const { edit: _edit, ...rest } = urlState;
+    router.replace(buildRecruiterUrl(rest), { scroll: false });
   };
 
   const handleExpandChange = (id: string | null) => {
     if (id) {
-      router.replace(buildRecruiterUrl({ expanded: id }), { scroll: false });
+      router.replace(buildRecruiterUrl({ ...urlState, expanded: id, edit: undefined }), { scroll: false });
     } else {
-      router.replace("/admin/recruiters", { scroll: false });
+      router.replace(buildRecruiterUrl({ ...urlState, expanded: undefined, edit: undefined }), { scroll: false });
     }
   };
 
   return (
     <>
-      {/* ── Page header ── */}
       <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 px-6 py-5">
         <div className="absolute -right-6 -top-6 h-36 w-36 rounded-full bg-white/[0.05]" />
         <div className="absolute left-1/2 bottom-0 h-20 w-20 rounded-full bg-white/[0.04]" />
@@ -80,12 +77,10 @@ export function RecruitersView({ recruiters, roles }: Props) {
         </div>
       </div>
 
-      {/* ── List ── */}
       <div className="p-6">
         <RecruiterList
           recruiters={recruiters}
-          onSelect={(id) => openRecruiter(id)}
-          onEdit={(id) => openRecruiter(id, true)}
+          onEdit={openEdit}
           initialExpandedId={urlState.expanded}
           restoreFilters={urlState.filters}
           restoreCandidateId={urlState.candidate}
@@ -93,21 +88,18 @@ export function RecruitersView({ recruiters, roles }: Props) {
         />
       </div>
 
-      {/* ── Recruiter detail slide-over ── */}
-      <SlideOver open={!!selectedId} onClose={closeDetail} maxWidth="max-w-4xl">
-        {selectedRecruiter && (
+      <SlideOver open={!!editId} onClose={closeEdit} maxWidth="max-w-3xl">
+        {editRecruiter && (
           <RecruiterDetail
-            key={`${selectedRecruiter.id}-${editOnOpen ? "edit" : "view"}`}
-            recruiter={selectedRecruiter}
+            key={editRecruiter.id}
+            recruiter={editRecruiter}
             roles={roles}
-            initialEditing={editOnOpen}
-            restoreFilters={urlState.detail === selectedRecruiter.id && urlState.filters}
-            restoreCandidateId={urlState.detail === selectedRecruiter.id ? urlState.candidate : undefined}
+            onCancel={closeEdit}
+            onUpdated={closeEdit}
           />
         )}
       </SlideOver>
 
-      {/* ── Add Recruiter slide-over ── */}
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-3xl">
         <OnboardRecruiterForm roles={roles} onSuccess={() => setShowAdd(false)} />
       </SlideOver>

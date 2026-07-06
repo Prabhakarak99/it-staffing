@@ -230,10 +230,6 @@ export function ConsultantList({
     [filters]
   );
 
-  const activeCount = consultants.filter((c) => c.projectStatus === "In-Project").length;
-  const inMarketCount = consultants.filter((c) => c.projectStatus === "In-Market").length;
-  const preMarketingCount = consultants.filter((c) => c.projectStatus === "Pre-Marketing").length;
-
   const setFilter = (key: FilterKey, next: Set<string>) =>
     setFilters((prev) => ({ ...prev, [key]: next }));
 
@@ -275,20 +271,6 @@ export function ConsultantList({
               Clear all filters ({activeFilterCount})
             </button>
           )}
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <span className="text-xs font-semibold text-amber-700">{preMarketingCount} Pre-Marketing</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold text-emerald-700">{activeCount} On Project</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-              <span className="text-xs font-semibold text-slate-600">{inMarketCount} In Market</span>
-            </div>
-          </div>
           <TabSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search consultants…" />
         </div>
       </div>
@@ -519,7 +501,7 @@ export function ConsultantList({
                     </td>
                     <td className="w-[240px] max-w-[240px] px-5 py-3.5 align-top">
                       {comments.length > 0 ? (
-                        <ul className="list-disc space-y-1 pl-4 text-[10px] leading-relaxed text-slate-500">
+                        <ul className="list-disc space-y-1 pl-4 text-[11.5px] leading-relaxed text-slate-500">
                           {comments.map((comment, index) => (
                             <li
                               key={`${comment.updatedAt}-${index}`}

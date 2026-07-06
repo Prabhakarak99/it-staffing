@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { emptyChecklist } from "@/lib/premarketing-checklist";
+import { emptyChecklist, replaceConsultantLevelComments } from "@/lib/premarketing-checklist";
 import { parseDateInput } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -90,6 +90,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     const projectStartDate = get("projectStartDate") ? parseDateInput(get("projectStartDate")!) : null;
 
     const projectStatus = get("projectStatus") ?? null;
+    const consultantComment = get("consultantComment") ?? "";
 
     if (projectStatus === "Verbal Confirmation" && !get("verbalConfirmationDate")) {
       return NextResponse.json({ error: "Verbal confirmation date is required for Verbal Confirmation status" }, { status: 400 });
@@ -143,6 +144,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
         pmPhone: get("pmPhone") ?? null,
         driveLocation: get("driveLocation") ?? null,
         technology: get("technology") ?? null,
+        comments: replaceConsultantLevelComments(existing.comments, consultantComment),
       },
     });
 

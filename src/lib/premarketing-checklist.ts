@@ -134,3 +134,25 @@ export function getConsultantLevelComment(value: unknown): string {
   const comments = normalizeConsultantComments(value);
   return comments.find((comment) => comment.scope === "consultant")?.note ?? comments[0]?.note ?? "";
 }
+
+/** All consultant-scoped notes joined for editing as one global comment field. */
+export function getConsultantLevelCommentsText(value: unknown): string {
+  return normalizeConsultantComments(value)
+    .map((comment) => comment.note.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** Replace consultant-level notes while preserving lead-sourced or item-scoped entries. */
+export function replaceConsultantLevelComments(value: unknown, note: string): ConsultantComment[] {
+  const existing = Array.isArray(value) ? value : [];
+  const preserved = existing.filter((item): item is ConsultantComment => {
+    if (!item || typeof item !== "object") return false;
+    const candidate = item as ConsultantComment;
+    if (candidate.source === "lead") return true;
+    if (candidate.scope === "item" || candidate.itemKey || candidate.item || candidate.status) return true;
+    return false;
+  });
+  const next = buildConsultantComment(note);
+  return next ? [...preserved, next] : preserved;
+}

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { writeFile } from "fs/promises";
 import path from "path";
-import { emptyChecklist } from "@/lib/premarketing-checklist";
+import { emptyChecklist, replaceConsultantLevelComments } from "@/lib/premarketing-checklist";
 import { parseDateInput } from "@/lib/dates";
 
 export async function GET() {
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     const projectStartDate = get("projectStartDate") ? parseDateInput(get("projectStartDate")!) : undefined;
 
     const projectStatus = get("projectStatus");
+    const consultantComment = get("consultantComment") ?? "";
 
     if (projectStatus === "Verbal Confirmation" && !get("verbalConfirmationDate")) {
       return NextResponse.json({ error: "Verbal confirmation date is required for Verbal Confirmation status" }, { status: 400 });
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
         pmPhone: get("pmPhone"),
         driveLocation: get("driveLocation"),
         technology: get("technology"),
+        comments: replaceConsultantLevelComments([], consultantComment),
       },
     });
 

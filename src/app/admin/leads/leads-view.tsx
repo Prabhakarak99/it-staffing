@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Users } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
 import { LeadForm } from "./lead-form";
@@ -18,9 +18,54 @@ interface Lead {
   updatedAt: string;
 }
 
-export function LeadsView({ leads }: { leads: Lead[] }) {
+function normalizeLead(lead: {
+  id: string;
+  consultantId: string | null;
+  consultantName: string;
+  phoneNumber: string | null;
+  email: string;
+  comments: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}): Lead {
+  return {
+    ...lead,
+    createdAt: typeof lead.createdAt === "string" ? lead.createdAt : new Date(lead.createdAt).toISOString(),
+    updatedAt: typeof lead.updatedAt === "string" ? lead.updatedAt : new Date(lead.updatedAt).toISOString(),
+  };
+}
+
+export function LeadsView({ leads: initialLeads }: { leads: Lead[] }) {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [leads, setLeads] = useState(initialLeads);
+
+  useEffect(() => {
+    setLeads(initialLeads);
+  }, [initialLeads]);
+
+  const handleLeadSaved = (saved: {
+    id: string;
+    consultantId?: string | null;
+    consultantName: string;
+    phoneNumber?: string | null;
+    email: string;
+    comments?: string | null;
+    createdAt: string | Date;
+    updatedAt: string | Date;
+  }) => {
+    const lead = normalizeLead({
+      consultantId: saved.consultantId ?? null,
+      comments: saved.comments ?? null,
+      phoneNumber: saved.phoneNumber ?? null,
+      ...saved,
+    });
+    setLeads((prev) => {
+      const exists = prev.some((l) => l.id === lead.id);
+      if (exists) return prev.map((l) => (l.id === lead.id ? { ...l, ...lead } : l));
+      return [lead, ...prev];
+    });
+  };
 
   return (
     <>
@@ -52,15 +97,26 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
       </div>
 
       <div className="p-6">
-        <LeadList leads={leads} onSelect={setSelectedId} />
+        <LeadList leads={leads} onSelect={setSelectedId} onLeadsChange={setLeads} />
       </div>
 
       <SlideOver open={!!selectedId} onClose={() => setSelectedId(null)} maxWidth="max-w-4xl">
-        {selectedId && <LeadDetail leadId={selectedId} />}
+        {selectedId && (
+          <LeadDetail
+            leadId={selectedId}
+            onLeadUpdated={handleLeadSaved}
+          />
+        )}
       </SlideOver>
 
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-4xl">
-        <LeadForm onCancel={() => setShowAdd(false)} onSuccess={() => setShowAdd(false)} />
+        <LeadForm
+          onCancel={() => setShowAdd(false)}
+          onSuccess={(saved) => {
+            if (saved) handleLeadSaved(saved);
+            setShowAdd(false);
+          }}
+        />
       </SlideOver>
     </>
   );

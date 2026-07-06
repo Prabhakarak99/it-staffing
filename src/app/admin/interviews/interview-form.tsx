@@ -119,6 +119,11 @@ function calcDuration(start: string, end: string): string {
   return `${mins} min`;
 }
 
+function isInterviewFinished(endDate: string) {
+  if (!endDate) return false;
+  return new Date() >= new Date(endDate);
+}
+
 function toDateTimeLocal(value: string | Date | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
@@ -230,6 +235,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
       setForm((p) => ({ ...p, [field]: e.target.value }));
 
   const duration = calcDuration(form.interviewStartDate, form.interviewEndDate);
+  const statusRequired = isInterviewFinished(form.interviewEndDate);
 
   const validate = () => {
     const errs: typeof errors = {};
@@ -239,7 +245,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
     if (form.interviewStartDate && form.interviewEndDate && new Date(form.interviewEndDate) <= new Date(form.interviewStartDate))
       errs.interviewEndDate = "End must be after start";
     if (!form.interviewLevel) errs.interviewLevel = "Required";
-    if (!form.interviewStatus) errs.interviewStatus = "Required";
+    if (statusRequired && !form.interviewStatus) errs.interviewStatus = "Required after interview ends";
     const otterErr = validateOptionalUrl(form.otterLink);
     if (otterErr) errs.otterLink = otterErr;
     return errs;
@@ -256,7 +262,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
           interviewStartDate: form.interviewStartDate,
           interviewEndDate: form.interviewEndDate,
           interviewLevel: form.interviewLevel,
-          interviewStatus: form.interviewStatus,
+          interviewStatus: form.interviewStatus || (statusRequired ? "" : "Scheduled"),
           techSupportId: form.techSupportId || null,
           amount: form.amount.trim() || null,
           techSupportFeedback: form.techSupportFeedback || null,
@@ -430,8 +436,11 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
               {errors.interviewLevel && <p className="mt-1 text-xs text-rose-500">{errors.interviewLevel}</p>}
             </div>
             <div>
-              <PillChips label="Interview Status *" value={form.interviewStatus} options={INTERVIEW_STATUSES}
-                onChange={(v) => setForm((p) => ({ ...p, interviewStatus: v }))} required />
+              <PillChips label="Interview Status" value={form.interviewStatus} options={INTERVIEW_STATUSES}
+                onChange={(v) => setForm((p) => ({ ...p, interviewStatus: v }))} required={statusRequired} />
+              {!statusRequired && (
+                <p className="mt-1 text-[11px] text-slate-400">Outcome is required once the scheduled end time has passed.</p>
+              )}
               {errors.interviewStatus && <p className="mt-1 text-xs text-rose-500">{errors.interviewStatus}</p>}
             </div>
           </div>

@@ -85,7 +85,6 @@ function fmtDate(d: Date | string | null) {
 
 export function RecruiterList({
   recruiters,
-  onSelect,
   onEdit,
   initialExpandedId,
   restoreFilters,
@@ -93,7 +92,6 @@ export function RecruiterList({
   onExpandChange,
 }: {
   recruiters: RecruiterUser[];
-  onSelect?: (id: string) => void;
   onEdit?: (id: string) => void;
   initialExpandedId?: string;
   restoreFilters?: boolean;
@@ -190,8 +188,7 @@ export function RecruiterList({
   };
 
   const openEdit = (r: RecruiterUser) => {
-    if (onEdit) onEdit(r.id);
-    else onSelect?.(r.id);
+    onEdit?.(r.id);
   };
 
   const activeCount = recruiters.filter((r) => Boolean(r.isActive)).length;
@@ -295,7 +292,7 @@ export function RecruiterList({
                           <div>
                             <button
                               type="button"
-                              onClick={() => onSelect?.(r.id)}
+                              onClick={() => toggleExpanded(r.id)}
                               className="font-semibold text-slate-900 whitespace-nowrap text-left transition-colors hover:text-emerald-600 hover:underline"
                             >
                               <HighlightText text={name} query={searchQuery} />

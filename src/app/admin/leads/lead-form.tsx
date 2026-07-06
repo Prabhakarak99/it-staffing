@@ -37,7 +37,16 @@ export function LeadForm({
 }: {
   leadId?: string;
   initialData?: Partial<FormState> | null;
-  onSuccess?: () => void;
+  onSuccess?: (lead?: {
+    id: string;
+    consultantId: string | null;
+    consultantName: string;
+    phoneNumber: string | null;
+    email: string;
+    comments: string | null;
+    createdAt: string | Date;
+    updatedAt: string | Date;
+  }) => void;
   onCancel?: () => void;
 } = {}) {
   const [form, setForm] = useState<FormState>(() => ({
@@ -80,7 +89,7 @@ export function LeadForm({
         if (!res.ok) throw new Error(data.error ?? `Failed to ${leadId ? "update" : "save"} lead`);
         show(`Lead ${leadId ? "updated" : "saved"} for ${data.consultantName ?? form.consultantName}`, "success");
         if (!leadId) setForm(EMPTY);
-        onSuccess?.();
+        onSuccess?.(data);
         router.refresh();
       } catch (err) {
         show(err instanceof Error ? err.message : "Failed to save lead", "error");

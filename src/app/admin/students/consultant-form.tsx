@@ -8,7 +8,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
   GraduationCap, Loader2, Upload, CheckCircle2,
-  User, MapPin, BookOpen, CreditCard, Briefcase, FolderKanban, FileCheck,
+  User, MapPin, BookOpen, CreditCard, Briefcase, FolderKanban, FileCheck, MessageSquare,
 } from "lucide-react";
 import {
   SlideFormShell, SlideFormHeader, SlideFormBody, SlideFormSections,
@@ -17,6 +17,7 @@ import {
 
 import { isValidEmail, validateOptionalEmail, validateOptionalPhone } from "@/lib/validators";
 import { toDateInputValue } from "@/lib/dates";
+import { getConsultantLevelCommentsText } from "@/lib/premarketing-checklist";
 
 const VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
 const OFFER_LETTER_TYPES = ["Unpaid-Intern", "Paid-Stem"];
@@ -76,6 +77,8 @@ type ConsultantInitialData = {
   pmPhone?: string | null;
   driveLocation?: string | null;
   linkedInterviewId?: string | null;
+  consultantComment?: string | null;
+  comments?: unknown;
 };
 
 type FileState = { file: File | null; uploaded: boolean };
@@ -242,6 +245,10 @@ export function ConsultantForm({
   const [pmEmail, setPmEmail] = useState(initialData?.pmEmail ?? "");
   const [pmPhone, setPmPhone] = useState(initialData?.pmPhone ?? "");
   const [driveLocation, setDriveLocation] = useState(initialData?.driveLocation ?? "");
+  const [consultantComment, setConsultantComment] = useState(
+    initialData?.consultantComment
+      ?? (initialData?.comments ? getConsultantLevelCommentsText(initialData.comments) : "")
+  );
   const [interviewQuery, setInterviewQuery] = useState(initialData?.linkedInterviewId ?? "");
   const [interviewResults, setInterviewResults] = useState<InterviewHit[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<InterviewHit | null>(null);
@@ -314,6 +321,7 @@ export function ConsultantForm({
         setPmEmail(c.pmEmail ?? "");
         setPmPhone(c.pmPhone ?? "");
         setDriveLocation(c.driveLocation ?? "");
+        setConsultantComment(getConsultantLevelCommentsText(c.comments));
         if (c.linkedInterviewId) setInterviewQuery(c.linkedInterviewId);
       } catch {
         if (!cancelled) show("Failed to load consultant details", "error");
@@ -405,6 +413,7 @@ export function ConsultantForm({
         if (pmEmail) fd.append("pmEmail", pmEmail);
         if (pmPhone) fd.append("pmPhone", pmPhone);
         if (driveLocation) fd.append("driveLocation", driveLocation);
+        fd.append("consultantComment", consultantComment);
         const url = isEdit ? `/api/students/${consultantId}` : "/api/students";
         const method = isEdit ? "PUT" : "POST";
         const res = await fetch(url, { method, body: fd });
@@ -424,6 +433,7 @@ export function ConsultantForm({
         setDlDoc(emptyFile()); setPassportDoc(emptyFile()); setVisaCopyDoc(emptyFile());
         setProjectStatus(""); setJobTitle(""); setVerbalConfirmationDate(""); setProjectStartDate("");
         setBillRate(""); setPayroll(""); setWorkMode(""); setPmName(""); setPmEmail(""); setPmPhone(""); setDriveLocation("");
+        setConsultantComment("");
         setSelectedInterview(null); setInterviewQuery("");
         }
       } catch (err: unknown) {
@@ -575,6 +585,24 @@ export function ConsultantForm({
             )}
             <PillChips label="Payroll Split" value={payroll} options={PAYROLLS} onChange={setPayroll} />
             <PillChips label="Work Mode" value={workMode} options={WORK_MODES} onChange={setWorkMode} />
+          </SlideFormSection>
+
+          <SlideFormSection icon={MessageSquare} title="Comments" color="rose" className="xl:col-span-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Consultant comment
+              </label>
+              <textarea
+                rows={4}
+                value={consultantComment}
+                onChange={(e) => setConsultantComment(e.target.value)}
+                placeholder="Global consultant notes from pre-marketing, leads, or staff..."
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/20 resize-y"
+              />
+              <p className="text-[10px] text-slate-400">
+                This note appears in the Consultants comments column and detail view.
+              </p>
+            </div>
           </SlideFormSection>
         </SlideFormSections>
       </SlideFormBody>

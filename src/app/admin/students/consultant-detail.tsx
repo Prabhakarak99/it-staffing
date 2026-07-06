@@ -12,7 +12,7 @@ import {
   SlideFormSections, SlideFormShell,
 } from "@/components/forms/compact-slide-form";
 import { ConsultantForm } from "./consultant-form";
-import { normalizeConsultantComments, type ConsultantComment } from "@/lib/premarketing-checklist";
+import { normalizeConsultantComments, getConsultantLevelCommentsText, type ConsultantComment } from "@/lib/premarketing-checklist";
 import { formatDateOnly } from "@/lib/dates";
 
 type ConsultantDetail = {
@@ -158,7 +158,10 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
     return (
       <ConsultantForm
         consultantId={consultantId}
-        initialData={consultant}
+        initialData={{
+          ...consultant,
+          consultantComment: getConsultantLevelCommentsText(consultant.comments),
+        }}
         onCancel={() => setEditing(false)}
         onSuccess={() => {
           setEditing(false);
@@ -313,7 +316,7 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
 
           <SlideFormSection icon={MessageSquare} title="Comments" color="rose" className="xl:col-span-2">
             {consultantComments.length > 0 ? (
-              <ul className="list-disc space-y-2 pl-5 text-xs leading-relaxed text-slate-600">
+              <ul className="list-disc space-y-2 pl-5 text-[13.8px] leading-relaxed text-slate-600">
                 {consultantComments.map((comment, index) => (
                   <li key={`${comment.updatedAt}-${index}`} className="break-words">
                     {comment.note || comment.item || "Pre-Marketing comment"}
@@ -321,7 +324,7 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-slate-400">No pre-marketing comments yet. The consultant-level note from Pre-Marketing will appear here.</p>
+              <p className="text-xs text-slate-400">No consultant comments yet. Use Edit to add a global note.</p>
             )}
           </SlideFormSection>
         </SlideFormSections>

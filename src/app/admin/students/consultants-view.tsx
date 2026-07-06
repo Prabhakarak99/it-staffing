@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GraduationCap, Plus, TrendingUp, Users, Sparkles } from "lucide-react";
+import { GraduationCap, Plus } from "lucide-react";
 import { SlideOver } from "@/components/ui/slide-over";
 import { ConsultantDetail } from "./consultant-detail";
 import { ConsultantForm } from "./consultant-form";
@@ -44,22 +44,6 @@ export function ConsultantsView({ consultants, inMarketCount, onProjectCount, pr
               <p className="mt-0.5 text-[12px] text-white/65">
                 {total} total &nbsp;·&nbsp; {preMarketingCount} pre-marketing &nbsp;·&nbsp; {inMarketCount} in-market &nbsp;·&nbsp; {onProjectCount} in-project
               </p>
-            </div>
-          </div>
-
-          {/* Stats pills */}
-          <div className="hidden items-center gap-2 lg:flex">
-            <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-              <Sparkles className="h-3.5 w-3.5 text-amber-200" />
-              <span className="text-[12px] font-semibold text-white">{preMarketingCount} Pre-Marketing</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-              <TrendingUp className="h-3.5 w-3.5 text-indigo-200" />
-              <span className="text-[12px] font-semibold text-white">{inMarketCount} In Market</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-              <Users className="h-3.5 w-3.5 text-indigo-200" />
-              <span className="text-[12px] font-semibold text-white">{onProjectCount} On Project</span>
             </div>
           </div>
 

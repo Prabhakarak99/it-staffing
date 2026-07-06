@@ -34,7 +34,13 @@ function DetailField({ label, value }: { label: string; value: string | null | u
   );
 }
 
-export function LeadDetail({ leadId }: { leadId: string }) {
+export function LeadDetail({
+  leadId,
+  onLeadUpdated,
+}: {
+  leadId: string;
+  onLeadUpdated?: (lead: LeadRecord) => void;
+}) {
   const router = useRouter();
   const [lead, setLead] = useState<LeadRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,9 +89,14 @@ export function LeadDetail({ leadId }: { leadId: string }) {
           comments: lead.comments ?? "",
         }}
         onCancel={() => setEditing(false)}
-        onSuccess={() => {
+        onSuccess={(saved) => {
           setEditing(false);
-          load();
+          if (saved) {
+            setLead(saved as LeadRecord);
+            onLeadUpdated?.(saved as LeadRecord);
+          } else {
+            load();
+          }
           router.refresh();
         }}
       />
@@ -135,7 +146,7 @@ export function LeadDetail({ leadId }: { leadId: string }) {
 
           <SlideFormSection icon={Mail} title="Lead Notes" color="indigo" className="xl:col-span-2">
             {lead.comments ? (
-              <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{lead.comments}</p>
+              <p className="whitespace-pre-wrap text-[13.8px] leading-relaxed text-slate-600">{lead.comments}</p>
             ) : (
               <p className="text-xs text-slate-400">No comments added.</p>
             )}
