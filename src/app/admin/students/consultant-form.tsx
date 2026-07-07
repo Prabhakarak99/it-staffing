@@ -18,13 +18,14 @@ import {
 import { isValidEmail, validateOptionalEmail, validateOptionalPhone } from "@/lib/validators";
 import { toDateInputValue } from "@/lib/dates";
 import { getConsultantLevelCommentsText } from "@/lib/premarketing-checklist";
+import { PROJECT_STATUSES } from "@/lib/project-status";
 
 const VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
+const MARKETING_VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
+const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force", "SAP", "ServiceNow", "Manufacturing", "Others"];
 const OFFER_LETTER_TYPES = ["Unpaid-Intern", "Paid-Stem"];
-import { PROJECT_STATUSES } from "@/lib/project-status";
 const PAYROLLS = ["70/30", "80/20"];
 const WORK_MODES = ["Remote", "Hybrid", "Onsite"];
-const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force"];
 
 type InterviewHit = {
   id: string;
@@ -56,6 +57,7 @@ type ConsultantInitialData = {
   dsoEmail?: string | null;
   dsoPhone?: string | null;
   visaStatus?: string | null;
+  marketingVisaStatus?: string | null;
   visaStartDate?: string | null;
   visaExpiryDate?: string | null;
   onboardingStartDate?: string | null;
@@ -222,6 +224,7 @@ export function ConsultantForm({
   const [dsoEmail, setDsoEmail] = useState(initialData?.dsoEmail ?? "");
   const [dsoPhone, setDsoPhone] = useState(initialData?.dsoPhone ?? "");
   const [visaStatus, setVisaStatus] = useState(initialData?.visaStatus ?? "");
+  const [marketingVisaStatus, setMarketingVisaStatus] = useState(initialData?.marketingVisaStatus ?? "");
   const [visaStartDate, setVisaStartDate] = useState(toDateInputValue(initialData?.visaStartDate));
   const [visaExpiryDate, setVisaExpiryDate] = useState(toDateInputValue(initialData?.visaExpiryDate));
   const [onboardingStartDate, setOnboardingStartDate] = useState(toDateInputValue(initialData?.onboardingStartDate));
@@ -301,6 +304,7 @@ export function ConsultantForm({
         setDsoEmail(c.dsoEmail ?? "");
         setDsoPhone(c.dsoPhone ?? "");
         setVisaStatus(c.visaStatus ?? "");
+        setMarketingVisaStatus(c.marketingVisaStatus ?? "");
         setVisaStartDate(toDateInputValue(c.visaStartDate));
         setVisaExpiryDate(toDateInputValue(c.visaExpiryDate));
         setOnboardingStartDate(toDateInputValue(c.onboardingStartDate));
@@ -389,6 +393,7 @@ export function ConsultantForm({
         if (dsoEmail) fd.append("dsoEmail", dsoEmail);
         if (dsoPhone) fd.append("dsoPhone", dsoPhone);
         if (visaStatus) fd.append("visaStatus", visaStatus);
+        fd.append("marketingVisaStatus", marketingVisaStatus);
         if (visaStartDate) fd.append("visaStartDate", visaStartDate);
         if (visaExpiryDate) fd.append("visaExpiryDate", visaExpiryDate);
         if (onboardingStartDate) fd.append("onboardingStartDate", onboardingStartDate);
@@ -428,7 +433,7 @@ export function ConsultantForm({
         setAddressLine1(""); setAddressLine2(""); setCity(""); setState(""); setZipCode("");
         setUniversityName(""); setUniversityLocation(""); setMasters(""); setMastersCompletedDate("");
         setDsoName(""); setDsoEmail(""); setDsoPhone("");
-        setVisaStatus(""); setVisaStartDate(""); setVisaExpiryDate("");
+        setVisaStatus(""); setMarketingVisaStatus(""); setVisaStartDate(""); setVisaExpiryDate("");
         setOnboardingStartDate(""); setOfferLetterType(""); setPayRate(""); setHasDL(""); setHasSSN(""); setPassportNumber(""); setTechnology("");
         setDlDoc(emptyFile()); setPassportDoc(emptyFile()); setVisaCopyDoc(emptyFile());
         setProjectStatus(""); setJobTitle(""); setVerbalConfirmationDate(""); setProjectStartDate("");
@@ -511,6 +516,7 @@ export function ConsultantForm({
 
           <SlideFormSection icon={CreditCard} title="Visa Information" color="amber">
             <PillChips label="Original Visa" value={visaStatus} options={VISA_STATUSES} onChange={setVisaStatus} />
+            <PillChips label="Marketing Visa" value={marketingVisaStatus} options={MARKETING_VISA_STATUSES} onChange={setMarketingVisaStatus} />
             <SlideFormGrid cols={2}>
               <Input id="c-visaStart" label="Visa Start Date" type="date" value={visaStartDate} onChange={(e) => setVisaStartDate(e.target.value)} {...inputProps} />
               <Input id="c-visaExpiry" label="Visa Expiry Date" type="date" value={visaExpiryDate} onChange={(e) => setVisaExpiryDate(e.target.value)} error={errors.visaExpiryDate} {...inputProps} />
