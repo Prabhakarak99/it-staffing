@@ -419,7 +419,21 @@ export function ConsultantForm({
         const res = await fetch(url, { method, body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to save consultant");
-        show(`${firstName} ${lastName} ${isEdit ? "updated" : "added"} successfully`, "success");
+        if (data.codeVisionError) {
+          show(
+            `${firstName} ${lastName} saved in GFT Vision, but CodeVision activation failed: ${data.codeVisionError}`,
+            "error",
+          );
+        } else if (data.codeVisionEmailSent) {
+          show(
+            `${firstName} ${lastName} onboarded. CodeVision practice activation email sent to ${email}.`,
+            "success",
+          );
+        } else if (data.codeVisionProvisioned) {
+          show(`${firstName} ${lastName} onboarded and provisioned in CodeVision.`, "success");
+        } else {
+          show(`${firstName} ${lastName} ${isEdit ? "updated" : "added"} successfully`, "success");
+        }
         onSuccess?.();
         router.refresh();
         if (!isEdit) {

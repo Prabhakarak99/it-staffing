@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { isCodeVisionConfigured, provisionCodeVisionStudent } from "@/lib/codevision";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { emptyChecklist, replaceConsultantLevelComments } from "@/lib/premarketing-checklist";
@@ -128,7 +129,39 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json(student, { status: 201 });
+    let codeVisionProvisioned = false;
+    let codeVisionEmailSent = false;
+    let codeVisionActivationUrl: string | null = null;
+    let codeVisionError: string | null = null;
+
+    if (isCodeVisionConfigured()) {
+      try {
+        const codeVisionResult = await provisionCodeVisionStudent({
+          externalStudentId: student.id,
+          email: student.email,
+          phoneNumber: student.personalPhone,
+          technology: student.technology,
+          name: `${student.firstName} ${student.lastName}`.trim(),
+        });
+        codeVisionProvisioned = true;
+        codeVisionEmailSent = codeVisionResult.emailSent;
+        codeVisionActivationUrl = codeVisionResult.activationUrl;
+      } catch (err) {
+        codeVisionError = err instanceof Error ? err.message : "CodeVision provisioning failed";
+        console.error("CodeVision student provisioning failed:", err);
+      }
+    }
+
+    return NextResponse.json(
+      {
+        ...student,
+        codeVisionProvisioned,
+        codeVisionEmailSent,
+        codeVisionActivationUrl,
+        codeVisionError,
+      },
+      { status: 201 },
+    );
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

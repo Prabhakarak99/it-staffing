@@ -31,6 +31,7 @@ const SCREENS = [
   { name: "Interviews", path: "/admin/interviews" },
   { name: "Onboard TechSupport", path: "/admin/tech-support" },
   { name: "Student Progress", path: "/admin/student-progress" },
+  { name: "Otter Status", path: "/admin/otter-status" },
   { name: "Users", path: "/admin/users" },
   { name: "Dashboard", path: "/admin" },
 ];

@@ -21,6 +21,7 @@ const NAV_LINKS = [
   { label: "Tech Support",   href: "/admin/tech-support",       match: "/admin/tech-support",    exact: false },
   { label: "Requirements",  href: "/admin/requirements",       match: "/admin/requirements",    exact: false },
   { label: "Expenses",      href: "/admin/expenses",           match: "/admin/expenses",        exact: false },
+  { label: "Otter Status",  href: "/admin/otter-status",       match: "/admin/otter-status",    exact: false },
 ];
 
 /* ── Administration dropdown (admin-only) ───────────────────────────────── */
