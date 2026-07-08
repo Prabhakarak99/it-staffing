@@ -66,6 +66,8 @@ type ConsultantDetail = {
   technology: string | null;
   comments: ConsultantComment[] | null;
   createdAt: string;
+  assignedRecruiterId: string | null;
+  assignedRecruiterName: string | null;
 };
 
 function initials(name: string) {
@@ -161,6 +163,8 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
         initialData={{
           ...consultant,
           consultantComment: getConsultantLevelCommentsText(consultant.comments),
+          assignedRecruiterId: consultant.assignedRecruiterId,
+          assignedRecruiterName: consultant.assignedRecruiterName,
         }}
         onCancel={() => setEditing(false)}
         onSuccess={() => {
@@ -293,6 +297,7 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
             <DetailField label="Bill Rate" value={consultant.billRate} />
             <DetailField label="Payroll" value={consultant.payroll} />
             <DetailField label="Linked Interview ID" value={consultant.linkedInterviewId} />
+            <DetailField label="Assigned Recruiter" value={consultant.assignedRecruiterName} />
             <DetailField label="PM Name" value={consultant.pmName} />
             <DetailField label="PM Email" value={consultant.pmEmail} />
             <DetailField label="PM Phone" value={consultant.pmPhone} />

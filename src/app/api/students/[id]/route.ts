@@ -19,7 +19,11 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       where: { id },
       include: {
         preMarketings: {
-          select: { marketingVisaStatus: true },
+          select: {
+            marketingVisaStatus: true,
+            recruiterId: true,
+            recruiter: { select: { id: true, firstName: true, lastName: true } },
+          },
           orderBy: { updatedAt: "desc" },
           take: 1,
         },
@@ -27,9 +31,14 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     });
     if (!student) return NextResponse.json({ error: "Consultant not found" }, { status: 404 });
     const { preMarketings, ...consultant } = student;
+    const pm = preMarketings[0];
     return NextResponse.json({
       ...consultant,
-      marketingVisaStatus: preMarketings[0]?.marketingVisaStatus ?? null,
+      marketingVisaStatus: pm?.marketingVisaStatus ?? null,
+      assignedRecruiterId: pm?.recruiterId ?? null,
+      assignedRecruiterName: pm?.recruiter
+        ? `${pm.recruiter.firstName} ${pm.recruiter.lastName}`.trim()
+        : null,
     });
   } catch {
     return NextResponse.json({ error: "Failed to fetch consultant" }, { status: 500 });
@@ -92,6 +101,8 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     const projectStatus = get("projectStatus") ?? null;
     const consultantComment = get("consultantComment") ?? "";
     const marketingVisaStatus = get("marketingVisaStatus") || null;
+    const hasRecruiterId = formData.has("recruiterId");
+    const recruiterId = hasRecruiterId ? (get("recruiterId") || null) : undefined;
 
     if (projectStatus === "Verbal Confirmation" && !get("verbalConfirmationDate")) {
       return NextResponse.json({ error: "Verbal confirmation date is required for Verbal Confirmation status" }, { status: 400 });
@@ -153,14 +164,18 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     if (existingPm) {
       await prisma.preMarketing.update({
         where: { id: existingPm.id },
-        data: { marketingVisaStatus },
+        data: {
+          marketingVisaStatus,
+          ...(recruiterId !== undefined ? { recruiterId } : {}),
+        },
       });
-    } else if (projectStatus === "Pre-Marketing" || marketingVisaStatus) {
+    } else if (projectStatus === "Pre-Marketing" || marketingVisaStatus || recruiterId) {
       await prisma.preMarketing.create({
         data: {
           consultantId: id,
           checklist: emptyChecklist(),
           marketingVisaStatus,
+          recruiterId: recruiterId ?? null,
         },
       });
     }

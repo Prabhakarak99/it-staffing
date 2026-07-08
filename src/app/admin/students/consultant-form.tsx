@@ -35,6 +35,13 @@ type InterviewHit = {
   submission: { submissionId: string };
 };
 
+type RecruiterHit = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
 type ConsultantInitialData = {
   firstName?: string | null;
   lastName?: string | null;
@@ -81,6 +88,8 @@ type ConsultantInitialData = {
   linkedInterviewId?: string | null;
   consultantComment?: string | null;
   comments?: unknown;
+  assignedRecruiterId?: string | null;
+  assignedRecruiterName?: string | null;
 };
 
 type FileState = { file: File | null; uploaded: boolean };
@@ -270,6 +279,25 @@ export function ConsultantForm({
     interviewTimer.current = setTimeout(() => searchInterviews(interviewQuery), 300);
   }, [interviewQuery, searchInterviews]);
 
+  const [assignedRecruiterId, setAssignedRecruiterId] = useState(initialData?.assignedRecruiterId ?? "");
+  const [assignedRecruiterName, setAssignedRecruiterName] = useState(initialData?.assignedRecruiterName ?? "");
+  const [recruiterQuery, setRecruiterQuery] = useState(initialData?.assignedRecruiterName ?? "");
+  const [recruiterResults, setRecruiterResults] = useState<RecruiterHit[]>([]);
+  const [showRecruiterDropdown, setShowRecruiterDropdown] = useState(false);
+  const recruiterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showRecruiterSearch = projectStatus === "In-Market";
+
+  const searchRecruiters = useCallback(async (q: string) => {
+    if (q.length < 2) { setRecruiterResults([]); return; }
+    const res = await fetch(`/api/recruiters/search?q=${encodeURIComponent(q)}`);
+    if (res.ok) setRecruiterResults(await res.json());
+  }, []);
+
+  useEffect(() => {
+    if (recruiterTimer.current) clearTimeout(recruiterTimer.current);
+    recruiterTimer.current = setTimeout(() => searchRecruiters(recruiterQuery), 300);
+  }, [recruiterQuery, searchRecruiters]);
+
   useEffect(() => {
     if (!consultantId) return;
     if (hasInitialData) return;
@@ -327,6 +355,11 @@ export function ConsultantForm({
         setDriveLocation(c.driveLocation ?? "");
         setConsultantComment(getConsultantLevelCommentsText(c.comments));
         if (c.linkedInterviewId) setInterviewQuery(c.linkedInterviewId);
+        if (c.assignedRecruiterId) {
+          setAssignedRecruiterId(c.assignedRecruiterId);
+          setAssignedRecruiterName(c.assignedRecruiterName ?? "");
+          setRecruiterQuery(c.assignedRecruiterName ?? "");
+        }
       } catch {
         if (!cancelled) show("Failed to load consultant details", "error");
       } finally {
@@ -410,6 +443,7 @@ export function ConsultantForm({
         if (jobTitle) fd.append("jobTitle", jobTitle);
         if (verbalConfirmationDate) fd.append("verbalConfirmationDate", verbalConfirmationDate);
         if (selectedInterview) fd.append("linkedInterviewId", selectedInterview.id);
+        if (projectStatus === "In-Market") fd.append("recruiterId", assignedRecruiterId);
         if (projectStartDate) fd.append("projectStartDate", projectStartDate);
         if (billRate) fd.append("billRate", billRate);
         if (payroll) fd.append("payroll", payroll);
@@ -454,6 +488,7 @@ export function ConsultantForm({
         setBillRate(""); setPayroll(""); setWorkMode(""); setPmName(""); setPmEmail(""); setPmPhone(""); setDriveLocation("");
         setConsultantComment("");
         setSelectedInterview(null); setInterviewQuery("");
+        setAssignedRecruiterId(""); setAssignedRecruiterName(""); setRecruiterQuery("");
         }
       } catch (err: unknown) {
         show(err instanceof Error ? err.message : "Error saving consultant", "error");
@@ -597,6 +632,34 @@ export function ConsultantForm({
                         onClick={() => { setSelectedInterview(hit); setInterviewQuery(hit.interviewId); setShowInterviewDropdown(false); }}>
                         <span className="font-semibold text-indigo-700">{hit.interviewId}</span>
                         <span className="text-slate-500">({hit.interviewStatus})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {showRecruiterSearch && (
+              <div className="relative">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Assigned Recruiter</label>
+                {assignedRecruiterId ? (
+                  <div className="mt-1 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span className="text-xs font-semibold text-indigo-600">{assignedRecruiterName}</span>
+                    <button type="button" onClick={() => { setAssignedRecruiterId(""); setAssignedRecruiterName(""); setRecruiterQuery(""); }} className="ml-auto text-[10px] font-semibold text-rose-500">Clear</button>
+                  </div>
+                ) : (
+                  <input type="text" placeholder="Type 2+ chars to search recruiters" value={recruiterQuery}
+                    onChange={(e) => { setRecruiterQuery(e.target.value); setShowRecruiterDropdown(true); }}
+                    onFocus={() => setShowRecruiterDropdown(true)}
+                    className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
+                )}
+                {showRecruiterDropdown && recruiterResults.length > 0 && (
+                  <div className="absolute top-full z-30 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-xl">
+                    {recruiterResults.map((r) => (
+                      <button key={r.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-indigo-50"
+                        onClick={() => { setAssignedRecruiterId(r.id); setAssignedRecruiterName(`${r.firstName} ${r.lastName}`); setRecruiterQuery(`${r.firstName} ${r.lastName}`); setShowRecruiterDropdown(false); }}>
+                        <span className="font-semibold text-indigo-700">{r.firstName} {r.lastName}</span>
+                        <span className="text-slate-500">{r.email}</span>
                       </button>
                     ))}
                   </div>
