@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     const projectStatus = get("projectStatus");
     const consultantComment = get("consultantComment") ?? "";
     const marketingVisaStatus = get("marketingVisaStatus") || null;
+    const recruiterId = get("recruiterId") || null;
 
     if (projectStatus === "Verbal Confirmation" && !get("verbalConfirmationDate")) {
       return NextResponse.json({ error: "Verbal confirmation date is required for Verbal Confirmation status" }, { status: 400 });
@@ -123,12 +124,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (projectStatus === "Pre-Marketing" || marketingVisaStatus) {
+    if (projectStatus === "Pre-Marketing" || marketingVisaStatus || recruiterId) {
       await prisma.preMarketing.create({
         data: {
           consultantId: student.id,
           checklist: emptyChecklist(),
           marketingVisaStatus,
+          recruiterId,
         },
       });
     }

@@ -19,7 +19,11 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       where: { id },
       include: {
         preMarketings: {
-          select: { marketingVisaStatus: true },
+          select: {
+            marketingVisaStatus: true,
+            recruiterId: true,
+            recruiter: { select: { id: true, firstName: true, lastName: true } },
+          },
           orderBy: { updatedAt: "desc" },
           take: 1,
         },
@@ -27,9 +31,14 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     });
     if (!student) return NextResponse.json({ error: "Consultant not found" }, { status: 404 });
     const { preMarketings, ...consultant } = student;
+    const preMarketing = preMarketings[0];
     return NextResponse.json({
       ...consultant,
-      marketingVisaStatus: preMarketings[0]?.marketingVisaStatus ?? null,
+      marketingVisaStatus: preMarketing?.marketingVisaStatus ?? null,
+      recruiterId: preMarketing?.recruiterId ?? null,
+      recruiterName: preMarketing?.recruiter
+        ? `${preMarketing.recruiter.firstName} ${preMarketing.recruiter.lastName}`.trim()
+        : null,
     });
   } catch {
     return NextResponse.json({ error: "Failed to fetch consultant" }, { status: 500 });
@@ -92,6 +101,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     const projectStatus = get("projectStatus") ?? null;
     const consultantComment = get("consultantComment") ?? "";
     const marketingVisaStatus = get("marketingVisaStatus") || null;
+    const recruiterId = get("recruiterId") || null;
 
     if (projectStatus === "Verbal Confirmation" && !get("verbalConfirmationDate")) {
       return NextResponse.json({ error: "Verbal confirmation date is required for Verbal Confirmation status" }, { status: 400 });
@@ -153,14 +163,15 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     if (existingPm) {
       await prisma.preMarketing.update({
         where: { id: existingPm.id },
-        data: { marketingVisaStatus },
+        data: { marketingVisaStatus, recruiterId },
       });
-    } else if (projectStatus === "Pre-Marketing" || marketingVisaStatus) {
+    } else if (projectStatus === "Pre-Marketing" || marketingVisaStatus || recruiterId) {
       await prisma.preMarketing.create({
         data: {
           consultantId: id,
           checklist: emptyChecklist(),
           marketingVisaStatus,
+          recruiterId,
         },
       });
     }

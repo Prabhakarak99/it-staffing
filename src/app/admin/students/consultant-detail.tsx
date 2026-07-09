@@ -62,6 +62,8 @@ type ConsultantDetail = {
   pmEmail: string | null;
   pmPhone: string | null;
   driveLocation: string | null;
+  recruiterId: string | null;
+  recruiterName: string | null;
   phoneNumber: string | null;
   technology: string | null;
   comments: ConsultantComment[] | null;
@@ -296,6 +298,7 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
             <DetailField label="PM Name" value={consultant.pmName} />
             <DetailField label="PM Email" value={consultant.pmEmail} />
             <DetailField label="PM Phone" value={consultant.pmPhone} />
+            <DetailField label="Assigned Recruiter" value={consultant.recruiterName} />
             {consultant.driveLocation ? (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Drive Location</p>

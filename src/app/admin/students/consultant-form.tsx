@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
-  GraduationCap, Loader2, Upload, CheckCircle2,
+  GraduationCap, Loader2, Upload, CheckCircle2, Search, X,
   User, MapPin, BookOpen, CreditCard, Briefcase, FolderKanban, FileCheck, MessageSquare,
 } from "lucide-react";
 import {
@@ -33,6 +33,13 @@ type InterviewHit = {
   interviewStatus: string;
   interviewStartDate: string;
   submission: { submissionId: string };
+};
+
+type RecruiterHit = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
 };
 
 type ConsultantInitialData = {
@@ -78,6 +85,8 @@ type ConsultantInitialData = {
   pmEmail?: string | null;
   pmPhone?: string | null;
   driveLocation?: string | null;
+  recruiterId?: string | null;
+  recruiterName?: string | null;
   linkedInterviewId?: string | null;
   consultantComment?: string | null;
   comments?: unknown;
@@ -257,6 +266,13 @@ export function ConsultantForm({
   const [selectedInterview, setSelectedInterview] = useState<InterviewHit | null>(null);
   const [showInterviewDropdown, setShowInterviewDropdown] = useState(false);
   const interviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recruiterId, setRecruiterId] = useState(initialData?.recruiterId ?? "");
+  const [recruiterQuery, setRecruiterQuery] = useState(initialData?.recruiterName ?? "");
+  const [recruiterResults, setRecruiterResults] = useState<RecruiterHit[]>([]);
+  const [isRecruiterSearching, setIsRecruiterSearching] = useState(false);
+  const [showRecruiterDropdown, setShowRecruiterDropdown] = useState(false);
+  const recruiterRef = useRef<HTMLDivElement>(null);
+  const recruiterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showInterviewSearch = projectStatus === "Verbal Confirmation" || projectStatus === "Confirmation";
 
   const searchInterviews = useCallback(async (q: string) => {
@@ -265,10 +281,57 @@ export function ConsultantForm({
     if (res.ok) setInterviewResults(await res.json());
   }, []);
 
+  const searchRecruiters = useCallback(async (q: string) => {
+    if (!q.trim()) { setRecruiterResults([]); setShowRecruiterDropdown(false); return; }
+    setIsRecruiterSearching(true);
+    try {
+      const res = await fetch(`/api/recruiters/search?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        setRecruiterResults(await res.json());
+        setShowRecruiterDropdown(true);
+      } else {
+        setRecruiterResults([]);
+      }
+    } catch {
+      setRecruiterResults([]);
+    } finally {
+      setIsRecruiterSearching(false);
+    }
+  }, []);
+
+  const selectRecruiter = (recruiter: RecruiterHit) => {
+    setRecruiterId(recruiter.id);
+    setRecruiterQuery(`${recruiter.firstName} ${recruiter.lastName}`);
+    setShowRecruiterDropdown(false);
+  };
+
+  const clearRecruiter = () => {
+    setRecruiterId("");
+    setRecruiterQuery("");
+    setRecruiterResults([]);
+  };
+
   useEffect(() => {
     if (interviewTimer.current) clearTimeout(interviewTimer.current);
     interviewTimer.current = setTimeout(() => searchInterviews(interviewQuery), 300);
   }, [interviewQuery, searchInterviews]);
+
+  useEffect(() => {
+    if (recruiterId) return;
+    if (recruiterTimer.current) clearTimeout(recruiterTimer.current);
+    recruiterTimer.current = setTimeout(() => searchRecruiters(recruiterQuery), 300);
+    return () => { if (recruiterTimer.current) clearTimeout(recruiterTimer.current); };
+  }, [recruiterQuery, searchRecruiters, recruiterId]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (recruiterRef.current && !recruiterRef.current.contains(e.target as Node)) {
+        setShowRecruiterDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     if (!consultantId) return;
@@ -326,6 +389,8 @@ export function ConsultantForm({
         setPmPhone(c.pmPhone ?? "");
         setDriveLocation(c.driveLocation ?? "");
         setConsultantComment(getConsultantLevelCommentsText(c.comments));
+        setRecruiterId(c.recruiterId ?? "");
+        setRecruiterQuery(c.recruiterName ?? "");
         if (c.linkedInterviewId) setInterviewQuery(c.linkedInterviewId);
       } catch {
         if (!cancelled) show("Failed to load consultant details", "error");
@@ -418,6 +483,7 @@ export function ConsultantForm({
         if (pmEmail) fd.append("pmEmail", pmEmail);
         if (pmPhone) fd.append("pmPhone", pmPhone);
         if (driveLocation) fd.append("driveLocation", driveLocation);
+        fd.append("recruiterId", recruiterId);
         fd.append("consultantComment", consultantComment);
         const url = isEdit ? `/api/students/${consultantId}` : "/api/students";
         const method = isEdit ? "PUT" : "POST";
@@ -438,6 +504,7 @@ export function ConsultantForm({
         setDlDoc(emptyFile()); setPassportDoc(emptyFile()); setVisaCopyDoc(emptyFile());
         setProjectStatus(""); setJobTitle(""); setVerbalConfirmationDate(""); setProjectStartDate("");
         setBillRate(""); setPayroll(""); setWorkMode(""); setPmName(""); setPmEmail(""); setPmPhone(""); setDriveLocation("");
+        setRecruiterId(""); setRecruiterQuery("");
         setConsultantComment("");
         setSelectedInterview(null); setInterviewQuery("");
         }
@@ -559,6 +626,54 @@ export function ConsultantForm({
               <Input id="c-pmPhone" label="PM Phone" type="tel" value={pmPhone} onChange={(e) => setPmPhone(e.target.value)} error={errors.pmPhone} {...inputProps} />
               <div className="sm:col-span-2">
                 <Input id="c-driveLocation" label="Drive Location" type="url" placeholder="https://drive.google.com/..." value={driveLocation} onChange={(e) => setDriveLocation(e.target.value)} {...inputProps} />
+              </div>
+              <div className="sm:col-span-2" ref={recruiterRef}>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Assigned Recruiter</label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search recruiter by name…"
+                    value={recruiterQuery}
+                    onChange={(e) => {
+                      setRecruiterQuery(e.target.value);
+                      if (recruiterId) setRecruiterId("");
+                    }}
+                    onFocus={() => recruiterResults.length > 0 && setShowRecruiterDropdown(true)}
+                    className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-8 text-xs focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
+                  />
+                  {isRecruiterSearching && <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-slate-400" />}
+                  {recruiterId && !isRecruiterSearching && (
+                    <button type="button" onClick={clearRecruiter} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {showRecruiterDropdown && recruiterResults.length > 0 && (
+                    <ul className="absolute z-30 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                      {recruiterResults.map((recruiter) => (
+                        <li key={recruiter.id}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); selectRecruiter(recruiter); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-indigo-50"
+                          >
+                            <span className="font-semibold text-slate-800">{recruiter.firstName} {recruiter.lastName}</span>
+                            <span className="text-slate-500">{recruiter.email}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {recruiterId && (
+                  <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
+                      {initials(recruiterQuery)}
+                    </div>
+                    <span className="text-xs font-semibold text-slate-800">{recruiterQuery}</span>
+                    <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-rose-500" />
+                  </div>
+                )}
               </div>
             </SlideFormGrid>
             {showInterviewSearch && (
