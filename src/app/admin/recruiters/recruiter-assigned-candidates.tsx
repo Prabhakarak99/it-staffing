@@ -416,7 +416,7 @@ export function RecruiterAssignedCandidates({
       {assignedCandidates.length === 0 ? (
         <div className="px-4 py-10 text-center">
           <p className="text-sm font-medium text-slate-500">No candidates assigned yet</p>
-          <p className="mt-1 text-xs text-slate-400">Candidates will appear here once assigned via Pre-Marketing</p>
+          <p className="mt-1 text-xs text-slate-400">Candidates appear here when assigned via Pre-Marketing or when this recruiter has submissions</p>
         </div>
       ) : filteredCandidates.length === 0 ? (
         <div className="px-4 py-10 text-center">
