@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  AlertCircle,
   AudioLines,
   ExternalLink,
   Loader2,
@@ -93,6 +94,7 @@ export function OtterStatusView() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [query, setQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [notConfigured, setNotConfigured] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
   const loadStatus = useCallback(async (options?: { silent?: boolean }) => {
@@ -107,7 +109,13 @@ export function OtterStatusView() {
     try {
       const res = await fetch("/api/otter-status", { cache: "no-store" });
       const data = await res.json();
+      if (res.status === 503) {
+        setNotConfigured(true);
+        setAutoRefreshEnabled(false);
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? "Failed to load Otter status");
+      setNotConfigured(false);
       setPayload(data);
       hasLoadedOnceRef.current = true;
     } catch (err) {
@@ -245,7 +253,16 @@ export function OtterStatusView() {
           <p className="text-sm text-slate-500">{filteredConsultants.length} consultant(s)</p>
         </div>
 
-        {isLoading ? (
+        {notConfigured ? (
+          <div className="flex flex-col items-center gap-3 px-5 py-16 text-center">
+            <AlertCircle className="h-8 w-8 text-amber-400" />
+            <p className="text-base font-semibold text-slate-700">CodeVision integration is not configured</p>
+            <p className="max-w-md text-sm text-slate-500">
+              Set the <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">CODEVISION_API_URL</code> and <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">CODEVISION_API_KEY</code> environment variables as Fly.io secrets to enable this page.
+            </p>
+            <p className="text-xs text-slate-400">Run: <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600">flyctl secrets set CODEVISION_API_URL=... CODEVISION_API_KEY=...</code></p>
+          </div>
+        ) : isLoading ? (
           <div className="flex items-center justify-center gap-2 px-5 py-16 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading practice status...
