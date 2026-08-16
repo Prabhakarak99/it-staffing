@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { createAutoJobRun, processAutoJobs } from "@/lib/autojobs";
 
 export async function GET() {
   const session = await getSession();
@@ -63,6 +64,14 @@ export async function POST(req: NextRequest) {
         consultant: { select: { firstName: true, lastName: true } },
       },
     });
+
+    // AutoJobs: queue a vendor-marketing run for this client (fire and forget)
+    try {
+      const run = await createAutoJobRun(submission);
+      if (run) void processAutoJobs();
+    } catch (autoJobErr) {
+      console.error("[autojobs] failed to queue run:", autoJobErr);
+    }
 
     return NextResponse.json(submission, { status: 201 });
   } catch (err) {

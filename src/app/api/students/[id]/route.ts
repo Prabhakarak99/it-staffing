@@ -97,6 +97,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     const onboardingStartDate = get("onboardingStartDate") ? parseDateInput(get("onboardingStartDate")!) : null;
     const verbalConfirmationDate = get("verbalConfirmationDate") ? parseDateInput(get("verbalConfirmationDate")!) : null;
     const projectStartDate = get("projectStartDate") ? parseDateInput(get("projectStartDate")!) : null;
+    const marketingStartDate = get("marketingStartDate") ? parseDateInput(get("marketingStartDate")!) : null;
 
     const projectStatus = get("projectStatus") ?? null;
     const consultantComment = get("consultantComment") ?? "";
@@ -145,6 +146,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
         visaCopyDocument: visaCopyDocument ?? existing.visaCopyDocument,
         projectStatus,
         jobTitle: get("jobTitle") ?? null,
+        marketingStartDate,
         verbalConfirmationDate,
         linkedInterviewId: get("linkedInterviewId") ?? null,
         projectStartDate,

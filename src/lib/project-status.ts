@@ -7,6 +7,7 @@ export const PROJECT_STATUSES = [
   "Project Completed- InMarket",
   "ProjectCompleted-Exit",
   "Second Project",
+  "Exit",
 ] as const;
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -20,4 +21,5 @@ export const PROJECT_STATUS_COLORS: Record<string, { bg: string; text: string; d
   "Project Completed- InMarket": { bg: "bg-sky-100", text: "text-sky-700", dot: "bg-sky-500" },
   "ProjectCompleted-Exit": { bg: "bg-slate-100", text: "text-slate-700", dot: "bg-slate-500" },
   "Second Project": { bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-500" },
+  "Exit": { bg: "bg-red-100", text: "text-red-700", dot: "bg-red-500" },
 };

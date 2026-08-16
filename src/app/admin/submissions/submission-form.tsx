@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { FileText, Loader2, Search, X, Building2, Users, Globe, Hash } from "lucide-react";
 import { isValidEmail, isValidPhone, validateOptionalEmail, validateOptionalPhone } from "@/lib/validators";
 
-const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force"];
+const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force", "Cyber Security", "QA", "Oracle", "Dynamics 365", "SCM", "CSV"];
 const STATUSES = ["Submission Submitted", "In Review", "Rejected", "Moved to Client", "Confirmation"];
 
 interface Consultant {

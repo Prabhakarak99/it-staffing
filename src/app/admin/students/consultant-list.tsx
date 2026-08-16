@@ -80,6 +80,12 @@ const TECH_COLOR: Record<string, string> = {
   Networking: "bg-blue-100 text-blue-700",
   BA: "bg-amber-100 text-amber-700",
   "Sales Force": "bg-indigo-100 text-indigo-700",
+  "Cyber Security": "bg-red-100 text-red-700",
+  QA: "bg-green-100 text-green-700",
+  Oracle: "bg-rose-100 text-rose-700",
+  "Dynamics 365": "bg-sky-100 text-sky-700",
+  SCM: "bg-lime-100 text-lime-700",
+  CSV: "bg-violet-100 text-violet-700",
 };
 
 function initials(name: string) {

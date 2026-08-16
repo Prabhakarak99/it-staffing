@@ -118,6 +118,7 @@ model Student {
   // Job Card
   projectStatus          String?
   jobTitle               String?
+  marketingStartDate     DateTime?
   verbalConfirmationDate DateTime?
   linkedInterviewId      String?
   projectStartDate       DateTime?
@@ -139,6 +140,7 @@ model Student {
   preMarketings PreMarketing[]
   expenses      Expense[]      @relation("ExpenseConsultant")
   leads         Lead[]
+  autoJobApplications AutoJobApplication[]
 }
 
 model Submission {
@@ -292,4 +294,72 @@ model JobSearchResult {
   updatedAt        DateTime  @updatedAt
 
   @@map("job_search_results")
+}
+
+// ── AutoJobs: automated vendor marketing engine ─────────────────────────────
+
+model VendorContact {
+  id                 String    @id @default(cuid())
+  vendorCompany      String
+  recruiterName      String?
+  email              String
+  phone              String?
+  implementationName String?
+  clientName         String
+  technology         String?
+  lastActivityAt     DateTime?
+  doNotContact       Boolean   @default(false)
+  source             String    @default("import")
+  createdAt          DateTime  @default(now())
+
+  applications AutoJobApplication[]
+
+  @@unique([email, clientName])
+  @@index([clientName])
+}
+
+model AutoJobRun {
+  id                  String   @id @default(cuid())
+  triggerSubmissionId String
+  clientName          String
+  technology          String
+  status              String   @default("pending") // pending → completed / no_matches / failed
+  note                String?
+  matchedConsultants  Int      @default(0)
+  vendorsFound        Int      @default(0)
+  emailsSent          Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  applications AutoJobApplication[]
+}
+
+model AutoJobApplication {
+  id              String    @id @default(cuid())
+  runId           String
+  consultantId    String
+  vendorContactId String
+  vendorEmail     String
+  resumeUrl       String?
+  emailStatus     String    @default("queued") // queued → sent / failed / skipped
+  errorMessage    String?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  run           AutoJobRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  consultant    Student       @relation(fields: [consultantId], references: [id])
+  vendorContact VendorContact @relation(fields: [vendorContactId], references: [id])
+
+  @@unique([runId, consultantId, vendorContactId])
+  @@index([consultantId, vendorEmail])
+}
+
+model AutoJobsConfig {
+  id               String   @id @default("singleton")
+  paused           Boolean  @default(false)
+  autoSend         Boolean  @default(false) // false = dry-run: match and queue only, no emails
+  dailyCap         Int      @default(100)
+  maxVendorsPerRun Int      @default(25)
+  cooldownDays     Int      @default(30)
+  updatedAt        DateTime @updatedAt
 }

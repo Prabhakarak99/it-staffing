@@ -10,7 +10,7 @@ export async function proxy(req: NextRequest) {
   const refreshUrl = new URL("/api/auth/refresh-session", req.url);
   refreshUrl.searchParams.set("next", `${pathname}${req.nextUrl.search}`);
 
-  const publicPaths = ["/login", "/activate", "/api/auth/login", "/api/auth/activate", "/api/auth/refresh-session"];
+  const publicPaths = ["/login", "/activate", "/api/auth/login", "/api/auth/activate", "/api/auth/refresh-session", "/api/integrations/codevision"];
   if (publicPaths.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }

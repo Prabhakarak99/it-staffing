@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     const onboardingStartDate = get("onboardingStartDate") ? parseDateInput(get("onboardingStartDate")!) : undefined;
     const verbalConfirmationDate = get("verbalConfirmationDate") ? parseDateInput(get("verbalConfirmationDate")!) : undefined;
     const projectStartDate = get("projectStartDate") ? parseDateInput(get("projectStartDate")!) : undefined;
+    const marketingStartDate = get("marketingStartDate") ? parseDateInput(get("marketingStartDate")!) : undefined;
 
     const projectStatus = get("projectStatus");
     const consultantComment = get("consultantComment") ?? "";
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
         visaCopyDocument: visaCopyDocument ?? null,
         projectStatus: projectStatus ?? null,
         jobTitle: get("jobTitle"),
+        marketingStartDate,
         verbalConfirmationDate,
         linkedInterviewId: get("linkedInterviewId"),
         projectStartDate,

@@ -22,7 +22,7 @@ import { PROJECT_STATUSES } from "@/lib/project-status";
 
 const VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
 const MARKETING_VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
-const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force", "SAP", "ServiceNow", "Manufacturing", "Others"];
+const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force", "SAP", "ServiceNow", "Manufacturing", "Others", "Cyber Security", "QA", "Oracle", "Dynamics 365", "SCM", "CSV"];
 const OFFER_LETTER_TYPES = ["Unpaid-Intern", "Paid-Stem"];
 const PAYROLLS = ["70/30", "80/20"];
 const WORK_MODES = ["Remote", "Hybrid", "Onsite"];
@@ -76,6 +76,7 @@ type ConsultantInitialData = {
   technology?: string | null;
   projectStatus?: string | null;
   jobTitle?: string | null;
+  marketingStartDate?: string | null;
   verbalConfirmationDate?: string | null;
   projectStartDate?: string | null;
   billRate?: string | null;
@@ -248,6 +249,7 @@ export function ConsultantForm({
   const [visaCopyDoc, setVisaCopyDoc] = useState<FileState>(emptyFile());
   const [projectStatus, setProjectStatus] = useState(initialData?.projectStatus ?? "");
   const [jobTitle, setJobTitle] = useState(initialData?.jobTitle ?? "");
+  const [marketingStartDate, setMarketingStartDate] = useState(toDateInputValue(initialData?.marketingStartDate));
   const [verbalConfirmationDate, setVerbalConfirmationDate] = useState(toDateInputValue(initialData?.verbalConfirmationDate));
   const [projectStartDate, setProjectStartDate] = useState(toDateInputValue(initialData?.projectStartDate));
   const [billRate, setBillRate] = useState(initialData?.billRate ?? "");
@@ -276,6 +278,7 @@ export function ConsultantForm({
   const recruiterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showInterviewSearch = projectStatus === "Verbal Confirmation" || projectStatus === "Confirmation";
   const showRecruiterSearch = projectStatus === "In-Market";
+  const showMarketingStartDate = projectStatus === "In-Market";
 
   const searchInterviews = useCallback(async (q: string) => {
     if (q.length < 3) { setInterviewResults([]); return; }
@@ -464,6 +467,7 @@ export function ConsultantForm({
         if (visaCopyDoc.file) fd.append("visaCopyDocument", visaCopyDoc.file);
         if (projectStatus) fd.append("projectStatus", projectStatus);
         if (jobTitle) fd.append("jobTitle", jobTitle);
+        if (marketingStartDate) fd.append("marketingStartDate", marketingStartDate);
         if (verbalConfirmationDate) fd.append("verbalConfirmationDate", verbalConfirmationDate);
         if (selectedInterview) fd.append("linkedInterviewId", selectedInterview.id);
         if (projectStartDate) fd.append("projectStartDate", projectStartDate);
@@ -507,7 +511,7 @@ export function ConsultantForm({
         setVisaStatus(""); setMarketingVisaStatus(""); setVisaStartDate(""); setVisaExpiryDate("");
         setOnboardingStartDate(""); setOfferLetterType(""); setPayRate(""); setHasDL(""); setHasSSN(""); setPassportNumber(""); setTechnology("");
         setDlDoc(emptyFile()); setPassportDoc(emptyFile()); setVisaCopyDoc(emptyFile());
-        setProjectStatus(""); setJobTitle(""); setVerbalConfirmationDate(""); setProjectStartDate("");
+        setProjectStatus(""); setJobTitle(""); setMarketingStartDate(""); setVerbalConfirmationDate(""); setProjectStartDate("");
         setBillRate(""); setPayroll(""); setWorkMode(""); setPmName(""); setPmEmail(""); setPmPhone(""); setDriveLocation("");
         setAssignedRecruiterId(""); setAssignedRecruiterName(""); setRecruiterQuery("");
         setConsultantComment("");
@@ -623,6 +627,9 @@ export function ConsultantForm({
             <PillChips label="Project Status" value={projectStatus} options={[...PROJECT_STATUSES]} onChange={(v) => { setProjectStatus(v); setSelectedInterview(null); setInterviewQuery(""); }} />
             <SlideFormGrid cols={3}>
               <Input id="c-jobTitle" label="Job Title" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} {...inputProps} />
+              {showMarketingStartDate && (
+                <Input id="c-marketingStartDate" label="Marketing Start Date" type="date" value={marketingStartDate} onChange={(e) => setMarketingStartDate(e.target.value)} {...inputProps} />
+              )}
               <Input id="c-verbalDate" label={projectStatus === "Verbal Confirmation" ? "Verbal Confirmation *" : "Verbal Confirmation"} type="date" value={verbalConfirmationDate} onChange={(e) => setVerbalConfirmationDate(e.target.value)} error={errors.verbalConfirmationDate} {...inputProps} />
               <Input id="c-projStart" label="Project Start" type="date" value={projectStartDate} onChange={(e) => setProjectStartDate(e.target.value)} {...inputProps} />
               <Input id="c-billRate" label="Bill Rate (USD/hr)" value={billRate} onChange={(e) => setBillRate(e.target.value)} {...inputProps} />

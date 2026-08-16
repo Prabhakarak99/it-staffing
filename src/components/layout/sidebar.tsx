@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   Users, Shield, UserPlus, LayoutDashboard, LogOut,
   Briefcase, FileText, Calendar, DollarSign, GraduationCap, Send,
-  ChevronLeft, ChevronRight, ChevronDown,
+  ChevronLeft, ChevronRight, ChevronDown, Zap,
 } from "lucide-react";
 import { GFTMark } from "@/components/ui/logo";
 
@@ -75,6 +75,7 @@ const NAV: NavGroup[] = [
           { label: "All Interviews", href: "/admin/interviews/list" },
         ],
       },
+      { label: "AutoJobs", href: "/admin/autojobs", icon: Zap },
       { label: "Expenses", href: "/admin/expenses", icon: DollarSign },
     ],
   },

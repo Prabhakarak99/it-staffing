@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Briefcase, Loader2, Globe, Zap, User } from "lucide-react";
 import { isValidEmail, isValidPhone } from "@/lib/validators";
 
-const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force"];
+const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force", "Cyber Security", "QA", "Oracle", "Dynamics 365", "SCM", "CSV"];
 const LOCATIONS = ["USA", "India", "Other"];
 
 const EMPTY = {
