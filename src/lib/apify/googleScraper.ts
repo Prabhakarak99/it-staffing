@@ -8,7 +8,7 @@ function adapt(item: any): ScrapedJob {
   const titleText = String(item.title ?? item.job_title ?? item.position ?? "");
   const company = item.company_name ?? item.companyName ?? item.company ?? null;
   const location = item.location ?? item.job_location ?? item.place ?? null;
-  const applyLink = item.job_link ?? item.apply_link ?? item.url ?? item.link ?? null;
+  const applyLink = item.job_link ?? item.apply_link ?? item.url ?? item.link ?? item.apply_options?.[0]?.link ?? item.share_link ?? null;
   const combined = `${titleText} ${desc}`;
   const { min, max } = extractRate(desc);
   const postedRaw = item.date_posted ?? item.posted_at ?? item.datePosted ?? null;
@@ -36,20 +36,28 @@ function adapt(item: any): ScrapedJob {
 }
 
 export async function scrapeGoogle(): Promise<ScrapedJob[]> {
-  const input = {
-    queries: [
-      "MES Engineer C2C contract USA",
-      "SAP S4HANA C2C contract USA",
-      "PLM Teamcenter C2C contract USA",
-      "Pharma IT C2C contract USA",
-    ],
-    country: "us",
-    language: "en",
-    maxResultsPerQuery: 50,
-  };
+  const queries = [
+    "MES Engineer C2C contract USA",
+    "SAP S4HANA C2C contract USA",
+    "PLM Teamcenter C2C contract USA",
+    "Pharma IT C2C contract USA",
+  ];
 
-  const run = await apifyClient.actor("lhotanok/google-jobs-results-scraper").call(input, { waitSecs: 300 });
-  const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+  // The Actor takes a single query, so run it once per query
+  const items: Record<string, unknown>[] = [];
+  for (const query of queries) {
+    const input = {
+      query,
+      country: "us",
+      language: "en",
+      num_results: 50,
+    };
 
-  return (items as Record<string, unknown>[]).map(adapt);
+    const run = await apifyClient.actor("johnvc/Google-Jobs-Scraper").call(input, { waitSecs: 300 });
+    const { items: rows } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+    items.push(...(rows as Record<string, unknown>[]));
+  }
+
+  // Error rows have no title
+  return items.filter((item) => item.title).map(adapt);
 }
