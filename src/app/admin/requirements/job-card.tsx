@@ -2,13 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { MapPin, Mail, Phone, ExternalLink, Calendar, Wifi, DollarSign, Building2, Trash2 } from "lucide-react";
-import type { JobResult } from "./job-detail-modal";
-
-const SOURCE_STYLE: Record<string, string> = {
-  LinkedIn: "bg-blue-100 text-blue-700 border-blue-200",
-  Indeed:   "bg-indigo-100 text-indigo-700 border-indigo-200",
-  Google:   "bg-red-100 text-red-700 border-red-200",
-};
+import { SOURCE_STYLE, type JobResult } from "./job-detail-modal";
 
 const JOB_TYPE_STYLE: Record<string, string> = {
   "C2C":     "bg-emerald-100 text-emerald-700 border-emerald-200",

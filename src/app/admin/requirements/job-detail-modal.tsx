@@ -27,12 +27,20 @@ export interface JobResult {
   applyLink: string | null;
   datePosted: string | null;
   dateScraped: string;
+  companyName?: string | null;
+  sourceType?: string;
 }
 
-const SOURCE_STYLE: Record<string, string> = {
-  LinkedIn: "bg-blue-100 text-blue-700 border-blue-200",
-  Indeed:   "bg-indigo-100 text-indigo-700 border-indigo-200",
-  Google:   "bg-red-100 text-red-700 border-red-200",
+export const SOURCE_STYLE: Record<string, string> = {
+  LinkedIn:        "bg-blue-100 text-blue-700 border-blue-200",
+  Indeed:          "bg-indigo-100 text-indigo-700 border-indigo-200",
+  Google:          "bg-red-100 text-red-700 border-red-200",
+  // Company career sites (job feed crawler)
+  Greenhouse:      "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Lever:           "bg-sky-100 text-sky-700 border-sky-200",
+  Ashby:           "bg-violet-100 text-violet-700 border-violet-200",
+  SmartRecruiters: "bg-amber-100 text-amber-700 border-amber-200",
+  Workday:         "bg-orange-100 text-orange-700 border-orange-200",
 };
 
 const JOB_TYPE_STYLE: Record<string, string> = {

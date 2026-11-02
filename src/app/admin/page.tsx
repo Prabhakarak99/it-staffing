@@ -7,9 +7,9 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
   Users, UserPlus, Shield, Briefcase,
-  GraduationCap, FileText, Calendar, CheckCircle2,
-  TrendingUp, MapPin, DollarSign, Plus, ArrowRight,
-  BarChart3, Activity, Target,
+  GraduationCap, FileText, Calendar,
+  TrendingUp, MapPin, DollarSign, ArrowRight,
+  BarChart3, Activity, Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -86,30 +86,107 @@ function QuickAction({ label, href, icon: Icon, color }: {
   );
 }
 
-// ── Target progress bar ───────────────────────────────────────────────────────
-function TargetBar({ label, icon: Icon, iconColor, current, target, barFull, barMid, barLow, unit = "" }: {
-  label: string; icon: React.ComponentType<{ className?: string }>; iconColor: string;
-  current: number; target: number; barFull: string; barMid: string; barLow: string; unit?: string;
-}) {
-  const pct = Math.min(100, target > 0 ? Math.round((current / target) * 100) : 0);
-  const barColor = pct >= 100 ? barFull : pct >= 50 ? barMid : barLow;
-  const badgeColor = pct >= 100 ? "bg-emerald-100 text-emerald-700" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-600";
+// ── Consultant Today / Week / Month count table ───────────────────────────────
+interface PeriodCounts { today: number; week: number; month: number }
+interface ConsultantCountRow extends PeriodCounts { id: string; name: string; technology: string | null }
+
+function CountCell({ value, color }: { value: number; color: string }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon className={cn("h-3.5 w-3.5", iconColor)} />
-          <span className="text-[12px] font-semibold text-slate-700">{label}</span>
+    <td className="px-1 py-3.5 text-center">
+      <span className={cn("text-[13px] font-bold tabular-nums", value > 0 ? color : "text-slate-300")}>{value}</span>
+    </td>
+  );
+}
+
+function PercentBadge({ pct }: { pct: number }) {
+  const color = pct >= 100 ? "bg-emerald-100 text-emerald-700" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-600";
+  return <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums", color)}>{pct}%</span>;
+}
+
+/** weeklyTarget: per-consultant weekly goal; when set, adds a "Week %" column and an average row */
+function ConsultantCountTable({ title, subtitle, icon: Icon, iconBg, iconColor, rows, weeklyTarget }: {
+  title: string; subtitle: string;
+  icon: React.ComponentType<{ className?: string }>; iconBg: string; iconColor: string;
+  rows: ConsultantCountRow[]; weeklyTarget?: number;
+}) {
+  const totals = rows.reduce((t, r) => ({ today: t.today + r.today, week: t.week + r.week, month: t.month + r.month }), { today: 0, week: 0, month: 0 });
+  const weekPct = (week: number) => (weeklyTarget ? Math.round((week / weeklyTarget) * 100) : 0);
+  const avgPct = rows.length > 0 ? Math.round(rows.reduce((sum, r) => sum + weekPct(r.week), 0) / rows.length) : 0;
+  const colCount = weeklyTarget ? 5 : 4;
+  const th = "px-1 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap";
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-2.5">
+        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", iconBg)}>
+          <Icon className={cn("h-4 w-4", iconColor)} />
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[12px] font-bold text-slate-800">{current}{unit}</span>
-          <span className="text-[11px] text-slate-400">/ {target} target</span>
-          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", badgeColor)}>{pct}%</span>
+        <div>
+          <p className="text-[13px] font-bold text-slate-900">{title}</p>
+          <p className="text-[11px] text-slate-400">{subtitle}</p>
         </div>
       </div>
-      <div className="h-2.5 w-full rounded-full bg-slate-100">
-        <div className={cn("h-full rounded-full transition-all duration-700", barColor)} style={{ width: `${pct}%` }} />
-      </div>
+
+      {rows.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+          <GraduationCap className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+          <p className="text-[13px] font-semibold text-slate-500">No consultants assigned to you yet</p>
+          <p className="mt-1 text-[11px] text-slate-400">Consultants appear here once assigned to you or once you add activity for them</p>
+        </div>
+      ) : (
+        <div>
+          <table className="w-full table-fixed">
+            <thead>
+              <tr className="bg-slate-800">
+                <th className={cn(th, "text-left pl-5")}>Consultant</th>
+                <th className={cn(th, "text-center w-[15%]")}>Today</th>
+                <th className={cn(th, "text-center w-[15%]")}>Week</th>
+                <th className={cn(th, "text-center w-[15%]")}>Month</th>
+                {weeklyTarget && <th className={cn(th, "text-center w-[17%] pr-3")}>Week %</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((c) => (
+                <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors">
+                  <td className="pl-5 pr-2 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[11px] font-bold text-violet-700">
+                        {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-[12px] font-semibold text-slate-800">{c.name}</p>
+                        {c.technology && <p className="truncate text-[10px] text-slate-400">{c.technology}</p>}
+                      </div>
+                    </div>
+                  </td>
+                  <CountCell value={c.today} color="text-emerald-600" />
+                  <CountCell value={c.week} color="text-sky-700" />
+                  <CountCell value={c.month} color="text-violet-700" />
+                  {weeklyTarget && (
+                    <td className="px-5 py-3.5 text-center"><PercentBadge pct={weekPct(c.week)} /></td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-slate-200 bg-slate-50">
+                <td className="pl-5 pr-2 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Total</td>
+                <td className="px-1 py-3 text-center text-[13px] font-bold tabular-nums text-slate-800">{totals.today}</td>
+                <td className="px-1 py-3 text-center text-[13px] font-bold tabular-nums text-slate-800">{totals.week}</td>
+                <td className="px-1 py-3 text-center text-[13px] font-bold tabular-nums text-slate-800">{totals.month}</td>
+                {weeklyTarget && <td className="px-1 py-3" />}
+              </tr>
+              {weeklyTarget && (
+                <tr className="border-t border-slate-200 bg-slate-50">
+                  <td colSpan={colCount - 1} className="pl-5 pr-2 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Average % <span className="font-medium normal-case tracking-normal text-slate-400">({weeklyTarget}/wk = 100%)</span>
+                  </td>
+                  <td className="px-1 py-3 text-center"><PercentBadge pct={avgPct} /></td>
+                </tr>
+              )}
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -138,261 +215,131 @@ export default async function AdminDashboard() {
     const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 6 : dow - 1));
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // ── Targets ──────────────────────────────────────────────────────────────
-    const DAILY_TARGET = 2;
+    // Each consultant should get 10 submissions per 5-day work week (= 100%)
     const WEEKLY_SUB_TARGET = 10;
-    const WEEKLY_INTV_TARGET = 1;
+
+    // The week can start in the previous month, so fetch from whichever is earlier
+    const periodStart = weekStart < monthStart ? weekStart : monthStart;
 
     // ── Queries ──────────────────────────────────────────────────────────────
-    const [
-      todaySubsCount, weekSubsCount, monthSubsCount,
-      todayIntvCount, weekIntvCount, monthIntvCount,
-      todaySubsByC, weekSubsByC,
-    ] = await Promise.all([
-      prisma.submission.count({ where: { recruiterId: session.userId, createdAt: { gte: todayStart } } }),
-      prisma.submission.count({ where: { recruiterId: session.userId, createdAt: { gte: weekStart } } }),
-      prisma.submission.count({ where: { recruiterId: session.userId, createdAt: { gte: monthStart } } }),
-      prisma.interview.count({ where: { recruiterId: session.userId, createdAt: { gte: todayStart } } }),
-      prisma.interview.count({ where: { recruiterId: session.userId, createdAt: { gte: weekStart } } }),
-      prisma.interview.count({ where: { recruiterId: session.userId, createdAt: { gte: monthStart } } }),
-      // Consultant-wise breakdowns
+    const [periodSubs, periodIntvs, assigned, monthSubsByRecruiter, recruiterTotal] = await Promise.all([
+      prisma.submission.findMany({
+        where: { recruiterId: session.userId, createdAt: { gte: periodStart } },
+        select: { consultantId: true, createdAt: true },
+      }),
+      prisma.interview.findMany({
+        where: { recruiterId: session.userId, createdAt: { gte: periodStart } },
+        select: { createdAt: true, submission: { select: { consultantId: true } } },
+      }),
+      // Consultants assigned to this recruiter
+      prisma.preMarketing.findMany({
+        where: { recruiterId: session.userId },
+        select: { consultantId: true },
+      }),
+      // Company-wide monthly submissions per recruiter (for the rank)
       prisma.submission.groupBy({
-        by: ["consultantId"],
-        where: { recruiterId: session.userId, createdAt: { gte: todayStart } },
+        by: ["recruiterId"],
+        where: { createdAt: { gte: monthStart } },
         _count: { _all: true },
       }),
-      prisma.submission.groupBy({
-        by: ["consultantId"],
-        where: { recruiterId: session.userId, createdAt: { gte: weekStart } },
-        _count: { _all: true },
-      }),
+      // Total recruiters in the company (rank denominator)
+      prisma.user.count({ where: { role: { name: "Recruiter" } } }),
     ]);
 
-    // Merge consultant IDs and fetch names
-    const cIds = [...new Set([...todaySubsByC.map((s) => s.consultantId), ...weekSubsByC.map((s) => s.consultantId)])];
+    // My consultants = assigned to me + any I submitted/interviewed this period
+    const cIds = [...new Set([
+      ...assigned.map((a) => a.consultantId),
+      ...periodSubs.map((s) => s.consultantId),
+      ...periodIntvs.map((i) => i.submission.consultantId),
+    ])];
     const consultants = cIds.length > 0
       ? await prisma.student.findMany({ where: { id: { in: cIds } }, select: { id: true, firstName: true, lastName: true, technology: true } })
       : [];
 
-    const consultantRows = consultants
-      .map((c) => ({
-        id: c.id,
-        name: `${c.firstName} ${c.lastName}`,
-        technology: c.technology,
-        todayCount: todaySubsByC.find((s) => s.consultantId === c.id)?._count._all ?? 0,
-        weekCount: weekSubsByC.find((s) => s.consultantId === c.id)?._count._all ?? 0,
-      }))
-      .sort((a, b) => b.weekCount - a.weekCount || b.todayCount - a.todayCount);
+    const tally = (items: { consultantId: string; createdAt: Date }[]) => {
+      const counts = new Map<string, PeriodCounts>();
+      for (const { consultantId, createdAt } of items) {
+        const c = counts.get(consultantId) ?? { today: 0, week: 0, month: 0 };
+        if (createdAt >= todayStart) c.today++;
+        if (createdAt >= weekStart) c.week++;
+        if (createdAt >= monthStart) c.month++;
+        counts.set(consultantId, c);
+      }
+      return counts;
+    };
+    const subCounts = tally(periodSubs);
+    const intvCounts = tally(periodIntvs.map((i) => ({ consultantId: i.submission.consultantId, createdAt: i.createdAt })));
+    const zero: PeriodCounts = { today: 0, week: 0, month: 0 };
 
-    const weekGoalsMet = weekSubsCount >= WEEKLY_SUB_TARGET && weekIntvCount >= WEEKLY_INTV_TARGET;
+    const buildRows = (counts: Map<string, PeriodCounts>): ConsultantCountRow[] =>
+      consultants
+        .map((c) => ({
+          id: c.id,
+          name: `${c.firstName} ${c.lastName}`,
+          technology: c.technology,
+          ...(counts.get(c.id) ?? zero),
+        }))
+        .sort((a, b) => b.today - a.today || b.week - a.week || b.month - a.month || a.name.localeCompare(b.name));
+
+    const submissionRows = buildRows(subCounts);
+    const interviewRows = buildRows(intvCounts);
+
+    // ── Monthly company rank (by total submissions this month) ───────────────
+    const myMonthSubs = monthSubsByRecruiter.find((g) => g.recruiterId === session.userId)?._count._all ?? 0;
+    const ahead = monthSubsByRecruiter.filter((g) => g._count._all > myMonthSubs).length;
+    const rank = ahead + 1;
+    const totalRecruiters = Math.max(recruiterTotal, monthSubsByRecruiter.length, rank);
+    const rankOrdinal = (n: number) => {
+      const s = ["th", "st", "nd", "rd"], v = n % 100;
+      return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+    };
 
     return (
       <>
         <Header title="Dashboard" />
         <div className="p-6 space-y-6">
 
-          {/* ── Welcome banner ── */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-6 shadow-lg">
-            <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/[0.06]" />
-            <div className="absolute left-1/2 bottom-0 h-24 w-24 rounded-full bg-white/[0.04]" />
-            <div className="absolute right-16 bottom-2 h-14 w-14 rounded-full bg-white/[0.06]" />
+          {/* ── Monthly company rank ── */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-5 shadow-lg">
+            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/[0.06]" />
+            <div className="absolute right-20 bottom-0 h-20 w-20 rounded-full bg-white/[0.05]" />
             <div className="relative flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-[13px] font-medium text-indigo-200">{greeting()},</p>
-                <h2 className="mt-0.5 text-[22px] font-extrabold text-white">{firstName}!</h2>
-                <p className="mt-1 text-[12px] text-indigo-300/80">{todayStr()}</p>
-                <p className="mt-3 text-[13px] leading-relaxed text-indigo-100/90">
-                  {monthSubsCount} submissions · {monthIntvCount} interviews this month
-                </p>
-              </div>
-              {weekGoalsMet && (
-                <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                  <div>
-                    <p className="text-[12px] font-bold text-white">Weekly goals met!</p>
-                    <p className="text-[10px] text-indigo-200">Keep up the great work</p>
-                  </div>
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
+                  <Trophy className="h-7 w-7 text-amber-300" />
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Period stats ── */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50">
-                <BarChart3 className="h-4 w-4 text-sky-600" />
-              </div>
-              <p className="text-[13px] font-bold text-slate-900">My Activity</p>
-            </div>
-
-            {/* Submissions row */}
-            <div className="grid grid-cols-3 divide-x divide-slate-100">
-              {[
-                { label: "Today", value: todaySubsCount, target: DAILY_TARGET },
-                { label: "This Week", value: weekSubsCount, target: WEEKLY_SUB_TARGET },
-                { label: "This Month", value: monthSubsCount, target: null },
-              ].map(({ label, value, target }) => (
-                <div key={label} className="p-5 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-                  <div className="mt-2 flex items-end justify-center gap-1">
-                    <p className="text-[30px] font-bold tabular-nums text-sky-700">{value}</p>
-                    {target !== null && <p className="mb-1 text-[11px] text-slate-400">/ {target}</p>}
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-200">Monthly Company Rank</p>
+                  <div className="mt-0.5 flex items-baseline gap-2">
+                    <span className="text-[34px] font-extrabold leading-none text-white">{rankOrdinal(rank)}</span>
+                    <span className="text-[13px] font-medium text-indigo-200">of {totalRecruiters} recruiters</span>
                   </div>
-                  <p className="text-[11px] font-semibold text-sky-600">Submissions</p>
+                  <p className="mt-1 text-[12px] text-indigo-100/90">By total submissions this month</p>
                 </div>
-              ))}
-            </div>
-
-            {/* Interviews row */}
-            <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 bg-slate-50/50">
-              {[
-                { label: "Today", value: todayIntvCount, target: null },
-                { label: "This Week", value: weekIntvCount, target: WEEKLY_INTV_TARGET },
-                { label: "This Month", value: monthIntvCount, target: null },
-              ].map(({ label, value, target }) => (
-                <div key={label} className="p-5 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-                  <div className="mt-2 flex items-end justify-center gap-1">
-                    <p className="text-[30px] font-bold tabular-nums text-violet-700">{value}</p>
-                    {target !== null && <p className="mb-1 text-[11px] text-slate-400">/ {target}</p>}
-                  </div>
-                  <p className="text-[11px] font-semibold text-violet-600">Interviews</p>
-                </div>
-              ))}
+              </div>
+              <div className="rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-center backdrop-blur-sm">
+                <p className="text-[26px] font-bold leading-none text-white">{myMonthSubs}</p>
+                <p className="mt-1 text-[11px] font-medium text-indigo-200">Your submissions<br />this month</p>
+              </div>
             </div>
           </div>
 
-          {/* ── Weekly targets ── */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
-                <Target className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-[13px] font-bold text-slate-900">Weekly Targets</p>
-                <p className="text-[11px] text-slate-400">Monday – Sunday progress</p>
-              </div>
-              {weekGoalsMet && (
-                <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> All targets met!
-                </span>
-              )}
-            </div>
-            <div className="space-y-4">
-              <TargetBar
-                label="Submissions this week"
-                icon={FileText} iconColor="text-sky-500"
-                current={weekSubsCount} target={WEEKLY_SUB_TARGET}
-                barFull="bg-emerald-500" barMid="bg-amber-400" barLow="bg-sky-400"
-              />
-              <TargetBar
-                label="Interviews this week"
-                icon={Calendar} iconColor="text-violet-500"
-                current={weekIntvCount} target={WEEKLY_INTV_TARGET}
-                barFull="bg-emerald-500" barMid="bg-violet-400" barLow="bg-rose-400"
-              />
-            </div>
+          {/* Recruiters see only their consultant reports, side by side */}
+          <div className="grid gap-6 xl:grid-cols-2">
+            <ConsultantCountTable
+              title="Submissions"
+              subtitle="Your submissions per consultant"
+              icon={FileText} iconBg="bg-sky-50" iconColor="text-sky-600"
+              rows={submissionRows}
+              weeklyTarget={WEEKLY_SUB_TARGET}
+            />
+            <ConsultantCountTable
+              title="Interviews"
+              subtitle="Your interviews per consultant"
+              icon={Calendar} iconBg="bg-violet-50" iconColor="text-violet-600"
+              rows={interviewRows}
+            />
           </div>
-
-          {/* ── Consultant submission activity ── */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50">
-                <GraduationCap className="h-4 w-4 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-[13px] font-bold text-slate-900">Consultant Submissions</p>
-                <p className="text-[11px] text-slate-400">
-                  Daily target: {DAILY_TARGET} submissions per consultant · Weekly target: {WEEKLY_SUB_TARGET} total
-                </p>
-              </div>
-            </div>
-
-            {consultantRows.length === 0 ? (
-              <div className="px-5 py-12 text-center">
-                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                <p className="text-[13px] font-semibold text-slate-500">No submissions yet this week</p>
-                <p className="mt-1 text-[11px] text-slate-400">Submissions will appear here once you start adding them</p>
-                <Link href="/admin/submissions" className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-4 py-2 text-[12px] font-bold text-white hover:bg-sky-600 transition-colors">
-                  <Plus className="h-3.5 w-3.5" /> New Submission
-                </Link>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-slate-800">
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300">Consultant</th>
-                      <th className="px-5 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Today</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Daily Progress (Target: {DAILY_TARGET})</th>
-                      <th className="px-5 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">This Week</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Week Progress (Target: {WEEKLY_SUB_TARGET})</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {consultantRows.map((c) => {
-                      const todayPct = Math.min(100, Math.round((c.todayCount / DAILY_TARGET) * 100));
-                      const weekPct = Math.min(100, Math.round((c.weekCount / WEEKLY_SUB_TARGET) * 100));
-                      const todayBar = todayPct >= 100 ? "bg-emerald-500" : todayPct >= 50 ? "bg-amber-400" : "bg-sky-400";
-                      const weekBar = weekPct >= 100 ? "bg-emerald-500" : weekPct >= 50 ? "bg-amber-400" : "bg-sky-400";
-                      const avatarBg = todayPct >= 100 ? "bg-emerald-100 text-emerald-700" : todayPct > 0 ? "bg-amber-100 text-amber-700" : "bg-violet-100 text-violet-700";
-                      return (
-                        <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", avatarBg)}>
-                                {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">{c.name}</p>
-                                {c.technology && <p className="text-[10px] text-slate-400">{c.technology}</p>}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold", avatarBg)}>
-                              {c.todayCount}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 min-w-[160px]">
-                            <div className="h-2 w-full rounded-full bg-slate-100">
-                              <div className={cn("h-full rounded-full transition-all", todayBar)} style={{ width: `${todayPct}%` }} />
-                            </div>
-                            <p className="mt-0.5 text-[10px] text-slate-400">{todayPct}% of daily target</p>
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className={cn(
-                              "text-[13px] font-bold",
-                              weekPct >= 100 ? "text-emerald-600" : "text-slate-700"
-                            )}>{c.weekCount}</span>
-                          </td>
-                          <td className="px-5 py-3.5 min-w-[160px]">
-                            <div className="h-2 w-full rounded-full bg-slate-100">
-                              <div className={cn("h-full rounded-full transition-all", weekBar)} style={{ width: `${weekPct}%` }} />
-                            </div>
-                            <p className="mt-0.5 text-[10px] text-slate-400">{weekPct}% of week target</p>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* ── Quick actions ── */}
-          <div>
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
-            <div className="flex flex-wrap gap-2.5">
-              <QuickAction label="New Submission" href="/admin/submissions" icon={Plus} color="bg-sky-500" />
-              <QuickAction label="New Interview" href="/admin/interviews" icon={Plus} color="bg-violet-500" />
-              <QuickAction label="My Submissions" href="/admin/submissions/list" icon={FileText} color="bg-slate-500" />
-              <QuickAction label="My Interviews" href="/admin/interviews/list" icon={Calendar} color="bg-slate-500" />
-            </div>
-          </div>
-
         </div>
       </>
     );

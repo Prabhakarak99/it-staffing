@@ -6,9 +6,10 @@ import { SlideOver } from "@/components/ui/slide-over";
 import { CreateUserForm } from "./create-user-form";
 import { UserList } from "./user-list";
 import { UserDetail } from "./user-detail";
-import type { User, Role } from "@/generated/prisma/client";
+import type { Role } from "@/generated/prisma/client";
+import type { SafeUserWithRole } from "@/lib/user-safe";
 
-type UserWithRole = User & { role: Role | null };
+type UserWithRole = SafeUserWithRole;
 
 interface Props {
   users: UserWithRole[];

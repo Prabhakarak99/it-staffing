@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { getUserRelationCounts, userDeleteBlockMessage } from "@/lib/user-deletion";
 import { Prisma } from "@/generated/prisma/client";
+import { SAFE_USER_OMIT } from "@/lib/user-safe";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -14,6 +15,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const user = await prisma.user.findUnique({
     where: { id },
     include: { role: true },
+    omit: SAFE_USER_OMIT,
   });
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(user);
@@ -37,6 +39,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       roleId: body.roleId !== undefined ? (body.roleId || null) : undefined,
     },
     include: { role: true },
+    omit: SAFE_USER_OMIT,
   });
 
   return NextResponse.json(user);

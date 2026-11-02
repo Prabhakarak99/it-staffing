@@ -15,6 +15,7 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const activated = params.get("activated") === "1";
+  const passwordReset = params.get("reset") === "1";
 
   const login = () => {
     if (!email || !password) { setError("Please enter email and password."); return; }
@@ -108,6 +109,12 @@ function LoginForm() {
             <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 mb-5">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               Account activated! You can now sign in.
+            </div>
+          )}
+          {passwordReset && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 mb-5">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Password updated! Sign in with your new password.
             </div>
           )}
 

@@ -53,6 +53,8 @@ model User {
   isActive            Boolean   @default(false)
   activationToken     String?   @unique
   activationExpiry    DateTime?
+  resetToken          String?   @unique // admin-sent password reset link
+  resetExpiry         DateTime?
   businessNumber      String?
   fullAddress         String?
   experience          String?
@@ -290,10 +292,59 @@ model JobSearchResult {
   visaRequirements String[]
   isActive         Boolean   @default(true)
   rawData          Json?
+  // ── Job feed (ATS crawl / boards / vendor email) ──
+  sourceType       String    @default("board") // ats | board | email
+  atsProvider      String?   // greenhouse | lever | ashby | smartrecruiters | workday
+  companyName      String?
+  employmentType   String?   // C2C | W2 | 1099 | Contract | Full-time | Unknown
+  isContract       Boolean   @default(true)
+  dedupeHash       String?
+  lastSeenAt       DateTime  @default(now())
+  classifiedBy     String?   // regex | ai
+  aiParsedAt       DateTime?
+  aiConfidence     Float?
+  atsCompanyId     String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  @@index([dedupeHash])
+  @@index([sourceType, lastSeenAt])
+  @@index([classifiedBy])
   @@map("job_search_results")
+}
+
+// ── Job feed: company career boards to crawl ─────────────────────────────────
+model AtsCompany {
+  id            String    @id @default(cuid())
+  name          String
+  provider      String    // greenhouse | lever | ashby | smartrecruiters | workday
+  boardToken    String    // greenhouse token / lever slug / ashby name / SR company id / workday tenant
+  workdayHost   String?   // e.g. acme.wd5.myworkdayjobs.com
+  workdaySite   String    @default("") // e.g. External_Careers ("" for non-Workday, keeps the unique key strict)
+  isActive      Boolean   @default(true)
+  lastCrawledAt DateTime?
+  lastJobCount  Int       @default(0)
+  lastNewCount  Int       @default(0)
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  @@unique([provider, boardToken, workdaySite])
+  @@index([isActive, lastCrawledAt])
+}
+
+model JobIngestConfig {
+  id                   String    @id @default("singleton")
+  paused               Boolean   @default(false)
+  crawlIntervalMin     Int       @default(60)
+  maxCompaniesPerCycle Int       @default(10)
+  boardScrapeEnabled   Boolean   @default(false) // Apify LinkedIn/Indeed/Google — costs Apify credits
+  boardScrapeHours     Int       @default(6)
+  lastBoardScrapeAt    DateTime?
+  aiEnabled            Boolean   @default(true)  // needs ANTHROPIC_API_KEY
+  aiBatchId            String?   // in-flight Anthropic message batch
+  aiBatchSubmittedAt   DateTime?
+  emailEnabled         Boolean   @default(false) // phase 2: vendor requirement mailbox
+  updatedAt            DateTime  @updatedAt
 }
 
 // ── AutoJobs: automated vendor marketing engine ─────────────────────────────

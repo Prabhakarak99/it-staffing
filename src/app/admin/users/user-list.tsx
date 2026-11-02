@@ -9,11 +9,11 @@ import { filterBySearch, searchBlob } from "@/lib/table-search";
 import { cn } from "@/lib/utils";
 import {
   Users, ToggleLeft, ToggleRight, Mail, Loader2, Trash2,
-  ChevronUp, ChevronDown, ChevronsUpDown,
+  ChevronUp, ChevronDown, ChevronsUpDown, KeyRound,
 } from "lucide-react";
-import type { User, Role } from "@/generated/prisma/client";
+import type { SafeUserWithRole } from "@/lib/user-safe";
 
-type UserWithRole = User & { role: Role | null };
+type UserWithRole = SafeUserWithRole;
 type SortDir = "asc" | "desc";
 
 function initials(name: string) {
@@ -30,6 +30,8 @@ export function UserList({ users, onSelect }: { users: UserWithRole[]; onSelect?
   const [isPending, startTransition] = useTransition();
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resettingAll, setResettingAll] = useState(false);
   const { toast, show, hide } = useToast();
   const [sortCol, setSortCol] = useState("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -106,6 +108,41 @@ export function UserList({ users, onSelect }: { users: UserWithRole[]; onSelect?
     } finally { setResendingId(null); }
   };
 
+  const postReset = async (body: { userId: string } | { all: true }) => {
+    const res = await fetch("/api/users/send-password-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `Server error ${res.status}`);
+    return data as { sent: number; failed: string[] };
+  };
+
+  const sendResetLink = async (userId: string, name: string, email: string) => {
+    if (!confirm(`Email a password reset link to ${name} (${email})? Their current password keeps working until they set a new one.`)) return;
+    setResettingId(userId);
+    try {
+      await postReset({ userId });
+      show(`Password reset link sent to ${email}`, "success");
+    } catch (err: unknown) {
+      show(err instanceof Error ? err.message : "Failed to send reset link", "error");
+    } finally { setResettingId(null); }
+  };
+
+  const sendResetLinkToAll = async () => {
+    const others = activeCount - 1;
+    if (!confirm(`Email a password reset link to all ${others} other active users? Each link is valid for 24 hours; current passwords keep working until changed.`)) return;
+    setResettingAll(true);
+    try {
+      const { sent, failed } = await postReset({ all: true });
+      if (failed.length) show(`Sent ${sent} reset links; ${failed.length} failed (${failed.slice(0, 3).join(", ")}${failed.length > 3 ? "…" : ""})`, "error");
+      else show(`Password reset links sent to ${sent} users`, "success");
+    } catch (err: unknown) {
+      show(err instanceof Error ? err.message : "Failed to send reset links", "error");
+    } finally { setResettingAll(false); }
+  };
+
   const activeCount = users.filter((u) => Boolean(u.isActive)).length;
   const pendingCount = users.length - activeCount;
 
@@ -149,6 +186,15 @@ export function UserList({ users, onSelect }: { users: UserWithRole[]; onSelect?
               <span className="text-xs font-semibold text-amber-700">{pendingCount} Pending</span>
             </div>
           )}
+          <button
+            onClick={() => void sendResetLinkToAll()}
+            disabled={resettingAll || activeCount < 2}
+            title="Email every active user a link to set a new password"
+            className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+          >
+            {resettingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+            {resettingAll ? "Sending…" : "Send reset link to all"}
+          </button>
           <TabSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search users…" />
         </div>
       </div>
@@ -238,27 +284,25 @@ export function UserList({ users, onSelect }: { users: UserWithRole[]; onSelect?
                         {active ? "Disable" : "Activate"}
                       </button>
 
-                      <div className="relative group">
+                      {active ? (
                         <button
-                          disabled={active || isResending}
-                          onClick={() => !active && resendActivation(user.id, user.email)}
-                          title={active ? "Already activated" : "Resend activation email"}
-                          className={cn(
-                            "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                            active
-                              ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
-                              : "border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                          )}>
+                          disabled={resettingId === user.id}
+                          onClick={() => void sendResetLink(user.id, name, user.email)}
+                          title="Email a password reset link"
+                          className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-50">
+                          {resettingId === user.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                          {resettingId === user.id ? "Sending…" : "Reset password"}
+                        </button>
+                      ) : (
+                        <button
+                          disabled={isResending}
+                          onClick={() => resendActivation(user.id, user.email)}
+                          title="Resend activation email"
+                          className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-50">
                           {isResending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                           {isResending ? "Sending…" : "Resend"}
                         </button>
-                        {active && (
-                          <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs text-white whitespace-nowrap group-hover:block z-10">
-                            Already activated
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-                          </div>
-                        )}
-                      </div>
+                      )}
 
                       <button
                         disabled={deletingId === user.id}

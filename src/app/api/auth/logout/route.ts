@@ -3,5 +3,6 @@ import { deleteSession } from "@/lib/auth";
 
 export async function POST() {
   await deleteSession();
-  return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"));
+  // Relative Location keeps the user on the current host/port; 303 makes the browser follow with GET
+  return new NextResponse(null, { status: 303, headers: { Location: "/login" } });
 }
