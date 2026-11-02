@@ -1,5 +1,4 @@
-import { Prisma } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { saveJobs } from "@/lib/jobfeed/upsert";
 import { scrapeLinkedIn } from "./linkedinScraper";
 import { scrapeIndeed } from "./indeedScraper";
 import { scrapeGoogle } from "./googleScraper";
@@ -23,6 +22,18 @@ async function runScraper(name: string, fn: () => Promise<ScrapedJob[]>): Promis
     console.error(`[Scraper] ${name} failed:`, msg);
     return { jobs: [], error: `${name}: ${msg}` };
   }
+}
+
+// Board searches are already contract-only; explicit C2C/W2/1099 needs no AI, plain "Contract" does
+const EXPLICIT_TYPES = ["C2C", "C2C/W2", "W2", "1099"];
+function classifyBoardJob(job: ScrapedJob): ScrapedJob {
+  return {
+    ...job,
+    sourceType: "board",
+    employmentType: job.jobType,
+    isContract: true,
+    classifiedBy: EXPLICIT_TYPES.includes(job.jobType) ? "regex" : null,
+  };
 }
 
 function deduplicateJobs(jobs: ScrapedJob[]): ScrapedJob[] {
@@ -62,54 +73,10 @@ export async function runAllScrapers(sources?: ("LinkedIn" | "Indeed" | "Google"
     }
   });
 
-  const unique = deduplicateJobs(allJobs);
-  let saved = 0;
-  let skipped = 0;
-
-  for (const job of unique) {
-    try {
-      await prisma.jobSearchResult.upsert({
-        where: { jobId: job.jobId },
-        create: {
-          jobId:            job.jobId,
-          source:           job.source,
-          title:            job.title,
-          vendorName:       job.vendorName,
-          vendorEmail:      job.vendorEmail,
-          vendorPhone:      job.vendorPhone,
-          location:         job.location,
-          isRemote:         job.isRemote,
-          jobDescription:   job.jobDescription,
-          technology:       job.technology,
-          technologies:     job.technologies,
-          jobType:          job.jobType,
-          visaRequirements: job.visaRequirements,
-          clientName:       job.clientName,
-          rateMin:          job.rateMin,
-          rateMax:          job.rateMax,
-          applyLink:        job.applyLink,
-          datePosted:       job.datePosted,
-          dateScraped:      new Date(),
-          rawData:          job.rawData as Prisma.InputJsonValue,
-          isActive:         true,
-        },
-        update: {
-          // Keep most fields fresh; don't overwrite dateScraped on old records
-          vendorEmail:      job.vendorEmail,
-          vendorPhone:      job.vendorPhone,
-          jobDescription:   job.jobDescription,
-          technologies:     job.technologies,
-          visaRequirements: job.visaRequirements,
-          rateMin:          job.rateMin,
-          rateMax:          job.rateMax,
-          isActive:         true,
-        },
-      });
-      saved++;
-    } catch {
-      skipped++;
-    }
-  }
+  const unique = deduplicateJobs(allJobs).map(classifyBoardJob);
+  const res = await saveJobs(unique, { refreshExisting: true });
+  const saved = res.created + res.updated;
+  const skipped = res.duplicates + res.failed;
 
   return { total: unique.length, saved, skipped, errors, sources: sourceResults };
 }

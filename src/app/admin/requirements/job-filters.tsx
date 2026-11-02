@@ -9,13 +9,29 @@ export interface Filters {
   source: string;
   location: string;
   dateFrom: string;
+  jobType: string;
+  sourceType: string;
 }
 
 export const EMPTY_FILTERS: Filters = {
-  keyword: "", technology: "", source: "", location: "", dateFrom: "",
+  keyword: "", technology: "", source: "", location: "", dateFrom: "", jobType: "", sourceType: "",
 };
 
-const SOURCES = ["LinkedIn", "Indeed", "Google"];
+const SOURCES = ["LinkedIn", "Indeed", "Google", "Greenhouse", "Lever", "Ashby", "SmartRecruiters", "Workday"];
+
+const JOB_TYPES = [
+  { label: "All", value: "" },
+  { label: "C2C", value: "C2C" },
+  { label: "W2", value: "W2" },
+  { label: "1099", value: "1099" },
+  { label: "Contract", value: "Contract" },
+];
+
+const SOURCE_TYPES = [
+  { label: "All", value: "" },
+  { label: "Company sites", value: "ats" },
+  { label: "Job boards", value: "board" },
+];
 
 const DATE_OPTIONS = [
   { label: "All Time", value: "" },
@@ -81,6 +97,48 @@ export function JobFilters({ filters, onChange }: Props) {
             onChange={(e) => set("technology")(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
           />
+        </div>
+
+        {/* Employment type */}
+        <div>
+          <Label>Employment Type</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {JOB_TYPES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => set("jobType")(t.value)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition-all",
+                  filters.jobType === t.value
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Where the job came from */}
+        <div>
+          <Label>Found On</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {SOURCE_TYPES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => set("sourceType")(t.value)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition-all",
+                  filters.sourceType === t.value
+                    ? "border-indigo-500 bg-indigo-500 text-white shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Source */}

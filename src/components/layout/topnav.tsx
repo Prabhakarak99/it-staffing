@@ -20,8 +20,10 @@ const NAV_LINKS = [
   { label: "Pre-Marketing", href: "/admin/premarketing",       match: "/admin/premarketing",  exact: false },
   { label: "Tech Support",   href: "/admin/tech-support",       match: "/admin/tech-support",    exact: false },
   { label: "Requirements",  href: "/admin/requirements",       match: "/admin/requirements",    exact: false },
+  { label: "Vendor Requirements", href: "/admin/vendor-requirements", match: "/admin/vendor-requirements", exact: false },
   { label: "Expenses",      href: "/admin/expenses",           match: "/admin/expenses",        exact: false },
   { label: "Otter Status",  href: "/admin/otter-status",       match: "/admin/otter-status",    exact: false },
+  { label: "Reports",       href: "/admin/reports",            match: "/admin/reports",         exact: false },
 ];
 
 /* ── Administration dropdown (admin-only) ───────────────────────────────── */

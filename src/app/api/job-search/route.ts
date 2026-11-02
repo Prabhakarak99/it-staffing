@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { CONTRACT_JOB_TYPES } from "@/lib/jobfeed/job-types";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -13,13 +14,14 @@ export async function GET(req: NextRequest) {
   const location    = searchParams.get("location")    ?? undefined;
   const keyword     = searchParams.get("keyword")     ?? undefined;
   const dateFrom    = searchParams.get("dateFrom")    ?? undefined;
+  const sourceType  = searchParams.get("sourceType")  ?? undefined;
   const page        = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const limit       = Math.min(50, parseInt(searchParams.get("limit") ?? "20"));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const must: any[] = [
     { isActive: true },
-    { jobType: jobType ? { contains: jobType, mode: "insensitive" } : { in: ["C2C", "C2C/W2", "Contract", "1099"] } },
+    { jobType: jobType ? { contains: jobType, mode: "insensitive" } : { in: CONTRACT_JOB_TYPES } },
   ];
 
   if (technology) {
@@ -32,6 +34,7 @@ export async function GET(req: NextRequest) {
     });
   }
   if (source)     must.push({ source });
+  if (sourceType) must.push({ sourceType });
   if (location)   must.push({ location: { contains: location, mode: "insensitive" } });
   if (dateFrom)   must.push({ dateScraped: { gte: new Date(dateFrom) } });
 
@@ -43,6 +46,7 @@ export async function GET(req: NextRequest) {
         { vendorName:   { contains: keyword, mode: "insensitive" } },
         { clientName:   { contains: keyword, mode: "insensitive" } },
         { technology:   { contains: keyword, mode: "insensitive" } },
+        { companyName:  { contains: keyword, mode: "insensitive" } },
       ],
     });
   }
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
         source: true, vendorName: true, vendorEmail: true, vendorPhone: true,
         location: true, isRemote: true, jobType: true, rateMin: true, rateMax: true,
         clientName: true, datePosted: true, dateScraped: true, applyLink: true,
-        visaRequirements: true, jobDescription: true,
+        visaRequirements: true, jobDescription: true, companyName: true, sourceType: true,
       },
     }),
     prisma.jobSearchResult.count({ where }),

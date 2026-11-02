@@ -1,14 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { CONTRACT_JOB_TYPES } from "@/lib/jobfeed/job-types";
 import { RequirementsView } from "./requirements-view";
 
 export default async function RequirementsPage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const DEFAULT_JOB_TYPES = ["C2C", "C2C/W2", "Contract", "1099"];
-  const defaultWhere = { isActive: true, jobType: { in: DEFAULT_JOB_TYPES } };
+  const defaultWhere = { isActive: true, jobType: { in: CONTRACT_JOB_TYPES } };
 
   const [initialJobs, total, stats] = await Promise.all([
     prisma.jobSearchResult.findMany({
@@ -20,16 +20,16 @@ export default async function RequirementsPage() {
         source: true, vendorName: true, vendorEmail: true, vendorPhone: true,
         location: true, isRemote: true, jobType: true, rateMin: true, rateMax: true,
         clientName: true, datePosted: true, dateScraped: true, applyLink: true,
-        visaRequirements: true, jobDescription: true,
+        visaRequirements: true, jobDescription: true, companyName: true, sourceType: true,
       },
     }),
     prisma.jobSearchResult.count({ where: defaultWhere }),
     Promise.all([
-      prisma.jobSearchResult.count({ where: { isActive: true, dateScraped: { gte: todayStart } } }),
-      prisma.jobSearchResult.count({ where: { isActive: true, isRemote: true } }),
-      prisma.jobSearchResult.count({ where: { isActive: true, jobType: { contains: "C2C" } } }),
-      prisma.jobSearchResult.aggregate({ where: { isActive: true, rateMin: { not: null } }, _avg: { rateMin: true } }),
-      prisma.jobSearchResult.findFirst({ where: { isActive: true }, orderBy: { dateScraped: "desc" }, select: { dateScraped: true } }),
+      prisma.jobSearchResult.count({ where: { isActive: true, isContract: true, dateScraped: { gte: todayStart } } }),
+      prisma.jobSearchResult.count({ where: { isActive: true, isContract: true, isRemote: true } }),
+      prisma.jobSearchResult.count({ where: { isActive: true, isContract: true, jobType: { contains: "C2C" } } }),
+      prisma.jobSearchResult.aggregate({ where: { isActive: true, isContract: true, rateMin: { not: null } }, _avg: { rateMin: true } }),
+      prisma.jobSearchResult.findFirst({ where: { isActive: true, isContract: true }, orderBy: { dateScraped: "desc" }, select: { dateScraped: true } }),
     ]),
   ]);
 

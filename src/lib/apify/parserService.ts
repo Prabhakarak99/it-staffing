@@ -13,15 +13,24 @@ const C2C_KEYWORDS = [
   "c2c rate", "c2c only", "corp-to-corp",
 ];
 
+// Whole-term match, so "MES" doesn't fire on "times" and "Java" doesn't fire on "JavaScript"
+const termRegexCache = new Map<string, RegExp>();
+function mentions(text: string, term: string) {
+  let re = termRegexCache.get(term);
+  if (!re) {
+    re = new RegExp(`(?<![A-Za-z0-9])${term.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}(?![A-Za-z0-9])`, "i");
+    termRegexCache.set(term, re);
+  }
+  return re.test(text);
+}
+
 export function extractTechnologies(text: string): string[] {
-  const lower = text.toLowerCase();
-  return TECHNOLOGIES.filter((t) => lower.includes(t.toLowerCase()));
+  return TECHNOLOGIES.filter((t) => mentions(text, t));
 }
 
 export function extractPrimaryTechnology(text: string): string | null {
   const priority = ["SAP", "MES", "PLM", "Oracle", "Salesforce", "Teamcenter", "Windchill", "Opcenter", "Veeva", "ServiceNow", "Workday", "Azure", "AWS", "Java", "Python"];
-  const lower = text.toLowerCase();
-  return priority.find((t) => lower.includes(t.toLowerCase())) ?? extractTechnologies(text)[0] ?? null;
+  return priority.find((t) => mentions(text, t)) ?? extractTechnologies(text)[0] ?? null;
 }
 
 export function extractEmail(text: string): string | null {

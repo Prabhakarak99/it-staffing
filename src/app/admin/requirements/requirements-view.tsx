@@ -2,11 +2,12 @@
 
 import { useState, useCallback, useEffect, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   Search, Briefcase, Loader2, RefreshCw, ChevronLeft, ChevronRight,
   Layers, Wifi, DollarSign, Clock, BarChart3, CheckCircle2, AlertCircle,
-  Server,
+  Server, Globe,
 } from "lucide-react";
 import { JobCard } from "./job-card";
 import { JobFilters, EMPTY_FILTERS, type Filters } from "./job-filters";
@@ -165,10 +166,17 @@ export function RequirementsView({
             <div>
               <h1 className="text-[18px] font-bold text-white">Requirements</h1>
               <p className="mt-0.5 text-[12px] text-white/65">
-                {liveStats.total} C2C contract jobs
+                {liveStats.total} contract jobs
               </p>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/admin/requirements/sources"
+            className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-white/20"
+          >
+            <Globe className="h-4 w-4" /> Job Sources
+          </Link>
           <button
             onClick={handleScrape}
             disabled={isScraping}
@@ -179,6 +187,7 @@ export function RequirementsView({
               : <><RefreshCw className="h-4 w-4" /> Get Latest</>
             }
           </button>
+          </div>
         </div>
       </div>
 
@@ -221,6 +230,7 @@ export function RequirementsView({
           { label: "LinkedIn", color: "bg-blue-500" },
           { label: "Indeed",   color: "bg-indigo-500" },
           { label: "Google",   color: "bg-red-500" },
+          { label: "Company career sites", color: "bg-emerald-500" },
         ].map(({ label, color }) => (
           <div key={label} className="flex items-center gap-1.5">
             <span className={cn("h-2 w-2 rounded-full", color)} />
@@ -229,7 +239,7 @@ export function RequirementsView({
         ))}
         <div className="flex items-center gap-1.5">
           <Server className="h-3 w-3 text-slate-400" />
-          <span className="text-[11px] text-slate-400">Powered by Apify</span>
+          <span className="text-[11px] text-slate-400">Boards via Apify · career sites crawled hourly</span>
         </div>
       </div>
 
