@@ -24,13 +24,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { firstName, lastName, email, phoneNumber, password, roleId, isActive } = body;
+    const { firstName, lastName, phoneNumber, password, roleId, isActive } = body;
+    // Stored lowercase so sign-in never depends on how the admin typed it
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
     if (!firstName || !lastName || !email || !password) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
     if (existing) {
       return NextResponse.json({ error: "Email already in use" }, { status: 409 });
     }

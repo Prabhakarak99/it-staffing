@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     const {
       firstName,
       lastName,
-      email,
+      email: rawEmail,
       phoneNumber,
       businessNumber,
       fullAddress,
@@ -107,12 +107,14 @@ export async function POST(req: NextRequest) {
       endDate,
       roleId,
     } = body;
+    // Stored lowercase so sign-in never depends on how the admin typed it
+    const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
 
     if (!firstName || !lastName || !email || !startDate) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
     if (existing) {
       return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 });
     }

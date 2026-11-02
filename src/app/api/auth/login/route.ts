@@ -11,18 +11,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // Emails are matched ignoring capitals ("Zindaask@…" = "zindaask@…"). An exact match wins;
+    // if several older accounts differ only by case, the one whose password matches signs in.
+    const typed = String(email).trim();
+    const candidates = await prisma.user.findMany({
+      where: { email: { equals: typed, mode: "insensitive" } },
       include: { role: true },
     });
+    candidates.sort((a, b) => Number(b.email === typed) - Number(a.email === typed));
 
-    if (!user || !Boolean(user.isActive)) {
-      return NextResponse.json({ error: "Invalid credentials or account not active" }, { status: 401 });
+    let user: (typeof candidates)[number] | null = null;
+    for (const c of candidates) {
+      if (await bcrypt.compare(password, c.password)) {
+        user = c;
+        break;
+      }
     }
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
+    if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+    if (!Boolean(user.isActive)) {
+      return NextResponse.json({ error: "Invalid credentials or account not active" }, { status: 401 });
     }
 
     // Super admin (no roleId) gets null = unrestricted access
