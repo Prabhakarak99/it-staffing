@@ -8,9 +8,12 @@ import { CheckCircle, Loader2, Eye, EyeOff } from "lucide-react";
 interface Props {
   token: string;
   email: string;
+  /** "reset" = admin-sent password reset link (same form, different endpoint and wording) */
+  mode?: "activate" | "reset";
 }
 
-export function ActivateForm({ token, email }: Props) {
+export function ActivateForm({ token, email, mode = "activate" }: Props) {
+  const isReset = mode === "reset";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,16 +37,16 @@ export function ActivateForm({ token, email }: Props) {
     setErrors({});
 
     startTransition(async () => {
-      const res = await fetch("/api/auth/activate", {
+      const res = await fetch(isReset ? "/api/auth/reset-password" : "/api/auth/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
       });
       if (res.ok) {
-        router.push("/login?activated=1");
+        router.push(isReset ? "/login?reset=1" : "/login?activated=1");
       } else {
         const data = await res.json();
-        setErrors({ password: data.error ?? "Activation failed. Please try again." });
+        setErrors({ password: data.error ?? (isReset ? "Password reset failed. Please try again." : "Activation failed. Please try again.") });
       }
     });
   };
@@ -153,7 +156,7 @@ export function ActivateForm({ token, email }: Props) {
         ) : (
           <CheckCircle className="h-4 w-4" />
         )}
-        {isPending ? "Activating…" : "Activate Account"}
+        {isReset ? (isPending ? "Saving…" : "Reset Password") : (isPending ? "Activating…" : "Activate Account")}
       </Button>
     </div>
   );

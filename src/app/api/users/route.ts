@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { sendActivationEmail } from "@/lib/email";
+import { SAFE_USER_OMIT } from "@/lib/user-safe";
 
 export async function GET() {
   const session = await getSession();
@@ -11,6 +12,7 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     include: { role: true },
+    omit: SAFE_USER_OMIT,
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(users);
