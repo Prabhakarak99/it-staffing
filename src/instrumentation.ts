@@ -3,6 +3,10 @@ export async function register() {
 
   const { processAutoJobs } = await import("@/lib/autojobs");
   const { processJobFeed } = await import("@/lib/jobfeed/worker");
+  const { ensureScreens } = await import("@/lib/screens");
+
+  // Register screens added after the initial seed (e.g. Vendor Management) so User Roles can grant them.
+  void ensureScreens().catch((err) => console.error("[screens] ensureScreens failed:", err));
 
   // AutoJobs worker: match pending runs and dispatch queued emails every 30s.
   setInterval(() => {

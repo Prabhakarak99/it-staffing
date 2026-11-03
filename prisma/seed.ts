@@ -33,6 +33,7 @@ const SCREENS = [
   { name: "Student Progress", path: "/admin/student-progress" },
   { name: "Otter Status", path: "/admin/otter-status" },
   { name: "Vendor Requirements", path: "/admin/vendor-requirements" },
+  { name: "Vendor Management", path: "/admin/vendor-management" },
   { name: "Reports", path: "/admin/reports" },
   { name: "Users", path: "/admin/users" },
   { name: "Dashboard", path: "/admin" },
