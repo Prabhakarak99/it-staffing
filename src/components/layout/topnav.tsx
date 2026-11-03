@@ -1,60 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
-  Shield, Users, ChevronDown, Search, Bell, LogOut,
+  ChevronDown, Search, Bell, LogOut, Menu,
 } from "lucide-react";
 import { GFTMark } from "@/components/ui/logo";
 
-/* ── Flat nav links (no dropdowns) ─────────────────────────────────────── */
-const NAV_LINKS = [
-  { label: "Dashboard",     href: "/admin",                    match: "/admin",               exact: true  },
-  { label: "Consultants",   href: "/admin/students",           match: "/admin/students",      exact: false },
-  { label: "Submissions",   href: "/admin/submissions/list",   match: "/admin/submissions",   exact: false },
-  { label: "Interviews",    href: "/admin/interviews/list",    match: "/admin/interviews",    exact: false },
-  { label: "Recruiters",    href: "/admin/recruiters",         match: "/admin/recruiters",    exact: false },
-  { label: "Leads",         href: "/admin/leads",              match: "/admin/leads",         exact: false },
-  { label: "Pre-Marketing", href: "/admin/premarketing",       match: "/admin/premarketing",  exact: false },
-  { label: "Tech Support",   href: "/admin/tech-support",       match: "/admin/tech-support",    exact: false },
-  { label: "Requirements",  href: "/admin/requirements",       match: "/admin/requirements",    exact: false },
-  { label: "Vendor Requirements", href: "/admin/vendor-requirements", match: "/admin/vendor-requirements", exact: false },
-  { label: "Expenses",      href: "/admin/expenses",           match: "/admin/expenses",        exact: false },
-  { label: "Otter Status",  href: "/admin/otter-status",       match: "/admin/otter-status",    exact: false },
-  { label: "Reports",       href: "/admin/reports",            match: "/admin/reports",         exact: false },
-];
-
-/* ── Administration dropdown (admin-only) ───────────────────────────────── */
-interface AdminItem { label: string; href: string; icon: React.ComponentType<{ className?: string }>; desc: string; }
-const ADMIN_ITEMS: AdminItem[] = [
-  { label: "User Roles",   href: "/admin/userrole",     icon: Shield,   desc: "Role-based screen permissions" },
-  { label: "Users",        href: "/admin/users",         icon: Users,    desc: "Create & manage system accounts" },
-];
-
 interface TopNavProps {
-  allowedPaths: string[] | null;
   userEmail: string;
   userName: string | null;
   roleName: string | null;
+  onToggleSidebar: () => void;
 }
 
-export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavProps) {
-  const pathname = usePathname();
-  const [adminOpen, setAdminOpen] = useState(false);
+export function TopNav({ userEmail, userName, roleName, onToggleSidebar }: TopNavProps) {
   const [userOpen, setUserOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (navRef.current && !navRef.current.contains(e.target as Node)) {
-        setAdminOpen(false);
         setUserOpen(false);
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setAdminOpen(false); setUserOpen(false); }
+      if (e.key === "Escape") setUserOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
@@ -63,19 +35,6 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
       document.removeEventListener("keydown", onKey);
     };
   }, []);
-
-  const allowed = (match: string) => {
-    if (allowedPaths === null) return true;
-    if (match === "/admin") return true;
-    return allowedPaths.some(
-      (p) => p !== "/admin" && (match === p || match.startsWith(p + "/") || p.startsWith(match + "/"))
-    );
-  };
-
-  const isActive = (match: string, exact?: boolean) =>
-    exact ? pathname === match : pathname === match || pathname.startsWith(match + "/");
-
-  const adminActive = ADMIN_ITEMS.some((i) => isActive(i.href, false));
 
   const initials = (userName ?? userEmail)
     .split(/[\s@]/).filter(Boolean).map((n) => n[0]).slice(0, 2).join("").toUpperCase();
@@ -86,6 +45,14 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
       ref={navRef}
       className="relative z-50 flex h-[64px] shrink-0 items-center gap-1 border-b border-white/[0.06] bg-[#0A0F1E] px-4"
     >
+      <button
+        onClick={onToggleSidebar}
+        aria-label="Toggle menu"
+        className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-slate-100"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
       {/* ── Logo ── */}
       <Link href="/admin" className="mr-2 flex shrink-0 items-center gap-2">
         <GFTMark size={32} />
@@ -99,83 +66,7 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
         </div>
       </Link>
 
-      <div className="mx-1 h-5 w-px shrink-0 bg-white/[0.07]" />
-
-      {/* ── Flat nav links (scrollable strip, no visible scrollbar) ── */}
-      <div className="no-scrollbar flex flex-1 items-center gap-0 overflow-x-auto px-1">
-        {NAV_LINKS.filter((l) => allowed(l.match)).map((link) => {
-          const active = isActive(link.match, link.exact);
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "whitespace-nowrap rounded-lg px-3 py-2 text-[16px] font-medium transition-all duration-100",
-                active
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-400 hover:bg-white/[0.08] hover:text-slate-100"
-              )}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* ── Administration dropdown (outside overflow container so panel isn't clipped) ── */}
-      {ADMIN_ITEMS.some((i) => allowed(i.href)) && (
-        <div className="relative shrink-0">
-          <button
-            onClick={() => { setAdminOpen(!adminOpen); setUserOpen(false); }}
-            className={cn(
-              "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-[16px] font-medium transition-all duration-100",
-              adminActive || adminOpen
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-400 hover:bg-white/[0.08] hover:text-slate-100"
-            )}
-          >
-            Administration
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform duration-200",
-                adminOpen ? "rotate-180 text-slate-500" : "text-slate-500"
-              )}
-            />
-          </button>
-
-          {adminOpen && (
-            <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[240px] rounded-xl border border-white/[0.08] bg-[#111827] p-1.5 shadow-2xl shadow-black/50">
-              {ADMIN_ITEMS.filter((i) => allowed(i.href)).map((item) => {
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setAdminOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg p-2.5 transition-all duration-100",
-                      active
-                        ? "bg-indigo-500/15 text-white"
-                        : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
-                    )}
-                  >
-                    <div className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-                      active ? "bg-indigo-500/25" : "bg-white/[0.06]"
-                    )}>
-                      <item.icon className={cn("h-3.5 w-3.5", active ? "text-indigo-300" : "text-slate-400")} />
-                    </div>
-                    <div>
-                      <p className="text-[12px] font-semibold leading-tight">{item.label}</p>
-                      <p className="mt-0.5 text-[10px] leading-tight text-slate-500">{item.desc}</p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      <div className="flex-1" />
 
       {/* ── Right side ── */}
       <div className="flex shrink-0 items-center gap-1.5">
@@ -198,7 +89,7 @@ export function TopNav({ allowedPaths, userEmail, userName, roleName }: TopNavPr
         {/* User */}
         <div className="relative">
           <button
-            onClick={() => { setUserOpen(!userOpen); setAdminOpen(false); }}
+            onClick={() => setUserOpen(!userOpen)}
             className={cn(
               "flex items-center gap-2.5 rounded-xl border px-2.5 py-1.5 transition-all",
               userOpen

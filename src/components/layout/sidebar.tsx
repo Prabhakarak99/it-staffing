@@ -2,27 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  Users, Shield, UserPlus, LayoutDashboard, LogOut,
-  Briefcase, FileText, Calendar, DollarSign, GraduationCap, Send,
-  ChevronLeft, ChevronRight, ChevronDown, Zap,
+  LayoutDashboard, BarChart3, GraduationCap, Megaphone, Target, Send, Calendar,
+  ClipboardList, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
 } from "lucide-react";
-import { GFTMark } from "@/components/ui/logo";
-
-interface ChildItem {
-  label: string;
-  href: string;
-  exact?: boolean;
-}
 
 interface NavItem {
   label: string;
   href: string;
+  /** Path prefix used for role checks and the active highlight */
+  match: string;
   icon: React.ComponentType<{ className?: string }>;
   exact?: boolean;
-  children?: ChildItem[];
 }
 
 interface NavGroup {
@@ -34,334 +27,148 @@ const NAV: NavGroup[] = [
   {
     label: null,
     items: [
-      { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
+      { label: "Dashboard", href: "/admin",         match: "/admin",         icon: LayoutDashboard, exact: true },
+      { label: "Reports",   href: "/admin/reports", match: "/admin/reports", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Onboarding",
+    items: [
+      { label: "Consultants",   href: "/admin/students",     match: "/admin/students",     icon: GraduationCap },
+      { label: "Pre-Marketing", href: "/admin/premarketing", match: "/admin/premarketing", icon: Megaphone },
+      { label: "Leads",         href: "/admin/leads",        match: "/admin/leads",        icon: Target },
+    ],
+  },
+  {
+    label: "Bench Sales",
+    items: [
+      { label: "Submissions",         href: "/admin/submissions/list",   match: "/admin/submissions",         icon: Send },
+      { label: "Interviews",          href: "/admin/interviews/list",    match: "/admin/interviews",          icon: Calendar },
+      { label: "Vendor Requirements", href: "/admin/vendor-requirements", match: "/admin/vendor-requirements", icon: ClipboardList },
+      { label: "Requirements",        href: "/admin/requirements",       match: "/admin/requirements",        icon: Briefcase },
+      { label: "Otter Status",        href: "/admin/otter-status",       match: "/admin/otter-status",        icon: Mic },
     ],
   },
   {
     label: "Administration",
     items: [
-      { label: "User Roles", href: "/admin/userrole", icon: Shield },
-      { label: "Users", href: "/admin/users", icon: Users },
+      { label: "Users",      href: "/admin/users",      match: "/admin/users",      icon: Users },
+      { label: "User Roles", href: "/admin/userrole",   match: "/admin/userrole",   icon: Shield },
+      { label: "Recruiters", href: "/admin/recruiters", match: "/admin/recruiters", icon: UserPlus },
     ],
   },
   {
-    label: "People",
+    label: "Other",
     items: [
-      { label: "Onboard Recruiter", href: "/admin/recruiters", icon: UserPlus },
-      { label: "Onboard Consultant", href: "/admin/students", icon: GraduationCap },
-      { label: "Tech Support", href: "/admin/tech-support", icon: Briefcase },
-      { label: "Leads", href: "/admin/leads", icon: Users },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { label: "Pre-Marketing", href: "/admin/premarketing", icon: Send },
-      {
-        label: "Submissions",
-        href: "/admin/submissions/list",
-        icon: FileText,
-        children: [
-          { label: "New Submission", href: "/admin/submissions", exact: true },
-          { label: "All Submissions", href: "/admin/submissions/list" },
-        ],
-      },
-      {
-        label: "Interviews",
-        href: "/admin/interviews/list",
-        icon: Calendar,
-        children: [
-          { label: "New Interview", href: "/admin/interviews", exact: true },
-          { label: "All Interviews", href: "/admin/interviews/list" },
-        ],
-      },
-      { label: "AutoJobs", href: "/admin/autojobs", icon: Zap },
-      { label: "Expenses", href: "/admin/expenses", icon: DollarSign },
+      { label: "Tech Support", href: "/admin/tech-support", match: "/admin/tech-support", icon: Wrench },
+      { label: "Expenses",     href: "/admin/expenses",     match: "/admin/expenses",     icon: DollarSign },
     ],
   },
 ];
 
 interface SidebarProps {
   allowedPaths: string[] | null;
-  userEmail: string;
-  userName: string | null;
-  roleName: string | null;
+  /** Icon-only rail on desktop */
+  collapsed: boolean;
+  /** Drawer state on small screens */
+  mobileOpen: boolean;
+  onNavigate: () => void;
 }
 
-export function Sidebar({ allowedPaths, userEmail, userName, roleName }: SidebarProps) {
+export function Sidebar({ allowedPaths, collapsed, mobileOpen, onNavigate }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    Submissions: true,
-    Interviews: true,
-  });
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    setMounted(true);
-    if (localStorage.getItem("gft-sidebar") === "collapsed") setCollapsed(true);
-  }, []);
-
-  const toggleCollapse = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem("gft-sidebar", next ? "collapsed" : "expanded");
-  };
-
-  const allowed = (href: string) => {
+  const allowed = (match: string) => {
     if (allowedPaths === null) return true;
-    if (href === "/admin") return true;
+    if (match === "/admin") return true;
     return allowedPaths.some(
-      (p) => p !== "/admin" && (href === p || href.startsWith(p + "/"))
+      (p) => p !== "/admin" && (match === p || match.startsWith(p + "/") || p.startsWith(match + "/"))
     );
   };
 
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
+  const isActive = (match: string, exact?: boolean) =>
+    exact ? pathname === match : pathname === match || pathname.startsWith(match + "/");
 
-  const initials = (userName ?? userEmail)
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const toggleGroup = (label: string) =>
+    setClosedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
 
-  const displayName = userName || userEmail;
+  // Groups with no screens for this role are hidden entirely
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.match)) })).filter(
+    (g) => g.items.length > 0
+  );
 
   return (
-    <aside
-      className={cn(
-        "relative flex h-screen shrink-0 flex-col overflow-hidden",
-        "border-r border-white/[0.05] bg-[#0C1020]",
-        "transition-[width] duration-300 ease-in-out",
-        mounted ? (collapsed ? "w-[66px]" : "w-[242px]") : "w-[242px]"
+    <>
+      {/* Backdrop for the mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 top-[64px] z-30 bg-black/40 lg:hidden" onClick={onNavigate} />
       )}
-    >
-      {/* ── Logo + collapse toggle ── */}
-      <div className="flex h-[60px] shrink-0 items-center gap-2.5 border-b border-white/[0.05] px-3.5">
-        <div className="shrink-0">
-          <GFTMark size={30} />
-        </div>
 
-        <div
-          className={cn(
-            "flex-1 overflow-hidden transition-[opacity] duration-200",
-            collapsed ? "opacity-0 pointer-events-none w-0" : "opacity-100"
-          )}
-        >
-          <p className="whitespace-nowrap text-[14px] font-extrabold tracking-tight text-white">
-            GFT<span className="text-indigo-400"> Vision</span>
-          </p>
-          <p className="whitespace-nowrap text-[9px] font-semibold tracking-[0.18em] uppercase text-slate-600">
-            Staffing Platform
-          </p>
-        </div>
-
-        <button
-          onClick={toggleCollapse}
-          className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-600 transition-all hover:bg-white/[0.08] hover:text-slate-300"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <ChevronRight className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronLeft className="h-3.5 w-3.5" />
-          )}
-        </button>
-      </div>
-
-      {/* ── Navigation ── */}
-      <nav className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
-        {NAV.map((group, gi) => {
-          const visible = group.items.filter((item) => allowed(item.href));
-          if (!visible.length) return null;
-
+      <aside
+        className={cn(
+          "no-scrollbar z-40 shrink-0 overflow-y-auto border-r border-white/[0.06] bg-[#0A0F1E] py-3 transition-all duration-200",
+          // Mobile: slide-in drawer below the top bar
+          "fixed bottom-0 left-0 top-[64px] w-[240px]",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          // Desktop: in-flow column, full width or icon rail
+          "lg:static lg:translate-x-0",
+          collapsed ? "lg:w-[68px]" : "lg:w-[240px]"
+        )}
+      >
+        {groups.map((group) => {
+          const open = !group.label || !closedGroups.has(group.label);
           return (
-            <div key={gi} className={gi > 0 ? "mt-1" : ""}>
-              {/* Section label */}
-              {group.label && !collapsed && (
-                <div className="mb-1.5 mt-5 flex items-center gap-2 px-1.5">
-                  <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.15em] text-slate-600">
-                    {group.label}
-                  </span>
-                  <div className="h-px flex-1 bg-white/[0.05]" />
+            <div key={group.label ?? "main"} className="mb-2 px-3">
+              {group.label && collapsed && <div className="mx-2 my-2 hidden h-px bg-white/[0.07] lg:block" />}
+              {group.label && (
+                <button
+                  onClick={() => toggleGroup(group.label!)}
+                  className={cn(
+                    "flex w-full items-center justify-between px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 hover:text-slate-300",
+                    collapsed && "lg:hidden"
+                  )}
+                >
+                  {group.label}
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !open && "-rotate-90")} />
+                </button>
+              )}
+
+              {(open || collapsed) && (
+                // In the icon rail every item stays visible; group folding only applies to the full menu
+                <div className={cn("space-y-0.5", !open && "hidden lg:block")}>
+                  {group.items.map((item) => {
+                    const active = isActive(item.match, item.exact);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onNavigate}
+                        title={collapsed ? item.label : undefined}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors",
+                          collapsed && "lg:justify-center lg:px-0",
+                          active
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-400 hover:bg-white/[0.08] hover:text-slate-100"
+                        )}
+                      >
+                        <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-indigo-600" : "text-slate-500")} />
+                        <span className={cn("truncate", collapsed && "lg:hidden")}>{item.label}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
-              {group.label && collapsed && (
-                <div className="my-3 mx-1 h-px bg-white/[0.05]" />
-              )}
-
-              <div className="space-y-px">
-                {visible.map((item) => {
-                  const { label, href, icon: Icon, exact, children } = item;
-                  const hasChildren = !!children?.length;
-                  const childActive = hasChildren
-                    ? (children?.some((c) => isActive(c.href, c.exact)) ?? false)
-                    : false;
-                  const selfActive = !hasChildren && isActive(href, exact);
-                  const anyActive = selfActive || childActive;
-                  const isOpen = openGroups[label] !== false;
-
-                  const rowBase = cn(
-                    "group relative flex w-full items-center rounded-lg text-[13px] font-medium",
-                    "transition-all duration-100 select-none",
-                    collapsed
-                      ? cn(
-                          "justify-center p-2.5",
-                          anyActive
-                            ? "bg-indigo-500/15 text-white"
-                            : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-200"
-                        )
-                      : cn(
-                          "gap-2.5 border-l-[3px] py-[7px] pl-[8px] pr-2.5",
-                          anyActive
-                            ? "border-indigo-500 bg-white/[0.07] text-slate-100"
-                            : "border-transparent text-slate-400 hover:border-slate-700/60 hover:bg-white/[0.04] hover:text-slate-200"
-                        )
-                  );
-
-                  const iconClass = cn(
-                    "shrink-0 transition-colors duration-100",
-                    collapsed ? "h-[18px] w-[18px]" : "h-[15px] w-[15px]",
-                    anyActive
-                      ? "text-indigo-400"
-                      : "text-slate-500 group-hover:text-slate-400"
-                  );
-
-                  return (
-                    <div key={href}>
-                      {/* Parent row */}
-                      {hasChildren && !collapsed ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenGroups((p) => ({ ...p, [label]: !p[label] }))
-                          }
-                          className={rowBase}
-                        >
-                          <Icon className={iconClass} />
-                          <span className="flex-1 truncate text-left">{label}</span>
-                          <ChevronDown
-                            className={cn(
-                              "h-3 w-3 shrink-0 text-slate-600 transition-transform duration-200",
-                              isOpen && "rotate-180"
-                            )}
-                          />
-                        </button>
-                      ) : (
-                        <Link
-                          href={href}
-                          title={collapsed ? label : undefined}
-                          className={rowBase}
-                        >
-                          <Icon className={iconClass} />
-                          {!collapsed && (
-                            <>
-                              <span className="flex-1 truncate">{label}</span>
-                              {anyActive && !hasChildren && (
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
-                              )}
-                            </>
-                          )}
-                        </Link>
-                      )}
-
-                      {/* Child rows */}
-                      {hasChildren && !collapsed && isOpen && (
-                        <div className="mb-0.5 ml-[22px] mt-0.5 border-l border-white/[0.06] pl-3 space-y-px">
-                          {children!
-                            .filter((c) => allowed(c.href))
-                            .map((child) => {
-                              const cActive = isActive(child.href, child.exact);
-                              return (
-                                <Link
-                                  key={child.href}
-                                  href={child.href}
-                                  className={cn(
-                                    "flex items-center gap-2 rounded-md px-2 py-[6px] text-[12px] transition-all duration-100",
-                                    cActive
-                                      ? "bg-indigo-500/10 font-semibold text-indigo-300"
-                                      : "font-medium text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "h-[5px] w-[5px] shrink-0 rounded-full",
-                                      cActive ? "bg-indigo-400" : "bg-slate-700"
-                                    )}
-                                  />
-                                  {child.label}
-                                </Link>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           );
         })}
-      </nav>
-
-      {/* ── User footer ── */}
-      <div className="shrink-0 border-t border-white/[0.05] p-2">
-        <div
-          className={cn(
-            "flex items-center rounded-xl bg-white/[0.03] p-2.5 ring-1 ring-inset ring-white/[0.04]",
-            collapsed ? "justify-center" : "gap-2.5"
-          )}
-        >
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            <div
-              className={cn(
-                "flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 font-bold text-white shadow-lg shadow-indigo-950/60",
-                collapsed ? "h-9 w-9 text-[12px]" : "h-8 w-8 text-[11px]"
-              )}
-            >
-              {initials}
-            </div>
-            <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full bg-emerald-400 ring-[2.5px] ring-[#0C1020]" />
-          </div>
-
-          {!collapsed && (
-            <>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[12px] font-semibold leading-tight text-slate-200">
-                  {displayName}
-                </p>
-                <p className="mt-0.5 truncate text-[10px] leading-tight text-slate-500">
-                  {roleName ?? "Super Admin"}
-                </p>
-              </div>
-              <form action="/api/auth/logout" method="POST">
-                <button
-                  type="submit"
-                  title="Sign out"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-500/15 hover:text-rose-400"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              </form>
-            </>
-          )}
-        </div>
-
-        {collapsed && (
-          <form action="/api/auth/logout" method="POST" className="mt-1.5">
-            <button
-              type="submit"
-              title="Sign out"
-              className="flex w-full items-center justify-center rounded-lg py-1.5 text-slate-600 transition-colors hover:bg-rose-500/15 hover:text-rose-400"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
-          </form>
-        )}
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

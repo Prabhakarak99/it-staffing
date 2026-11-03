@@ -1,7 +1,9 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TopNav } from "@/components/layout/topnav";
+import { AdminShell } from "@/components/layout/admin-shell";
+import { SIDEBAR_COOKIE } from "@/components/layout/sidebar-cookie";
 
 export const dynamic = "force-dynamic";
 
@@ -31,15 +33,17 @@ export default async function AdminLayout({
   });
   const userName = user ? `${user.firstName} ${user.lastName}`.trim() || null : null;
 
+  const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "1";
+
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
-      <TopNav
-        allowedPaths={allowedPaths}
-        userEmail={session.email}
-        userName={userName}
-        roleName={session.roleName}
-      />
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
-    </div>
+    <AdminShell
+      allowedPaths={allowedPaths}
+      userEmail={session.email}
+      userName={userName}
+      roleName={session.roleName}
+      initialCollapsed={sidebarCollapsed}
+    >
+      {children}
+    </AdminShell>
   );
 }
