@@ -6,16 +6,21 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const q = req.nextUrl.searchParams.get("q") ?? "";
+  const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
+  // "john sm" matches John Smith: every word must hit the first name, last name or email (any case)
+  const words = q.split(/\s+/).filter(Boolean);
 
+  // Every consultant is searchable by every recruiter, whoever they are assigned to
   const students = await prisma.student.findMany({
-    where: q
+    where: words.length
       ? {
-          OR: [
-            { firstName: { contains: q } },
-            { lastName: { contains: q } },
-            { email: { contains: q } },
-          ],
+          AND: words.map((w) => ({
+            OR: [
+              { firstName: { contains: w, mode: "insensitive" as const } },
+              { lastName: { contains: w, mode: "insensitive" as const } },
+              { email: { contains: w, mode: "insensitive" as const } },
+            ],
+          })),
         }
       : undefined,
     select: { id: true, firstName: true, lastName: true, email: true, technology: true, personalPhone: true, phoneNumber: true },

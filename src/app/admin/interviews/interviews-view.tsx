@@ -8,12 +8,13 @@ import { InterviewDetail } from "./interview-detail";
 import { InterviewForm } from "./interview-form";
 import { InterviewList } from "./interview-list";
 
-interface MySubmission {
+interface SubmissionOption {
   id: string; submissionId: string; technology: string; vendorCompany: string;
   vendorRecruiterName: string; vendorRecruiterEmail: string; vendorRecruiterPhone: string;
   implementationName: string | null; implementationEmail: string | null; implementationPhone: string | null;
   clientName: string | null; clientLocation: string | null;
   consultant: { firstName: string; lastName: string };
+  recruiter?: { firstName: string; lastName: string };
 }
 
 interface Interview {
@@ -33,10 +34,10 @@ interface Props {
   recruiterId: string;
   recruiterName: string;
   nextInterviewId: string;
-  mySubmissions: MySubmission[];
+  submissionOptions: SubmissionOption[];
 }
 
-export function InterviewsView({ interviews, recruiterId, recruiterName, nextInterviewId, mySubmissions }: Props) {
+export function InterviewsView({ interviews, recruiterId, recruiterName, nextInterviewId, submissionOptions }: Props) {
   const { initialOpen, initialSearch, initialIds } = useListDeepLink();
   const [showAdd, setShowAdd] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export function InterviewsView({ interviews, recruiterId, recruiterName, nextInt
           recruiterId={recruiterId}
           recruiterName={recruiterName}
           nextInterviewId={nextId}
-          mySubmissions={mySubmissions}
+          submissionOptions={submissionOptions}
           onSuccess={handleSuccess}
         />
       </SlideOver>

@@ -10,14 +10,14 @@ export default async function CreateInterviewPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [recruiter, count, mySubmissions] = await Promise.all([
+  const [recruiter, count, submissionOptions] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.userId },
       select: { firstName: true, lastName: true },
     }),
     prisma.interview.count(),
+    // Any recruiter can schedule an interview on any consultant's submission, not just their own
     prisma.submission.findMany({
-      where: { recruiterId: session.userId },
       select: {
         id: true,
         submissionId: true,
@@ -32,6 +32,7 @@ export default async function CreateInterviewPage() {
         clientName: true,
         clientLocation: true,
         consultant: { select: { firstName: true, lastName: true } },
+        recruiter: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -51,7 +52,7 @@ export default async function CreateInterviewPage() {
           recruiterId={session.userId}
           recruiterName={recruiterName}
           nextInterviewId={nextInterviewId}
-          mySubmissions={mySubmissions}
+          submissionOptions={submissionOptions}
         />
       </div>
     </>

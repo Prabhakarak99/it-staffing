@@ -16,13 +16,18 @@ const INTERVIEW_LEVELS = ["Screening", "Level 1", "Level 2", "Level 3", "Final"]
 const INTERVIEW_STATUSES = ["Rejected", "Moved To Next Round", "Confirmation"];
 const TECH_FEEDBACKS = ["Technically Strong", "Average", "Poor Technical Skills", "Taking AI support", "Other"];
 
-interface MySubmission {
+interface SubmissionOption {
   id: string; submissionId: string; technology: string; vendorCompany: string;
   vendorRecruiterName: string; vendorRecruiterEmail: string; vendorRecruiterPhone: string;
   implementationName: string | null; implementationEmail: string | null; implementationPhone: string | null;
   clientName: string | null; clientLocation: string | null;
   consultant: { firstName: string; lastName: string };
+  /** Who made the submission; absent when editing an existing interview */
+  recruiter?: { firstName: string; lastName: string };
 }
+
+/** Cap the dropdown now that it searches every recruiter's submissions */
+const MAX_SUB_RESULTS = 50;
 
 interface TechSupportPerson {
   id: string; firstName: string; lastName: string; email: string; phoneNumber: string | null;
@@ -40,12 +45,12 @@ interface ExistingInterview {
   otterLink: string | null;
   interviewQuestions: string | null;
   interviewFeedback: string | null;
-  submission: MySubmission;
+  submission: SubmissionOption;
   techSupport: TechSupportPerson | null;
 }
 
 interface Props {
-  recruiterId: string; recruiterName: string; nextInterviewId: string; mySubmissions: MySubmission[];
+  recruiterId: string; recruiterName: string; nextInterviewId: string; submissionOptions: SubmissionOption[];
   existingInterview?: ExistingInterview;
   onCancel?: () => void;
   onSuccess?: () => void;
@@ -155,13 +160,13 @@ function buildInitialInterviewForm(existingInterview?: ExistingInterview) {
   };
 }
 
-export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, existingInterview, onCancel, onSuccess }: Props) {
+export function InterviewForm({ recruiterName, nextInterviewId, submissionOptions, existingInterview, onCancel, onSuccess }: Props) {
   const [form, setForm] = useState(() => buildInitialInterviewForm(existingInterview));
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY_FORM, string>>>({});
   const [isPending, startTransition] = useTransition();
   const { toast, show, hide } = useToast();
   const router = useRouter();
-  const [selectedSub, setSelectedSub] = useState<MySubmission | null>(existingInterview?.submission ?? null);
+  const [selectedSub, setSelectedSub] = useState<SubmissionOption | null>(existingInterview?.submission ?? null);
   const [subQuery, setSubQuery] = useState(() =>
     existingInterview
       ? `${existingInterview.submission.submissionId} — ${existingInterview.submission.consultant.firstName} ${existingInterview.submission.consultant.lastName}`
@@ -180,11 +185,13 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
   const tsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEdit = !!existingInterview;
 
-  const filteredSubs = mySubmissions.filter((s) => {
-    const q = subQuery.toLowerCase();
+  const filteredSubs = submissionOptions.filter((s) => {
+    const q = subQuery.trim().toLowerCase();
     return s.submissionId.toLowerCase().includes(q) ||
-      `${s.consultant.firstName} ${s.consultant.lastName}`.toLowerCase().includes(q);
-  });
+      `${s.consultant.firstName} ${s.consultant.lastName}`.toLowerCase().includes(q) ||
+      s.technology.toLowerCase().includes(q) ||
+      (!!s.recruiter && `${s.recruiter.firstName} ${s.recruiter.lastName}`.toLowerCase().includes(q));
+  }).slice(0, MAX_SUB_RESULTS);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -212,7 +219,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
     return () => { if (tsDebounce.current) clearTimeout(tsDebounce.current); };
   }, [tsQuery, searchTechSupport]);
 
-  const selectSubmission = (sub: MySubmission) => {
+  const selectSubmission = (sub: SubmissionOption) => {
     setSelectedSub(sub);
     setSubQuery(`${sub.submissionId} — ${sub.consultant.firstName} ${sub.consultant.lastName}`);
     setForm((p) => ({ ...p, submissionId: sub.id }));
@@ -347,7 +354,7 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
               ) : (
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input type="text" placeholder="Search by Sub ID or consultant…" value={subQuery}
+                  <input type="text" placeholder="Search by Sub ID, consultant, technology or recruiter…" value={subQuery}
                     onChange={(e) => { setSubQuery(e.target.value); setShowSubDropdown(true); if (selectedSub) clearSubmission(); }}
                     onFocus={() => setShowSubDropdown(true)}
                     className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
@@ -367,7 +374,10 @@ export function InterviewForm({ recruiterName, nextInterviewId, mySubmissions, e
                             </div>
                             <div>
                               <p className="text-xs font-bold text-indigo-700">{s.submissionId}</p>
-                              <p className="text-xs text-slate-500">{s.consultant.firstName} {s.consultant.lastName} · {s.technology}</p>
+                              <p className="text-xs text-slate-500">
+                                {s.consultant.firstName} {s.consultant.lastName} · {s.technology}
+                                {s.recruiter && <span className="text-slate-400"> · by {s.recruiter.firstName} {s.recruiter.lastName}</span>}
+                              </p>
                             </div>
                           </button>
                         </li>

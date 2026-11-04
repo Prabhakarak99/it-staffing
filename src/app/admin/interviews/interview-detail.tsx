@@ -124,7 +124,7 @@ export function InterviewDetail({ interviewId, recruiterId }: { interviewId: str
     };
   }, [interviewId]);
 
-  const mySubmissions = useMemo(() => {
+  const submissionOptions = useMemo(() => {
     if (!interview) return [];
     return [{
       id: interview.submission.id,
@@ -152,7 +152,7 @@ export function InterviewDetail({ interviewId, recruiterId }: { interviewId: str
         recruiterId={recruiterId ?? interview.recruiter.id}
         recruiterName={`${interview.recruiter.firstName} ${interview.recruiter.lastName}`}
         nextInterviewId={interview.interviewId}
-        mySubmissions={mySubmissions}
+        submissionOptions={submissionOptions}
         existingInterview={interview}
         onCancel={() => setEditing(false)}
         onSuccess={() => {
