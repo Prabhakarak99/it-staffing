@@ -2,6 +2,9 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
+import { EmailActivityCards } from "@/components/email-activity";
+import { getEmailActivity } from "@/lib/gmail/activity";
+import { isGmailConfigured } from "@/lib/gmail/oauth";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -281,6 +284,9 @@ export default async function AdminDashboard() {
         }))
         .sort((a, b) => b.today - a.today || b.week - a.week || b.month - a.month || a.name.localeCompare(b.name));
 
+    // Gmail received / sent counts (filled by the background worker once Gmail is connected)
+    const emailActivity = isGmailConfigured() ? await getEmailActivity(session.userId, false) : null;
+
     const submissionRows = buildRows(subCounts);
     const interviewRows = buildRows(intvCounts);
 
@@ -323,6 +329,15 @@ export default async function AdminDashboard() {
               </div>
             </div>
           </div>
+
+          {emailActivity && (
+            <EmailActivityCards
+              counts={emailActivity.counts}
+              connected={!!emailActivity.account}
+              lastSyncAt={emailActivity.account?.lastSyncAt ?? null}
+              compact
+            />
+          )}
 
           {/* Recruiters see only their consultant reports, side by side */}
           <div className="grid gap-6 xl:grid-cols-2">

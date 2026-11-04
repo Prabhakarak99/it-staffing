@@ -1,11 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { VENDOR_SCREEN } from "@/lib/vendors/access";
+import { MAILBOX_SCREEN } from "@/lib/gmail/access";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
  * already open `grantLike` gets access too, so admins only need User Roles to adjust it afterwards.
  */
-const LATE_SCREENS = [{ ...VENDOR_SCREEN, grantLike: "/admin/submissions" }];
+const LATE_SCREENS = [
+  { ...VENDOR_SCREEN, grantLike: "/admin/submissions" },
+  { ...MAILBOX_SCREEN, grantLike: "/admin/submissions" },
+];
 
 export async function ensureScreens() {
   for (const { name, path, grantLike } of LATE_SCREENS) {

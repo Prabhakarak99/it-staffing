@@ -76,6 +76,8 @@ model User {
   preMarketings  PreMarketing[]    @relation("PreMarketingRecruiter")
   expenses       Expense[]         @relation("ExpenseSubmitter")
   vendorContacts RecruiterVendor[]
+  gmailAccount   GmailAccount?
+  emailStats     EmailDailyStat[]
 }
 
 model Student {
@@ -346,6 +348,37 @@ model JobIngestConfig {
   aiBatchSubmittedAt   DateTime?
   emailEnabled         Boolean   @default(false) // phase 2: vendor requirement mailbox
   updatedAt            DateTime  @updatedAt
+}
+
+// ── Gmail: each user's own Workspace mailbox (OAuth, gmail.modify) ─────────
+
+model GmailAccount {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  email             String
+  /// AES-256-GCM encrypted; never sent to the browser
+  refreshTokenEnc   String
+  accessTokenEnc    String?
+  accessTokenExpiry DateTime?
+  connectedAt       DateTime  @default(now())
+  lastSyncAt        DateTime?
+  /// Set when Google rejects the token (user must reconnect) or a sync fails
+  lastError         String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Emails received / sent per user per day (server-local day), filled by the Gmail stats worker
+model EmailDailyStat {
+  id       String   @id @default(cuid())
+  userId   String
+  day      DateTime
+  received Int      @default(0)
+  sent     Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
 }
 
 // ── Vendor Management: each recruiter's own vendor contact book ─────────────
