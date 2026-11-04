@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { personSearchWhere } from "@/lib/search";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -13,15 +14,7 @@ export async function GET(req: NextRequest) {
   const recruiters = await prisma.user.findMany({
     where: {
       ...(recruiterRole ? { roleId: recruiterRole.id } : {}),
-      ...(q
-        ? {
-            OR: [
-              { firstName: { contains: q } },
-              { lastName: { contains: q } },
-              { email: { contains: q } },
-            ],
-          }
-        : {}),
+      ...personSearchWhere(q),
     },
     select: { id: true, firstName: true, lastName: true, email: true },
     orderBy: { firstName: "asc" },

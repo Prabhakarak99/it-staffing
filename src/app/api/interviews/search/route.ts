@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
 
   const interviews = await prisma.interview.findMany({
     where: consultantId
-      ? { interviewId: { contains: q }, submission: { consultantId } }
-      : { interviewId: { contains: q } },
+      ? { interviewId: { contains: q, mode: "insensitive" }, submission: { consultantId } }
+      : { interviewId: { contains: q, mode: "insensitive" } },
     select: {
       id: true,
       interviewId: true,
