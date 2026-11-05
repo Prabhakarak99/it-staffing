@@ -22,7 +22,9 @@ export async function gmailFetch<T>(userId: string, path: string, init: RequestI
     } catch {}
     throw new GmailApiError(message, res.status);
   }
-  return (res.status === 204 ? undefined : await res.json()) as T;
+  // 204, or a 200 with an empty body, both mean "nothing"
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /** Sends an RFC 822 message through the user's Gmail, so it lands in their Sent folder */
@@ -45,9 +47,10 @@ export async function countMessages(userId: string, q: string) {
   do {
     const params = new URLSearchParams({ q, maxResults: "500", fields: "messages/id,nextPageToken" });
     if (pageToken) params.set("pageToken", pageToken);
-    const page = await gmailFetch<{ messages?: unknown[]; nextPageToken?: string }>(userId, `/messages?${params}`);
-    total += page.messages?.length ?? 0;
-    pageToken = page.nextPageToken;
+    // With a `fields` mask Google answers 204 No Content (no body) when nothing matches
+    const page = await gmailFetch<{ messages?: unknown[]; nextPageToken?: string } | undefined>(userId, `/messages?${params}`);
+    total += page?.messages?.length ?? 0;
+    pageToken = page?.nextPageToken;
   } while (pageToken && total < MAX_COUNT);
   return total;
 }
