@@ -6,8 +6,42 @@ export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 
 export const OAUTH_STATE_COOKIE = "gmail-oauth-state";
 
-export function isGmailConfigured() {
-  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+export interface OAuthClient {
+  clientId: string;
+  clientSecret: string;
+  /** "env" = server secrets, "app" = entered in the Mailbox setup wizard */
+  source: "env" | "app";
+}
+
+// The settings row rarely changes; cache it so every Gmail call doesn't hit the database
+let cached: { client: OAuthClient | null; at: number } | null = null;
+const CACHE_MS = 60_000;
+
+/** The Google OAuth client: server env vars first, otherwise what an admin saved in the setup wizard */
+export async function getOAuthClient(): Promise<OAuthClient | null> {
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    return { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, source: "env" };
+  }
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.client;
+  const row = await prisma.gmailSettings.findUnique({ where: { id: "default" } });
+  const client = row ? { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc), source: "app" as const } : null;
+  cached = { client, at: Date.now() };
+  return client;
+}
+
+/** Call after saving or clearing the settings row */
+export function clearOAuthClientCache() {
+  cached = null;
+}
+
+export async function isGmailConfigured() {
+  return !!(await getOAuthClient());
+}
+
+async function requireClient() {
+  const client = await getOAuthClient();
+  if (!client) throw new GmailAuthError("Gmail integration is not configured yet", "not_configured");
+  return client;
 }
 
 export function redirectUri() {
@@ -15,9 +49,10 @@ export function redirectUri() {
   return `${base}/api/gmail/callback`;
 }
 
-export function authUrl(state: string, loginHint?: string) {
+export async function authUrl(state: string, loginHint?: string) {
+  const { clientId } = await requireClient();
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID!,
+    client_id: clientId,
     redirect_uri: redirectUri(),
     response_type: "code",
     scope: GMAIL_SCOPE,
@@ -40,15 +75,12 @@ interface TokenResponse {
   error_description?: string;
 }
 
-async function tokenRequest(body: Record<string, string>): Promise<TokenResponse> {
+async function tokenRequest(body: Record<string, string>, client?: Pick<OAuthClient, "clientId" | "clientSecret">): Promise<TokenResponse> {
+  const { clientId, clientSecret } = client ?? (await requireClient());
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      ...body,
-    }),
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, ...body }),
   });
   const json = (await res.json()) as TokenResponse;
   if (!res.ok) throw new GmailAuthError(json.error_description ?? json.error ?? `Token request failed (${res.status})`, json.error);
@@ -63,6 +95,23 @@ export class GmailAuthError extends Error {
 
 /** Thrown when the user has no connected mailbox or must reconnect it */
 export class GmailNotConnectedError extends Error {}
+
+/**
+ * Checks a client id/secret pair with Google before saving it. A made-up authorization code gets
+ * "invalid_grant" from a real client and "invalid_client" / "unauthorized_client" from a wrong one.
+ */
+export async function verifyClient(clientId: string, clientSecret: string): Promise<string | null> {
+  try {
+    await tokenRequest({ code: "setup-check", grant_type: "authorization_code", redirect_uri: redirectUri() }, { clientId, clientSecret });
+    return null;
+  } catch (err) {
+    if (!(err instanceof GmailAuthError)) return "Could not reach Google to check the keys. Please try again.";
+    if (err.code === "invalid_grant") return null;
+    if (err.code === "invalid_client") return "Google did not accept this Client ID and Client Secret. Copy both again from the Credentials page.";
+    if (err.code === "redirect_uri_mismatch") return `Add ${redirectUri()} as an Authorized redirect URI on the OAuth client.`;
+    return err.message;
+  }
+}
 
 export function exchangeCode(code: string) {
   return tokenRequest({ code, grant_type: "authorization_code", redirect_uri: redirectUri() });

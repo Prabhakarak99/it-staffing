@@ -385,6 +385,16 @@ model GmailAccount {
 }
 
 /// Emails received / sent per user per day (server-local day), filled by the Gmail stats worker
+/// Google OAuth client entered in the Mailbox setup wizard (single row, id "default").
+/// GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET env vars take precedence when set.
+model GmailSettings {
+  id              String   @id @default("default")
+  clientId        String
+  clientSecretEnc String
+  updatedById     String?
+  updatedAt       DateTime @updatedAt
+}
+
 model EmailDailyStat {
   id       String   @id @default(cuid())
   userId   String

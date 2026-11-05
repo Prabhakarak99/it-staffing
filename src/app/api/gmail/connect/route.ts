@@ -11,7 +11,7 @@ export async function GET() {
   // state = nonce + user id; the callback only accepts it from the same browser and the same user
   const nonce = randomBytes(24).toString("base64url");
   const state = `${nonce}.${access.session.userId}`;
-  const res = NextResponse.redirect(authUrl(state, access.session.email));
+  const res = NextResponse.redirect(await authUrl(state, access.session.email));
   res.cookies.set(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

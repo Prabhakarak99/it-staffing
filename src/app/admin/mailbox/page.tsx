@@ -5,6 +5,7 @@ import { canManageUsers } from "@/lib/user-safe";
 import { MAILBOX_SCREEN } from "@/lib/gmail/access";
 import { getEmailActivity } from "@/lib/gmail/activity";
 import { isGmailConfigured } from "@/lib/gmail/oauth";
+import { getGmailSetup } from "@/lib/gmail/setup";
 import { MailboxView } from "./mailbox-view";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +22,12 @@ export default async function MailboxPage({ searchParams }: { searchParams: Prom
     : gmail === "error" ? { type: "error" as const, text: message || "Could not connect Gmail." }
     : null;
 
+  const isAdmin = canManageUsers(session);
   return (
     <MailboxView
-      configured={isGmailConfigured()}
-      activity={await getEmailActivity(session.userId, canManageUsers(session))}
+      configured={await isGmailConfigured()}
+      setup={isAdmin ? await getGmailSetup() : null}
+      activity={await getEmailActivity(session.userId, isAdmin)}
       banner={banner}
     />
   );

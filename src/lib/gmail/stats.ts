@@ -58,7 +58,7 @@ let running = false;
 
 /** Worker tick: re-count every connected mailbox that is due, one at a time. */
 export async function processEmailStats() {
-  if (running || !isGmailConfigured()) return;
+  if (running || !(await isGmailConfigured())) return;
   running = true;
   try {
     const due = await prisma.gmailAccount.findMany({

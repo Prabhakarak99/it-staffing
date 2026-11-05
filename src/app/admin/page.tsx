@@ -285,7 +285,7 @@ export default async function AdminDashboard() {
         .sort((a, b) => b.today - a.today || b.week - a.week || b.month - a.month || a.name.localeCompare(b.name));
 
     // Gmail received / sent counts (filled by the background worker once Gmail is connected)
-    const emailActivity = isGmailConfigured() ? await getEmailActivity(session.userId, false) : null;
+    const emailActivity = (await isGmailConfigured()) ? await getEmailActivity(session.userId, false) : null;
 
     const submissionRows = buildRows(subCounts);
     const interviewRows = buildRows(intvCounts);

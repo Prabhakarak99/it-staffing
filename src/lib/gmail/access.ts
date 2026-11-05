@@ -18,7 +18,7 @@ export async function getMailboxAccess(): Promise<Access> {
   if (!(await canViewScreen(session, MAILBOX_SCREEN.path))) {
     return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  if (!isGmailConfigured()) {
+  if (!(await isGmailConfigured())) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Gmail integration is not configured yet", code: "not_configured" }, { status: 503 }),

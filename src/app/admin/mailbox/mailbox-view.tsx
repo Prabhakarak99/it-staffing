@@ -1,20 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, Mail, RefreshCw, Unplug, Users2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, KeyRound, Mail, RefreshCw, Unplug, Users2 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { EmailActivityCards } from "@/components/email-activity";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { EmailActivity } from "@/lib/gmail/activity";
+import type { GmailSetup } from "@/lib/gmail/setup";
 import { MailClient } from "./mail-client";
+import { GmailSetupPanel } from "./gmail-setup";
 
 const fmtTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
 
-export function MailboxView({ configured, activity: initialActivity, banner }: {
+export function MailboxView({ configured: initialConfigured, setup, activity: initialActivity, banner }: {
   configured: boolean;
+  /** Only for admins, who can enter the Google keys */
+  setup: GmailSetup | null;
   activity: EmailActivity;
   banner: { type: "success" | "error"; text: string } | null;
 }) {
@@ -23,6 +27,8 @@ export function MailboxView({ configured, activity: initialActivity, banner }: {
   const [refreshing, setRefreshing] = useState(false);
   // Set when a Gmail call says the token is gone, without waiting for a page reload
   const [lostAccess, setLostAccess] = useState(false);
+  const [configured, setConfigured] = useState(initialConfigured);
+  const [showSetup, setShowSetup] = useState(false);
 
   const account = lostAccess ? null : activity.account;
   const needsReconnect = !!activity.account?.lastError?.toLowerCase().includes("reconnect") || lostAccess;
@@ -58,13 +64,34 @@ export function MailboxView({ configured, activity: initialActivity, banner }: {
           </div>
         )}
 
-        {!configured ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-            <p className="text-[14px] font-bold text-amber-900">Gmail integration is not set up yet</p>
-            <p className="mt-1 text-[13px] text-amber-800">
-              An administrator needs to add the Google OAuth client (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) to the server.
-            </p>
+        {setup && configured && (
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => setShowSetup((v) => !v)}>
+              <KeyRound className="h-3.5 w-3.5" /> {showSetup ? "Hide Gmail setup" : "Gmail setup"}
+            </Button>
           </div>
+        )}
+
+        {setup && (!configured || showSetup) && (
+          <GmailSetupPanel
+            setup={setup}
+            notify={show}
+            onSaved={(next) => {
+              setConfigured(next.configured);
+              if (next.configured) setShowSetup(false);
+            }}
+          />
+        )}
+
+        {!configured ? (
+          !setup && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+              <p className="text-[14px] font-bold text-amber-900">Gmail isn&apos;t set up yet</p>
+              <p className="mt-1 text-[13px] text-amber-800">
+                An administrator needs to complete the one-time Gmail setup on this page. Once that&apos;s done you can connect your own Gmail here.
+              </p>
+            </div>
+          )
         ) : !account || needsReconnect ? (
           <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50">
