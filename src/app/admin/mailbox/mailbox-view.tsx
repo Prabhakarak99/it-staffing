@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, KeyRound, Mail, RefreshCw, Unplug, Users2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, KeyRound, Mail, PenSquare, RefreshCw, Unplug, Users2 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { EmailActivityCards } from "@/components/email-activity";
@@ -9,11 +9,14 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { EmailActivity } from "@/lib/gmail/activity";
 import type { GmailSetup } from "@/lib/gmail/setup";
-import { MailClient } from "./mail-client";
+import { ComposeDialog } from "./compose-dialog";
 import { GmailSetupPanel } from "./gmail-setup";
 
 const fmtTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+
+const fmtDay = (day: string) =>
+  new Date(`${day}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 export function MailboxView({ configured: initialConfigured, setup, activity: initialActivity, banner }: {
   configured: boolean;
@@ -25,13 +28,12 @@ export function MailboxView({ configured: initialConfigured, setup, activity: in
   const { toast, show, hide } = useToast();
   const [activity, setActivity] = useState(initialActivity);
   const [refreshing, setRefreshing] = useState(false);
-  // Set when a Gmail call says the token is gone, without waiting for a page reload
-  const [lostAccess, setLostAccess] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [configured, setConfigured] = useState(initialConfigured);
   const [showSetup, setShowSetup] = useState(false);
 
-  const account = lostAccess ? null : activity.account;
-  const needsReconnect = !!activity.account?.lastError?.toLowerCase().includes("reconnect") || lostAccess;
+  const account = activity.account;
+  const needsReconnect = !!account?.lastError?.toLowerCase().includes("reconnect");
 
   const refresh = async () => {
     setRefreshing(true);
@@ -102,19 +104,22 @@ export function MailboxView({ configured: initialConfigured, setup, activity: in
             </p>
             <p className="mt-1 max-w-md text-[13px] text-slate-500">
               {needsReconnect
-                ? "Google no longer accepts the saved access (it was revoked or expired). Connect again to keep using your mailbox here."
-                : "Sign in with your company Google account to read, reply to and manage your email here, and to see how many emails you receive and send."}
+                ? "Google no longer accepts the saved access (it was revoked or expired). Connect again to keep sending email and counting your activity."
+                : "Sign in with your company Google account to send emails from GFT Vision and to count the emails you receive and send each day. Your emails are not loaded or stored here."}
             </p>
             <a href="/api/gmail/connect" className="mt-5">
               <Button><Mail className="h-4 w-4" /> {needsReconnect ? "Reconnect Gmail" : "Connect Gmail"}</Button>
             </a>
-            <p className="mt-3 text-[11px] text-slate-400">Only you can see your mailbox. You can disconnect at any time.</p>
+            <p className="mt-3 text-[11px] text-slate-400">Only counts are stored, never your emails. You can disconnect at any time.</p>
           </div>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button size="sm" className="mr-auto" onClick={() => setComposing(true)}>
+                <PenSquare className="h-3.5 w-3.5" /> Compose Email
+              </Button>
               {account.lastError && (
-                <p className="mr-auto flex items-center gap-1.5 text-[12px] text-amber-700">
+                <p className="flex items-center gap-1.5 text-[12px] text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5" /> Last count failed: {account.lastError}
                 </p>
               )}
@@ -126,8 +131,62 @@ export function MailboxView({ configured: initialConfigured, setup, activity: in
               </Button>
             </div>
             <EmailActivityCards counts={activity.counts} connected lastSyncAt={account.lastSyncAt} />
-            <MailClient ownEmail={account.email} onLostAccess={() => setLostAccess(true)} notify={show} />
+            {composing && (
+              <ComposeDialog
+                fromEmail={account.email}
+                notify={show}
+                onClose={() => setComposing(false)}
+                onSent={() => setComposing(false)}
+              />
+            )}
           </>
+        )}
+
+        {/* ── Daily counts table ── */}
+        {configured && (account || activity.team) && (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50">
+                <CalendarDays className="h-4 w-4 text-sky-600" />
+              </div>
+              <div>
+                <p className="text-[13px] font-bold text-slate-900">Daily Email Counts</p>
+                <p className="text-[11px] text-slate-400">
+                  Inbox and Sent emails per day{activity.team ? " for every employee" : ""}. Weekly and monthly totals are added up from these rows.
+                </p>
+              </div>
+            </div>
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full text-[12px]">
+                <thead className="sticky top-0 bg-slate-800">
+                  <tr>
+                    {["Date", ...(activity.team ? ["Employee"] : []), "Email", "Received (Inbox)", "Sent"].map((h, i, all) => (
+                      <th key={h} className={cn("px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300", i >= all.length - 2 ? "text-right" : "text-left")}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activity.daily.length === 0 ? (
+                    <tr>
+                      <td colSpan={activity.team ? 5 : 4} className="px-4 py-8 text-center text-slate-400">
+                        No counts yet. They appear a few minutes after Gmail is connected.
+                      </td>
+                    </tr>
+                  ) : (
+                    activity.daily.map((r) => (
+                      <tr key={`${r.userId}-${r.day}`} className="hover:bg-slate-50">
+                        <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-700">{fmtDay(r.day)}</td>
+                        {activity.team && <td className="whitespace-nowrap px-4 py-2 text-slate-800">{r.name}</td>}
+                        <td className="whitespace-nowrap px-4 py-2 text-slate-500">{r.email || "—"}</td>
+                        <td className={cn("px-4 py-2 text-right tabular-nums", r.received ? "font-semibold text-sky-700" : "text-slate-300")}>{r.received}</td>
+                        <td className={cn("px-4 py-2 text-right tabular-nums", r.sent ? "font-semibold text-emerald-700" : "text-slate-300")}>{r.sent}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {/* ── Admins: everyone's counts ── */}
@@ -139,7 +198,7 @@ export function MailboxView({ configured: initialConfigured, setup, activity: in
               </div>
               <div>
                 <p className="text-[13px] font-bold text-slate-900">Team Email Activity</p>
-                <p className="text-[11px] text-slate-400">Emails received and sent in each person&apos;s Gmail. Updated about every 15 minutes.</p>
+                <p className="text-[11px] text-slate-400">Today, this week and this month, added up from the daily counts. Updated about every 15 minutes.</p>
               </div>
             </div>
             <div className="overflow-x-auto">

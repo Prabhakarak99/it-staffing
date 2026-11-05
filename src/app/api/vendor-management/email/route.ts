@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendVendorEmail } from "@/lib/email";
+import { sendMail } from "@/lib/gmail/compose";
+import { GmailNotConnectedError, isGmailConfigured } from "@/lib/gmail/oauth";
+import { syncEmailStats } from "@/lib/gmail/stats";
 import { getVendorAccess, ownedWhere } from "@/lib/vendors/access";
 
 export const maxDuration = 300;
@@ -41,17 +44,27 @@ export async function POST(req: NextRequest) {
   if (!sender) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const senderName = `${sender.firstName} ${sender.lastName}`.trim() || sender.email;
 
+  // From the recruiter's own Gmail when connected (it shows in their Sent count), else the company SMTP
+  let viaGmail =
+    (await isGmailConfigured()) &&
+    !!(await prisma.gmailAccount.findFirst({ where: { userId: access.session.userId, lastError: null }, select: { id: true } }));
+
   let sent = 0;
   const failed: string[] = [];
   for (const v of vendors) {
+    const message = { to: v.email, subject: personalize(subject.trim(), v), body: personalize(body, v) };
     try {
-      await sendVendorEmail({
-        to: v.email,
-        subject: personalize(subject.trim(), v),
-        body: personalize(body, v),
-        senderName,
-        replyTo: sender.email,
-      });
+      if (viaGmail) {
+        try {
+          await sendMail(access.session.userId, message);
+        } catch (err) {
+          if (!(err instanceof GmailNotConnectedError)) throw err;
+          viaGmail = false; // access expired mid-batch: send the rest through SMTP
+          await sendVendorEmail({ ...message, senderName, replyTo: sender.email });
+        }
+      } else {
+        await sendVendorEmail({ ...message, senderName, replyTo: sender.email });
+      }
       await prisma.recruiterVendor.update({
         where: { id: v.id },
         data: { lastEmailedAt: new Date(), emailCount: { increment: 1 } },
@@ -63,5 +76,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Refresh today's Sent count in the background
+  if (viaGmail && sent > 0) void syncEmailStats(access.session.userId).catch(() => {});
   return NextResponse.json({ sent, failed });
 }

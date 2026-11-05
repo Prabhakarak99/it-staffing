@@ -18,8 +18,9 @@ const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), 
 const epoch = (d: Date) => Math.floor(d.getTime() / 1000);
 
 /**
- * Count one user's received and sent mail per day. The first sync backfills the current week and
- * month; later syncs re-count yesterday and today (late-arriving mail, deletes).
+ * Count one user's Inbox and Sent mail per day into EmailDailyStat. Only message ids are listed,
+ * never the emails themselves. The first sync backfills the current week and month; later syncs
+ * re-count yesterday and today.
  */
 export async function syncEmailStats(userId: string) {
   const account = await prisma.gmailAccount.findUnique({ where: { userId } });
@@ -32,13 +33,13 @@ export async function syncEmailStats(userId: string) {
     for (let day = from; day <= today; day = addDays(day, 1)) {
       const range = `after:${epoch(day)} before:${epoch(addDays(day, 1))}`;
       const [received, sent] = await Promise.all([
-        countMessages(userId, `${range} -in:sent -in:drafts -in:chats`),
+        countMessages(userId, `${range} in:inbox`),
         countMessages(userId, `${range} in:sent`),
       ]);
       await prisma.emailDailyStat.upsert({
         where: { userId_day: { userId, day } },
-        create: { userId, day, received, sent },
-        update: { received, sent },
+        create: { userId, email: account.email, day, received, sent },
+        update: { email: account.email, received, sent },
       });
     }
     await prisma.gmailAccount.update({ where: { userId }, data: { lastSyncAt: new Date(), lastError: null } });
@@ -56,11 +57,22 @@ export async function syncEmailStats(userId: string) {
 
 let running = false;
 
+/** "Received" used to mean all mail except Sent; it now means the Inbox. Re-count the month once. */
+async function recountOnce() {
+  const id = "gmail-stats-inbox-count";
+  if (await prisma.appMigration.findUnique({ where: { id } })) return;
+  await prisma.$transaction([
+    prisma.gmailAccount.updateMany({ data: { lastSyncAt: null } }),
+    prisma.appMigration.create({ data: { id } }),
+  ]);
+}
+
 /** Worker tick: re-count every connected mailbox that is due, one at a time. */
 export async function processEmailStats() {
   if (running || !(await isGmailConfigured())) return;
   running = true;
   try {
+    await recountOnce();
     const due = await prisma.gmailAccount.findMany({
       where: { OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: new Date(Date.now() - SYNC_EVERY_MS) } }] },
       select: { userId: true },
@@ -87,7 +99,35 @@ export const emptyCounts = (): EmailCounts => ({
   sent: { today: 0, week: 0, month: 0 },
 });
 
-/** Today / this week / this month totals per user */
+export interface DailyRow {
+  /** yyyy-mm-dd */
+  day: string;
+  userId: string;
+  name: string;
+  email: string;
+  received: number;
+  sent: number;
+}
+
+/** This month's daily rows, newest first */
+export async function getDailyRows(userIds: string[]): Promise<DailyRow[]> {
+  const { earliest } = periodStarts();
+  const rows = await prisma.emailDailyStat.findMany({
+    where: { userId: { in: userIds }, day: { gte: earliest } },
+    include: { user: { select: { firstName: true, lastName: true } } },
+    orderBy: [{ day: "desc" }, { sent: "desc" }],
+  });
+  return rows.map((r) => ({
+    day: `${r.day.getFullYear()}-${String(r.day.getMonth() + 1).padStart(2, "0")}-${String(r.day.getDate()).padStart(2, "0")}`,
+    userId: r.userId,
+    name: `${r.user.firstName} ${r.user.lastName}`.trim(),
+    email: r.email,
+    received: r.received,
+    sent: r.sent,
+  }));
+}
+
+/** Today / this week / this month totals per user, added up from the daily rows */
 export async function getEmailCounts(userIds: string[]) {
   const { today, week, month, earliest } = periodStarts();
   const rows = await prisma.emailDailyStat.findMany({

@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMailboxAccess, gmailErrorResponse } from "@/lib/gmail/access";
-import { MAX_ATTACHMENT_BYTES, addresses, sendMail, type ComposeMode } from "@/lib/gmail/compose";
+import { MAX_ATTACHMENT_BYTES, addresses, sendMail } from "@/lib/gmail/compose";
 import { syncEmailStats } from "@/lib/gmail/stats";
 
 export const maxDuration = 120;
 
-const MODES: ComposeMode[] = ["new", "reply", "replyAll", "forward"];
-
-/**
- * POST /api/gmail/send (multipart form)
- *   mode, messageId (for reply / replyAll / forward), to, cc, bcc, subject, body, files[]
- */
+/** POST /api/gmail/send (multipart form): to, cc, bcc, subject, body, files[] */
 export async function POST(req: NextRequest) {
   const access = await getMailboxAccess();
   if (!access.ok) return access.response;
 
   const form = await req.formData();
   const field = (k: string) => (typeof form.get(k) === "string" ? (form.get(k) as string).trim() : "");
-  const mode = (MODES.includes(field("mode") as ComposeMode) ? field("mode") : "new") as ComposeMode;
 
   const to = field("to");
   const cc = field("cc");
@@ -25,8 +19,7 @@ export async function POST(req: NextRequest) {
   if (addresses(`${to},${cc},${bcc}`).length === 0) {
     return NextResponse.json({ error: "Add at least one recipient" }, { status: 400 });
   }
-  if (mode === "new" && !field("subject")) return NextResponse.json({ error: "Subject is required" }, { status: 400 });
-  if (mode !== "new" && !field("messageId")) return NextResponse.json({ error: "Missing original message" }, { status: 400 });
+  if (!field("subject")) return NextResponse.json({ error: "Subject is required" }, { status: 400 });
 
   const uploads = form.getAll("files").filter((f): f is File => typeof f !== "string" && f.size > 0);
   const totalBytes = uploads.reduce((n, f) => n + f.size, 0);
@@ -36,8 +29,6 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendMail(access.session.userId, {
-      mode,
-      messageId: field("messageId") || undefined,
       to, cc, bcc,
       subject: field("subject"),
       body: (form.get("body") as string | null) ?? "",

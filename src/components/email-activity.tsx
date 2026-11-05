@@ -11,8 +11,8 @@ export function EmailActivityCards({ counts, connected, lastSyncAt, compact }: {
   compact?: boolean;
 }) {
   const rows = [
-    { label: "Emails Received", icon: Inbox, values: counts.received, color: "text-sky-700", bg: "bg-sky-50", iconColor: "text-sky-600" },
-    { label: "Emails Sent", icon: Send, values: counts.sent, color: "text-emerald-700", bg: "bg-emerald-50", iconColor: "text-emerald-600" },
+    { label: "Received (Inbox)", icon: Inbox, values: counts.received, color: "text-sky-700", bg: "bg-sky-50", iconColor: "text-sky-600" },
+    { label: "Sent", icon: Send, values: counts.sent, color: "text-emerald-700", bg: "bg-emerald-50", iconColor: "text-emerald-600" },
   ];
 
   return (

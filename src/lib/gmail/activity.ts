@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { emptyCounts, getEmailCounts, type EmailCounts } from "./stats";
+import { emptyCounts, getDailyRows, getEmailCounts, type DailyRow, type EmailCounts } from "./stats";
 
 export interface AccountStatus {
   email: string;
@@ -21,6 +21,8 @@ export interface EmailActivity {
   counts: EmailCounts;
   /** Admins only: every recruiter plus anyone else who connected Gmail */
   team: TeamRow[] | null;
+  /** This month's per-day counts: the user's own, or everyone's for admins */
+  daily: DailyRow[];
 }
 
 const toStatus = (a: { email: string; connectedAt: Date; lastSyncAt: Date | null; lastError: string | null } | null) =>
@@ -38,11 +40,12 @@ export async function getEmailActivity(userId: string, isAdmin: boolean): Promis
   const accountSelect = { email: true, connectedAt: true, lastSyncAt: true, lastError: true } as const;
 
   if (!isAdmin) {
-    const [account, counts] = await Promise.all([
+    const [account, counts, daily] = await Promise.all([
       prisma.gmailAccount.findUnique({ where: { userId }, select: accountSelect }),
       getEmailCounts([userId]),
+      getDailyRows([userId]),
     ]);
-    return { account: toStatus(account), counts: counts.get(userId) ?? emptyCounts(), team: null };
+    return { account: toStatus(account), counts: counts.get(userId) ?? emptyCounts(), team: null, daily };
   }
 
   const users = await prisma.user.findMany({
@@ -54,7 +57,8 @@ export async function getEmailActivity(userId: string, isAdmin: boolean): Promis
     },
     orderBy: { firstName: "asc" },
   });
-  const counts = await getEmailCounts(users.map((u) => u.id));
+  const ids = users.map((u) => u.id);
+  const [counts, daily] = await Promise.all([getEmailCounts(ids), getDailyRows(ids)]);
 
   const team = users
     .map((u) => ({
@@ -72,5 +76,5 @@ export async function getEmailActivity(userId: string, isAdmin: boolean): Promis
     );
 
   const me = team.find((t) => t.userId === userId);
-  return { account: me?.account ?? null, counts: me?.counts ?? emptyCounts(), team };
+  return { account: me?.account ?? null, counts: me?.counts ?? emptyCounts(), team, daily };
 }

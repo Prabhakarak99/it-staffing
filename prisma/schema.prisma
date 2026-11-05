@@ -395,9 +395,12 @@ model GmailSettings {
   updatedAt       DateTime @updatedAt
 }
 
+/// One row per employee per day: emails that arrived in the Inbox and emails sent from Gmail.
+/// Weekly and monthly totals are added up from these rows.
 model EmailDailyStat {
   id       String   @id @default(cuid())
   userId   String
+  email    String   @default("") // the employee's connected Gmail address
   day      DateTime
   received Int      @default(0)
   sent     Int      @default(0)
