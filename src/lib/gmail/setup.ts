@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { appOrigin } from "@/lib/app-url";
 import { GMAIL_SCOPE, getOAuthClient, redirectUri } from "./oauth";
 
 /** What the setup wizard shows. Never includes the client secret. */
@@ -13,7 +14,7 @@ export async function getGmailSetup() {
     source: client?.source ?? null,
     clientId: client?.clientId ?? null,
     redirectUri: redirectUri(),
-    appOrigin: new URL(redirectUri()).origin,
+    appOrigin: appOrigin(),
     scope: GMAIL_SCOPE,
     updatedAt: row?.updatedAt.toISOString() ?? null,
     updatedByName: updatedBy ? `${updatedBy.firstName} ${updatedBy.lastName}` : null,

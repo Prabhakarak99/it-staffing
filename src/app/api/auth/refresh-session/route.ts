@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSession, getSession } from "@/lib/auth";
+import { appOrigin } from "@/lib/app-url";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(new URL("/login", appOrigin()));
   }
 
   const requestedNext = req.nextUrl.searchParams.get("next") || "/admin";
@@ -37,5 +38,5 @@ export async function GET(req: NextRequest) {
         (nextPath === screen || nextPath.startsWith(screen + "/"))
     );
 
-  return NextResponse.redirect(new URL(canAccessNext ? nextPath : "/admin", req.url));
+  return NextResponse.redirect(new URL(canAccessNext ? nextPath : "/admin", appOrigin()));
 }

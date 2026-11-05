@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { appOrigin } from "@/lib/app-url";
 import { decrypt, encrypt } from "./crypto";
 
 /** Read, label, trash and send. Not "full mail" scope, so nothing can be deleted permanently. */
@@ -45,8 +46,7 @@ async function requireClient() {
 }
 
 export function redirectUri() {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  return `${base}/api/gmail/callback`;
+  return `${appOrigin()}/api/gmail/callback`;
 }
 
 export async function authUrl(state: string, loginHint?: string) {
@@ -122,7 +122,20 @@ export async function fetchProfileEmail(accessToken: string) {
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error(`Could not read the Gmail profile (${res.status})`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { error?: { message?: string; details?: { reason?: string }[]; errors?: { reason?: string }[] } }
+      | null;
+    const reasons = [...(body?.error?.details ?? []), ...(body?.error?.errors ?? [])].map((d) => d.reason);
+    console.error("[gmail] profile request failed:", res.status, JSON.stringify(body?.error ?? {}));
+    if (reasons.some((r) => r === "SERVICE_DISABLED" || r === "accessNotConfigured")) {
+      throw new Error("The Gmail API is not turned on for this Google Cloud project. An admin needs to click Enable on the Gmail API page (setup step 2), wait a minute, then try again.");
+    }
+    if (reasons.some((r) => r === "insufficientPermissions" || r === "ACCESS_TOKEN_SCOPE_INSUFFICIENT")) {
+      throw new Error("Gmail access wasn't allowed. Please connect again and make sure the Gmail permission is ticked before clicking Allow.");
+    }
+    throw new Error(`Google refused access to Gmail (${res.status}): ${body?.error?.message ?? "unknown reason"}`);
+  }
   return ((await res.json()) as { emailAddress: string }).emailAddress;
 }
 

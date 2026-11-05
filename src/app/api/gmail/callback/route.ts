@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { appOrigin } from "@/lib/app-url";
 import { OAUTH_STATE_COOKIE, exchangeCode, fetchProfileEmail, saveAccount } from "@/lib/gmail/oauth";
 import { syncEmailStats } from "@/lib/gmail/stats";
 
 /** GET /api/gmail/callback — Google redirects here after the user allows (or denies) access */
 export async function GET(req: NextRequest) {
   const back = (params: Record<string, string>) => {
-    const url = new URL("/admin/mailbox", req.url);
+    const url = new URL("/admin/mailbox", appOrigin());
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
     const res = NextResponse.redirect(url);
     res.cookies.delete({ name: OAUTH_STATE_COOKIE, path: "/api/gmail/callback" });
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   };
 
   const session = await getSession();
-  if (!session) return NextResponse.redirect(new URL("/login", req.url));
+  if (!session) return NextResponse.redirect(new URL("/login", appOrigin()));
 
   const { searchParams } = req.nextUrl;
   if (searchParams.get("error")) return back({ gmail: "denied" });
