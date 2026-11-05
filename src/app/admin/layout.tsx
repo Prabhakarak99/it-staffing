@@ -4,6 +4,8 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { SIDEBAR_COOKIE } from "@/components/layout/sidebar-cookie";
+import { getAttendancePrompt } from "@/lib/attendance/prompt";
+import { getNotifications } from "@/lib/attendance/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,10 @@ export default async function AdminLayout({
   const userName = user ? `${user.firstName} ${user.lastName}`.trim() || null : null;
 
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "1";
+  const [attendancePrompt, notifications] = await Promise.all([
+    getAttendancePrompt(session, user?.firstName ?? ""),
+    getNotifications(session),
+  ]);
 
   return (
     <AdminShell
@@ -42,6 +48,8 @@ export default async function AdminLayout({
       userName={userName}
       roleName={session.roleName}
       initialCollapsed={sidebarCollapsed}
+      attendancePrompt={attendancePrompt}
+      notifications={notifications}
     >
       {children}
     </AdminShell>

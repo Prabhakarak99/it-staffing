@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { VENDOR_SCREEN } from "@/lib/vendors/access";
 import { MAILBOX_SCREEN } from "@/lib/gmail/access";
 import { LEADS_SCREEN } from "@/lib/leads/access";
+import { ATTENDANCE_SCREEN } from "@/lib/attendance/access";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -34,6 +35,8 @@ export async function ensureScreens() {
 const SCREEN_GRANTS = [
   // Every role can add leads; each person sees only their own (src/lib/leads/access.ts)
   { id: "leads-open-to-all-roles", ...LEADS_SCREEN },
+  // Everyone marks attendance and requests leave; approvals are by role name (src/lib/roles.ts)
+  { id: "attendance-open-to-all-roles", ...ATTENDANCE_SCREEN },
 ];
 
 export async function grantScreensOnce() {

@@ -9,6 +9,9 @@ export async function register() {
   // Register screens added after the initial seed (e.g. Vendor Management) so User Roles can grant them.
   void ensureScreens().catch((err) => console.error("[screens] ensureScreens failed:", err));
   void grantScreensOnce().catch((err) => console.error("[screens] grantScreensOnce failed:", err));
+  void import("@/lib/attendance/quotes")
+    .then(({ ensureQuotes }) => ensureQuotes())
+    .catch((err) => console.error("[attendance] ensureQuotes failed:", err));
 
   // AutoJobs worker: match pending runs and dispatch queued emails every 30s.
   setInterval(() => {

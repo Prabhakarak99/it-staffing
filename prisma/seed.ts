@@ -34,6 +34,7 @@ const SCREENS = [
   { name: "Otter Status", path: "/admin/otter-status" },
   { name: "Vendor Requirements", path: "/admin/vendor-requirements" },
   { name: "Vendor Management", path: "/admin/vendor-management" },
+  { name: "Attendance", path: "/admin/attendance" },
   { name: "Reports", path: "/admin/reports" },
   { name: "Users", path: "/admin/users" },
   { name: "Dashboard", path: "/admin" },

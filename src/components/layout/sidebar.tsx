@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, BarChart3, GraduationCap, Megaphone, Target, Send, Calendar,
+  LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
   ClipboardList, BookUser, Inbox, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
 } from "lucide-react";
 
@@ -28,6 +28,7 @@ const NAV: NavGroup[] = [
     label: null,
     items: [
       { label: "Dashboard", href: "/admin",         match: "/admin",         icon: LayoutDashboard, exact: true },
+      { label: "Attendance", href: "/admin/attendance", match: "/admin/attendance", icon: CalendarCheck },
       { label: "Reports",   href: "/admin/reports", match: "/admin/reports", icon: BarChart3 },
     ],
   },

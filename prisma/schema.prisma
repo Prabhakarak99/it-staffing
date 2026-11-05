@@ -79,6 +79,10 @@ model User {
   gmailAccount   GmailAccount?
   emailStats     EmailDailyStat[]
   leads          Lead[]            @relation("LeadCreator")
+  attendance     Attendance[]      @relation("AttendanceUser")
+  attendanceReviews Attendance[]   @relation("AttendanceReviewer")
+  leaveRequests  LeaveRequest[]    @relation("LeaveUser")
+  leaveReviews   LeaveRequest[]    @relation("LeaveReviewer")
 }
 
 model Student {
@@ -500,4 +504,65 @@ model AutoJobsConfig {
   maxVendorsPerRun Int      @default(25)
   cooldownDays     Int      @default(30)
   updatedAt        DateTime @updatedAt
+}
+
+// ── Attendance & leave ──────────────────────────────────────────────────────
+// Days are India (IST) calendar dates, stored as DATE.
+
+/// One row per employee per day, created by the first-login "I'm in" popup and approved by a POC / Manager / Admin
+model Attendance {
+  id           String    @id @default(cuid())
+  userId       String
+  day          DateTime  @db.Date
+  status       String    @default("pending") // pending | approved | rejected
+  note         String?
+  markedAt     DateTime  @default(now())
+  quoteId      String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  user       User        @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy User?       @relation("AttendanceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  quote      DailyQuote? @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, day])
+  @@index([status, day])
+}
+
+/// Positive note shown in the attendance popup, one per day in rotation
+model DailyQuote {
+  id        String   @id @default(cuid())
+  text      String   @unique
+  author    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  attendance Attendance[]
+}
+
+/// Leave requests. Every employee earns 1 paid leave per month; days beyond the balance are unpaid.
+model LeaveRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  startDate    DateTime  @db.Date
+  endDate      DateTime  @db.Date
+  /// Days charged (yyyy-mm-dd): Mon–Fri in the range plus sandwiched weekends
+  days         String[]
+  totalDays    Int
+  paidDays     Int       @default(0)
+  unpaidDays   Int       @default(0)
+  reason       String?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user       User  @relation("LeaveUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status])
 }
