@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { leadScope } from "@/lib/leads/access";
 import { emptyChecklist } from "@/lib/premarketing-checklist";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   try {
-    const lead = await prisma.lead.findUnique({ where: { id } });
+    const lead = await prisma.lead.findFirst({ where: { id, ...leadScope(session) } });
     if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
     const emailTaken = await prisma.student.findUnique({ where: { email: lead.email } });
@@ -51,6 +52,10 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
           email: lead.email,
           personalPhone: lead.phoneNumber ?? null,
           phoneNumber: lead.phoneNumber ?? null,
+          state: lead.state,
+          universityName: lead.university,
+          visaStatus: lead.visaStatus,
+          visaStartDate: lead.optStartDate,
           projectStatus: "Pre-Marketing",
           comments: commentPayload,
         },

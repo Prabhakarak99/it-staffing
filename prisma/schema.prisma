@@ -78,6 +78,7 @@ model User {
   vendorContacts RecruiterVendor[]
   gmailAccount   GmailAccount?
   emailStats     EmailDailyStat[]
+  leads          Lead[]            @relation("LeadCreator")
 }
 
 model Student {
@@ -265,11 +266,26 @@ model Lead {
   consultantName String
   phoneNumber    String?
   email          String
+  visaStatus     String?
+  university     String?
+  state          String?
+  optStartDate   DateTime?
+  status         String    @default("Interested") // see LEAD_STATUSES in src/lib/leads/fields.ts
   comments       String?
+  createdById    String? // who added the lead; null for leads created before ownership was tracked
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   consultant Student? @relation(fields: [consultantId], references: [id])
+  createdBy  User?    @relation("LeadCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+}
+
+/// One-time data changes that already ran (see src/lib/screens.ts)
+model AppMigration {
+  id    String   @id
+  ranAt DateTime @default(now())
 }
 
 model JobSearchResult {

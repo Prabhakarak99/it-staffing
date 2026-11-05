@@ -8,18 +8,11 @@ import {
   SlideFormBody, SlideFormFooter, SlideFormHeader, SlideFormSection,
   SlideFormSections, SlideFormShell,
 } from "@/components/forms/compact-slide-form";
-import { LeadForm } from "./lead-form";
+import { LeadForm, leadToForm } from "./lead-form";
+import { STATUS_STYLES, fmtOptDate, isLeadStatus, type LeadRow } from "@/lib/leads/fields";
+import { cn } from "@/lib/utils";
 
-type LeadRecord = {
-  id: string;
-  consultantId: string | null;
-  consultantName: string;
-  phoneNumber: string | null;
-  email: string;
-  comments: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+type LeadRecord = LeadRow;
 
 function fmtDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -82,18 +75,13 @@ export function LeadDetail({
     return (
       <LeadForm
         leadId={leadId}
-        initialData={{
-          consultantName: lead.consultantName,
-          phoneNumber: lead.phoneNumber ?? "",
-          email: lead.email,
-          comments: lead.comments ?? "",
-        }}
+        initialData={leadToForm(lead)}
         onCancel={() => setEditing(false)}
         onSuccess={(saved) => {
           setEditing(false);
           if (saved) {
-            setLead(saved as LeadRecord);
-            onLeadUpdated?.(saved as LeadRecord);
+            setLead(saved);
+            onLeadUpdated?.(saved);
           } else {
             load();
           }
@@ -138,9 +126,22 @@ export function LeadDetail({
         <SlideFormSections>
           <SlideFormSection icon={Users} title="Consultant Details" color="blue">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <DetailField label="Consultant Name" value={lead.consultantName} />
-              <DetailField label="Email" value={lead.email} />
-              <DetailField label="Phone Number" value={lead.phoneNumber} />
+              <DetailField label="Full Name" value={lead.consultantName} />
+              <DetailField label="Email ID" value={lead.email} />
+              <DetailField label="Contact Number" value={lead.phoneNumber} />
+              <DetailField label="Visa Status" value={lead.visaStatus} />
+              <DetailField label="OPT Start Date" value={fmtOptDate(lead.optStartDate)} />
+              <DetailField label="University" value={lead.university} />
+              <DetailField label="State" value={lead.state} />
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</p>
+                <span className={cn(
+                  "mt-0.5 inline-block rounded-md border px-1.5 py-0.5 text-[11px] font-semibold",
+                  isLeadStatus(lead.status) ? STATUS_STYLES[lead.status] : "border-slate-200 bg-slate-50 text-slate-600",
+                )}>
+                  {lead.status}
+                </span>
+              </div>
             </div>
           </SlideFormSection>
 

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { VENDOR_SCREEN } from "@/lib/vendors/access";
 import { MAILBOX_SCREEN } from "@/lib/gmail/access";
+import { LEADS_SCREEN } from "@/lib/leads/access";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -26,5 +27,30 @@ export async function ensureScreens() {
       });
     }
     console.log(`[screens] added "${name}" for ${roles.length} role(s)`);
+  }
+}
+
+/** One-time grants. Each runs once (recorded in AppMigration), so later changes in User Roles stick. */
+const SCREEN_GRANTS = [
+  // Every role can add leads; each person sees only their own (src/lib/leads/access.ts)
+  { id: "leads-open-to-all-roles", ...LEADS_SCREEN },
+];
+
+export async function grantScreensOnce() {
+  for (const { id, name, path } of SCREEN_GRANTS) {
+    if (await prisma.appMigration.findUnique({ where: { id } })) continue;
+    const screen = await prisma.screen.upsert({ where: { path }, create: { name, path }, update: {} });
+    const roles = await prisma.role.findMany({ select: { id: true } });
+    await prisma.$transaction([
+      ...roles.map((r) =>
+        prisma.roleScreen.upsert({
+          where: { roleId_screenId: { roleId: r.id, screenId: screen.id } },
+          create: { roleId: r.id, screenId: screen.id, canView: true },
+          update: { canView: true },
+        }),
+      ),
+      prisma.appMigration.create({ data: { id } }),
+    ]);
+    console.log(`[screens] granted "${name}" to all ${roles.length} role(s)`);
   }
 }

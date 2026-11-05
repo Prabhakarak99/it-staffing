@@ -14,56 +14,57 @@ import {
   type SortDir,
 } from "@/components/ui/table-column-filters";
 import { ArrowRightCircle, Trash2, Users } from "lucide-react";
+import { LEAD_STATUSES, STATUS_STYLES, fmtOptDate, isLeadStatus, type LeadRow } from "@/lib/leads/fields";
 
-type SortCol = "consultantName" | "phoneNumber" | "email" | "comments" | "createdAt";
-type FilterKey = SortCol;
+type FilterKey =
+  | "consultantName" | "phoneNumber" | "email" | "visaStatus" | "university"
+  | "state" | "optStartDate" | "status" | "comments";
+type SortCol = FilterKey | "createdAt";
 type Filters = Record<FilterKey, Set<string>>;
-const FILTER_KEYS: FilterKey[] = ["consultantName", "phoneNumber", "email", "comments", "createdAt"];
+const FILTER_KEYS: FilterKey[] = [
+  "consultantName", "phoneNumber", "email", "visaStatus", "university", "state", "optStartDate", "status", "comments",
+];
 
-interface Lead {
-  id: string;
-  consultantId: string | null;
-  consultantName: string;
-  phoneNumber: string | null;
-  email: string;
-  comments: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+const COLUMNS: { key: FilterKey; label: string }[] = [
+  { key: "consultantName", label: "Full Name" },
+  { key: "phoneNumber", label: "Contact Number" },
+  { key: "email", label: "Email ID" },
+  { key: "visaStatus", label: "Visa Status" },
+  { key: "university", label: "University" },
+  { key: "state", label: "State" },
+  { key: "optStartDate", label: "OPT Start Date" },
+  { key: "status", label: "Status" },
+  { key: "comments", label: "Comments" },
+];
 
-const EMPTY_FILTERS = (): Filters => ({
-  consultantName: new Set(),
-  phoneNumber: new Set(),
-  email: new Set(),
-  comments: new Set(),
-  createdAt: new Set(),
-});
+type Lead = LeadRow;
 
-function fmtDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
+const EMPTY_FILTERS = (): Filters =>
+  Object.fromEntries(FILTER_KEYS.map((k) => [k, new Set<string>()])) as Filters;
 
 function getFilterValue(lead: Lead, key: FilterKey): string {
   switch (key) {
-    case "consultantName":
-      return lead.consultantName;
-    case "phoneNumber":
-      return lead.phoneNumber?.trim() || "—";
-    case "email":
-      return lead.email;
     case "comments":
       return lead.comments?.trim() ? "Has Comments" : "No Comments";
-    case "createdAt":
-      return fmtDate(lead.createdAt);
+    case "optStartDate":
+      return fmtOptDate(lead.optStartDate) ?? "—";
+    case "consultantName":
+    case "email":
+    case "status":
+      return lead[key];
+    default:
+      return lead[key]?.trim() || "—";
   }
 }
 
 export function LeadList({
   leads,
+  showOwner,
   onSelect,
   onLeadsChange,
 }: {
   leads: Lead[];
+  showOwner?: boolean;
   onSelect?: (id: string) => void;
   onLeadsChange?: React.Dispatch<React.SetStateAction<Lead[]>>;
 }) {
@@ -88,7 +89,8 @@ export function LeadList({
 
   const searched = useMemo(() => {
     return filterBySearch(leads, searchQuery, (lead) => searchBlob(
-      lead.consultantName, lead.phoneNumber, lead.email, lead.comments,
+      lead.consultantName, lead.phoneNumber, lead.email, lead.visaStatus, lead.university, lead.state,
+      fmtOptDate(lead.optStartDate), lead.status, lead.comments, lead.createdByName,
     ));
   }, [leads, searchQuery]);
 
@@ -116,18 +118,11 @@ export function LeadList({
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
-      switch (sortCol) {
-        case "consultantName":
-          return dir * a.consultantName.localeCompare(b.consultantName);
-        case "phoneNumber":
-          return dir * (a.phoneNumber ?? "").localeCompare(b.phoneNumber ?? "");
-        case "email":
-          return dir * a.email.localeCompare(b.email);
-        case "comments":
-          return dir * (a.comments ?? "").localeCompare(b.comments ?? "");
-        case "createdAt":
-          return dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      if (sortCol === "createdAt" || sortCol === "optStartDate") {
+        const t = (v: string | null) => (v ? new Date(v).getTime() : 0);
+        return dir * (t(a[sortCol]) - t(b[sortCol]));
       }
+      return dir * (a[sortCol] ?? "").localeCompare(b[sortCol] ?? "");
     });
   }, [filtered, sortCol, sortDir]);
 
@@ -147,6 +142,25 @@ export function LeadList({
         router.refresh();
       } catch {
         show("Failed to remove lead", "error");
+      }
+    });
+  };
+
+  const changeStatus = (lead: Lead, status: string) => {
+    const previous = lead.status;
+    onLeadsChange?.((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status } : l)));
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/leads/${lead.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error();
+        show(`${lead.consultantName} marked ${status}`, "success");
+      } catch {
+        onLeadsChange?.((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: previous } : l)));
+        show("Failed to update status", "error");
       }
     });
   };
@@ -210,18 +224,16 @@ export function LeadList({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-800 text-left">
-              <CheckboxHeaderFilter label="Consultant" sortCol="consultantName" sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions.consultantName} selected={filters.consultantName} onChange={(next) => setFilter("consultantName", next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
-              <CheckboxHeaderFilter label="Phone Number" sortCol="phoneNumber" sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions.phoneNumber} selected={filters.phoneNumber} onChange={(next) => setFilter("phoneNumber", next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
-              <CheckboxHeaderFilter label="Email" sortCol="email" sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions.email} selected={filters.email} onChange={(next) => setFilter("email", next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
-              <CheckboxHeaderFilter label="Comments" sortCol="comments" sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions.comments} selected={filters.comments} onChange={(next) => setFilter("comments", next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
-              <CheckboxHeaderFilter label="Created" sortCol="createdAt" sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions.createdAt} selected={filters.createdAt} onChange={(next) => setFilter("createdAt", next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
+              {COLUMNS.map(({ key, label }) => (
+                <CheckboxHeaderFilter key={key} label={label} sortCol={key} sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions[key]} selected={filters[key]} onChange={(next) => setFilter(key, next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
+              ))}
               <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">
+                <td colSpan={COLUMNS.length + 1} className="px-5 py-10 text-center text-sm text-slate-400">
                   No leads match the selected filters.
                 </td>
               </tr>
@@ -236,6 +248,9 @@ export function LeadList({
                     >
                       <HighlightText text={lead.consultantName} query={searchQuery} />
                     </button>
+                    {showOwner && (
+                      <p className="mt-0.5 text-[11px] text-slate-400">Added by {lead.createdByName ?? "—"}</p>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">
                     <HighlightText text={lead.phoneNumber} query={searchQuery} />
@@ -243,17 +258,32 @@ export function LeadList({
                   <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">
                     <HighlightText text={lead.email} query={searchQuery} />
                   </td>
-                  <td className="w-[320px] max-w-[320px] px-5 py-3.5 align-top">
+                  {[lead.visaStatus, lead.university, lead.state, fmtOptDate(lead.optStartDate)].map((v, i) => (
+                    <td key={i} className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">
+                      {v ? <HighlightText text={v} query={searchQuery} /> : <span className="text-slate-300">—</span>}
+                    </td>
+                  ))}
+                  <td className="px-5 py-3.5">
+                    <select
+                      value={lead.status}
+                      onChange={(e) => changeStatus(lead, e.target.value)}
+                      className={cn(
+                        "rounded-lg border px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-400/30",
+                        isLeadStatus(lead.status) ? STATUS_STYLES[lead.status] : "border-slate-200 bg-white text-slate-600",
+                      )}
+                    >
+                      {!isLeadStatus(lead.status) && <option value={lead.status}>{lead.status}</option>}
+                      {LEAD_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </td>
+                  <td className="w-[280px] min-w-[220px] max-w-[280px] px-5 py-3.5 align-top">
                     {lead.comments ? (
-                      <p className="whitespace-normal break-words text-[13.8px] leading-relaxed text-slate-600">
+                      <p className="whitespace-normal break-words text-[13px] leading-relaxed text-slate-600">
                         <HighlightText text={lead.comments} query={searchQuery} />
                       </p>
                     ) : (
                       <span className="text-slate-300">—</span>
                     )}
-                  </td>
-                  <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">
-                    <HighlightText text={fmtDate(lead.createdAt)} query={searchQuery} />
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1.5">

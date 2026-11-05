@@ -6,36 +6,9 @@ import { SlideOver } from "@/components/ui/slide-over";
 import { LeadForm } from "./lead-form";
 import { LeadList } from "./lead-list";
 import { LeadDetail } from "./lead-detail";
+import type { LeadRow } from "@/lib/leads/fields";
 
-interface Lead {
-  id: string;
-  consultantId: string | null;
-  consultantName: string;
-  phoneNumber: string | null;
-  email: string;
-  comments: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-function normalizeLead(lead: {
-  id: string;
-  consultantId: string | null;
-  consultantName: string;
-  phoneNumber: string | null;
-  email: string;
-  comments: string | null;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-}): Lead {
-  return {
-    ...lead,
-    createdAt: typeof lead.createdAt === "string" ? lead.createdAt : new Date(lead.createdAt).toISOString(),
-    updatedAt: typeof lead.updatedAt === "string" ? lead.updatedAt : new Date(lead.updatedAt).toISOString(),
-  };
-}
-
-export function LeadsView({ leads: initialLeads }: { leads: Lead[] }) {
+export function LeadsView({ leads: initialLeads, showOwner }: { leads: LeadRow[]; showOwner: boolean }) {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [leads, setLeads] = useState(initialLeads);
@@ -44,26 +17,12 @@ export function LeadsView({ leads: initialLeads }: { leads: Lead[] }) {
     setLeads(initialLeads);
   }, [initialLeads]);
 
-  const handleLeadSaved = (saved: {
-    id: string;
-    consultantId?: string | null;
-    consultantName: string;
-    phoneNumber?: string | null;
-    email: string;
-    comments?: string | null;
-    createdAt: string | Date;
-    updatedAt: string | Date;
-  }) => {
-    const lead = normalizeLead({
-      consultantId: saved.consultantId ?? null,
-      comments: saved.comments ?? null,
-      phoneNumber: saved.phoneNumber ?? null,
-      ...saved,
-    });
+  // API responses are JSON, so dates are already ISO strings; keep the owner name the server added
+  const handleLeadSaved = (saved: LeadRow) => {
     setLeads((prev) => {
-      const exists = prev.some((l) => l.id === lead.id);
-      if (exists) return prev.map((l) => (l.id === lead.id ? { ...l, ...lead } : l));
-      return [lead, ...prev];
+      const existing = prev.find((l) => l.id === saved.id);
+      if (existing) return prev.map((l) => (l.id === saved.id ? { ...existing, ...saved } : l));
+      return [saved, ...prev];
     });
   };
 
@@ -81,7 +40,7 @@ export function LeadsView({ leads: initialLeads }: { leads: Lead[] }) {
             <div>
               <h1 className="text-[18px] font-bold text-white">Leads</h1>
               <p className="mt-0.5 text-[12px] text-white/65">
-                {leads.length} lead{leads.length !== 1 ? "s" : ""} linked to consultants
+                {leads.length} lead{leads.length !== 1 ? "s" : ""} {showOwner ? "from all team members" : "added by you"}
               </p>
             </div>
           </div>
@@ -97,7 +56,7 @@ export function LeadsView({ leads: initialLeads }: { leads: Lead[] }) {
       </div>
 
       <div className="p-6">
-        <LeadList leads={leads} onSelect={setSelectedId} onLeadsChange={setLeads} />
+        <LeadList leads={leads} showOwner={showOwner} onSelect={setSelectedId} onLeadsChange={setLeads} />
       </div>
 
       <SlideOver open={!!selectedId} onClose={() => setSelectedId(null)} maxWidth="max-w-4xl">
