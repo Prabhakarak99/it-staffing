@@ -6,6 +6,8 @@ import { AdminShell } from "@/components/layout/admin-shell";
 import { SIDEBAR_COOKIE } from "@/components/layout/sidebar-cookie";
 import { getAttendancePrompt } from "@/lib/attendance/prompt";
 import { getNotifications } from "@/lib/attendance/notifications";
+import { easyDisabledFor } from "@/lib/easy/access";
+import { EASY_SCREEN } from "@/lib/easy/data";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,8 @@ export default async function AdminLayout({
       include: { screen: true },
     });
     allowedPaths = roleScreens.map((rs) => rs.screen.path);
+    // Admins can switch Easy Submissions off for individual users
+    if (await easyDisabledFor(session)) allowedPaths = allowedPaths.filter((p) => p !== EASY_SCREEN.path);
   }
 
   // Display name for nav

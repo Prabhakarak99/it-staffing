@@ -51,6 +51,8 @@ model User {
   password            String
   roleId              String?
   isActive            Boolean   @default(false)
+  /// Admin switch for the Easy Submissions tab (on top of the role's screen access)
+  easySubmissionsEnabled Boolean @default(true)
   activationToken     String?   @unique
   activationExpiry    DateTime?
   resetToken          String?   @unique // admin-sent password reset link

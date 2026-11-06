@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canViewScreen } from "@/lib/screen-access";
 import { isManager } from "@/lib/roles";
+import { canManageUsers } from "@/lib/user-safe";
+import { canUseEasy } from "@/lib/easy/access";
 import { fmtDayKey, todayKey } from "@/lib/attendance/dates";
-import { EASY_SCREEN, todaysSubmissions } from "@/lib/easy/data";
+import { todaysSubmissions } from "@/lib/easy/data";
 import { getActiveAi } from "@/lib/ai/providers";
 import { EasySubmissionsView } from "./easy-view";
 
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function EasySubmissionsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!(await canViewScreen(session, EASY_SCREEN.path))) redirect("/admin");
+  if (!(await canUseEasy(session))) redirect("/admin");
 
   const [submissions, ai, me] = await Promise.all([
     todaysSubmissions(session),
@@ -27,6 +28,7 @@ export default async function EasySubmissionsPage() {
       showRecruiter={isManager(session)}
       dayLabel={fmtDayKey(todayKey(), { weekday: "long", month: "long", day: "numeric" })}
       ai={ai ? { label: ai.label, model: ai.model } : null}
+      canManageAccess={canManageUsers(session)}
       sender={{ name: me ? `${me.firstName} ${me.lastName}`.trim() : session.email, email: me?.email ?? session.email }}
     />
   );

@@ -3,13 +3,14 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Bot, FileText, Loader2, Minus, Plus, Send, Sparkles, Upload, Users2, X, Zap,
+  AlertTriangle, Bot, FileText, Loader2, Minus, Plus, Send, ShieldCheck, Sparkles, Upload, Users2, X, Zap,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { ConsultantOption, EasySubmissionRow, VendorOption } from "@/lib/easy/data";
+import { AccessDialog } from "./access-dialog";
 
 interface Requirement {
   technology: string;
@@ -56,16 +57,19 @@ function AtsBadge({ before, after, missing }: { before: number; after: number; m
   );
 }
 
-export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, sender }: {
+export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, canManageAccess, sender }: {
   submissions: EasySubmissionRow[];
   showRecruiter: boolean;
   dayLabel: string;
   ai: { label: string; model: string } | null;
+  /** Admin: turn the feature on / off per user */
+  canManageAccess: boolean;
   sender: { name: string; email: string };
 }) {
   const { toast, show, hide } = useToast();
   const [openSubs, setOpenSubs] = useState<Set<string>>(new Set());
   const [consultants, setConsultants] = useState<Record<string, ConsultantState>>({});
+  const [managingAccess, setManagingAccess] = useState(false);
 
   const loadConsultants = (subId: string) => {
     setConsultants((c) => ({ ...c, [subId]: { loading: true, consultants: c[subId]?.consultants ?? [], requirement: c[subId]?.requirement } }));
@@ -104,6 +108,11 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
             <p>Click <b>+</b> on a submission to see every In-Market consultant on that technology, then <b>+</b> on a consultant to see vendors for the same client. AI resume updates use <b>{ai.label}</b> ({ai.model}).</p>
           ) : (
             <p>No AI provider is set up, so <b>Update Resume</b> is off. An admin can add an OpenAI / Claude / Gemini key under <b>Administration → AI Settings</b>.</p>
+          )}
+          {canManageAccess && (
+            <Button size="sm" variant="outline" className="ml-auto" onClick={() => setManagingAccess(true)}>
+              <ShieldCheck className="h-3.5 w-3.5" /> Manage Access
+            </Button>
           )}
         </div>
 
@@ -168,6 +177,7 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
           </div>
         </div>
       </div>
+      {managingAccess && <AccessDialog onClose={() => setManagingAccess(false)} notify={show} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
     </>
   );
