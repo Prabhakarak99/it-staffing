@@ -261,7 +261,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
         <p className="text-[12.5px] font-bold text-slate-800">
           {state.consultants.length} consultant{state.consultants.length === 1 ? "" : "s"} on {sub.technology}
         </p>
-        <span className="text-[11px] text-slate-400">In-Market, any recruiter</span>
+        <span className="text-[11px] text-slate-400">In-Market (or recently submitted), any recruiter</span>
         {!state.requirement?.jobDescription && (
           <span className="ml-auto flex items-center gap-1 text-[11.5px] font-medium text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" /> No job description on this submission, so AI updates are off

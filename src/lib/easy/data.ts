@@ -7,6 +7,7 @@ export const EASY_SCREEN = { name: "Easy Submissions", path: "/admin/easy-submis
 
 /** Consultants still being marketed */
 export const MARKETING_STATUSES = ["In-Market", "Project Completed- InMarket"];
+const RECENT_SUBMISSION_MS = 60 * 86_400_000;
 
 const fullName = (u: { firstName: string; lastName: string } | null | undefined) => (u ? `${u.firstName} ${u.lastName}`.trim() : null);
 
@@ -82,7 +83,10 @@ export interface ConsultantOption {
   isOriginal: boolean;
 }
 
-/** In-Market consultants on the submission's technology, plus the submitted consultant */
+/**
+ * In-Market consultants on the submission's technology, plus the submitted consultant. Many profiles
+ * have no technology filled in, so a consultant also counts when any of their submissions was for it.
+ */
 export async function consultantsFor(submissionId: string): Promise<ConsultantOption[] | null> {
   const sub = await prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, consultantId: true, technology: true } });
   if (!sub) return null;
@@ -93,14 +97,26 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
       OR: [
         { id: sub.consultantId },
         {
-          projectStatus: { in: MARKETING_STATUSES },
-          OR: [{ technology: { contains: stem, mode: "insensitive" } }, { technology: { equals: sub.technology, mode: "insensitive" } }],
+          // In-Market, or no status set but submitted recently (so clearly being marketed)
+          AND: [{
+            OR: [
+              { projectStatus: { in: MARKETING_STATUSES } },
+              { OR: [{ projectStatus: null }, { projectStatus: "" }], submissions: { some: { createdAt: { gte: new Date(Date.now() - RECENT_SUBMISSION_MS) } } } },
+            ],
+          }],
+          OR: [
+            { technology: { contains: stem, mode: "insensitive" } },
+            { technology: { equals: sub.technology, mode: "insensitive" } },
+            { submissions: { some: { technology: { contains: stem, mode: "insensitive" } } } },
+          ],
         },
       ],
     },
     include: {
       preMarketings: { include: { recruiter: { select: { firstName: true, lastName: true } } }, take: 1 },
       tailoredResumes: { where: { submissionId }, orderBy: { createdAt: "desc" }, take: 1 },
+      // Technology from the latest submission, for profiles without one
+      submissions: { select: { technology: true }, orderBy: { createdAt: "desc" }, take: 1 },
       _count: { select: { easySends: { where: { submissionId, status: "sent" } } } },
     },
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
@@ -113,7 +129,7 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
       return {
         id: s.id,
         name: `${s.firstName} ${s.lastName}`.trim(),
-        technology: s.technology,
+        technology: s.technology?.trim() || s.submissions[0]?.technology || null,
         projectStatus: s.projectStatus,
         visaStatus: s.preMarketings[0]?.marketingVisaStatus ?? s.visaStatus,
         location: [s.city, s.state].filter(Boolean).join(", ") || null,
