@@ -28,11 +28,36 @@ export async function gmailFetch<T>(userId: string, path: string, init: RequestI
 }
 
 /** Sends an RFC 822 message through the user's Gmail, so it lands in their Sent folder */
-export const sendRaw = (userId: string, raw: Buffer) =>
-  gmailFetch<{ id: string }>(userId, "/messages/send", {
+export const sendRaw = (userId: string, raw: Buffer, threadId?: string) =>
+  gmailFetch<{ id: string; threadId: string }>(userId, "/messages/send", {
     method: "POST",
-    body: JSON.stringify({ raw: raw.toString("base64url") }),
+    body: JSON.stringify({ raw: raw.toString("base64url"), ...(threadId ? { threadId } : {}) }),
   });
+
+export interface MessageHeaders {
+  id: string;
+  threadId: string;
+  subject: string;
+  messageId: string | null;
+  references: string | null;
+}
+
+/** Newest message matching a Gmail search, with only the headers needed to reply in its thread */
+export async function findMessage(userId: string, q: string): Promise<MessageHeaders | null> {
+  const params = new URLSearchParams({ q, maxResults: "1", fields: "messages/id" });
+  const page = await gmailFetch<{ messages?: { id: string }[] } | undefined>(userId, `/messages?${params}`);
+  const id = page?.messages?.[0]?.id;
+  if (!id) return null;
+
+  const meta = new URLSearchParams({ format: "metadata" });
+  for (const h of ["Subject", "Message-ID", "References"]) meta.append("metadataHeaders", h);
+  const msg = await gmailFetch<{ id: string; threadId: string; payload?: { headers?: { name: string; value: string }[] } }>(
+    userId,
+    `/messages/${id}?${meta}`,
+  );
+  const header = (name: string) => msg.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? null;
+  return { id: msg.id, threadId: msg.threadId, subject: header("Subject") ?? "", messageId: header("Message-ID"), references: header("References") };
+}
 
 /** Never page further than this for one count; a single day is normally a single request */
 const MAX_COUNT = 5000;

@@ -26,6 +26,8 @@ export interface ComposeInput {
   html?: string;
   replyTo?: string;
   files?: { filename: string; content: Buffer; contentType: string }[];
+  /** Reply in an existing Gmail thread */
+  thread?: { threadId: string; inReplyTo?: string | null; references?: string | null };
 }
 
 /** Sends from the user's connected Gmail, under their name, so it appears in their Sent folder */
@@ -46,8 +48,10 @@ export async function sendMail(userId: string, input: ComposeInput) {
     text: input.body,
     html: input.html ?? `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;">${textToHtml(input.body)}</div>`,
     attachments: (input.files ?? []).map((f) => ({ filename: f.filename, content: f.content, contentType: f.contentType })),
+    inReplyTo: input.thread?.inReplyTo || undefined,
+    references: [input.thread?.references, input.thread?.inReplyTo].filter(Boolean).join(" ") || undefined,
   };
 
   const raw = await new MailComposer(mail).compile().build();
-  return sendRaw(userId, raw);
+  return sendRaw(userId, raw, input.thread?.threadId);
 }
