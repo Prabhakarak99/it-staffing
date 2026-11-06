@@ -1,5 +1,6 @@
 import type { SessionPayload } from "@/lib/auth";
 import { isManager } from "@/lib/roles";
+import { canManageUsers } from "@/lib/user-safe";
 
 export const ATTENDANCE_SCREEN = { name: "Attendance", path: "/admin/attendance" };
 
@@ -11,3 +12,6 @@ export const canApprove = (session: SessionPayload) => isManager(session);
 
 /** Approvers can't approve their own requests; Super Admin (no role) never has any */
 export const canReview = (session: SessionPayload, ownerId: string) => canApprove(session) && ownerId !== session.userId;
+
+/** Super Admin and anyone who can manage users can switch any day between present and absent */
+export const canEditAttendance = (session: SessionPayload) => canManageUsers(session);

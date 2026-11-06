@@ -70,11 +70,13 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
   const baseStatus = (k: string): DayStatus => {
     const leave = leaveByDay.get(k);
     if (leave) return leave;
-    if (k < start) return "none";
     if (k > today) return "future";
+    // A mark (or an admin's change) counts even before tracking started, so admins can backfill
     const mark = marks.get(k);
     if (mark === "approved") return "present";
     if (mark === "pending") return "pending";
+    if (mark === "rejected") return isWeekend(k) ? "weekend" : "absent";
+    if (k < start) return "none";
     if (isWeekend(k)) return "weekend";
     return k === today ? "today" : "absent";
   };

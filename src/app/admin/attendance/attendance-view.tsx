@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CalendarCheck, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Loader2, Palmtree, Plus, ShieldCheck, Users2, X,
+  CalendarCheck, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Download, Loader2, Palmtree, Plus, ShieldCheck, Users2, X,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,9 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { fmtDayKey, fmtMonth, shiftMonth, weekday } from "@/lib/attendance/dates";
 import type { LeaveBalance } from "@/lib/attendance/leave";
+import { isEditableDay } from "@/lib/attendance/cells";
 import type { DayCell, DayStatus, MonthSummary, MonthView } from "@/lib/attendance/month";
+import type { TeamMonthRow } from "@/lib/attendance/team";
 
 export interface LeaveRow {
   id: string;
@@ -31,15 +33,6 @@ export interface LeaveRow {
 export interface ApprovalData {
   attendance: { id: string; day: string; name: string; email: string; markedAt: string; note: string | null }[];
   leave: (LeaveRow & { userId: string; name: string; email: string; available: number })[];
-}
-
-export interface TeamRow {
-  userId: string;
-  name: string;
-  email: string;
-  roleName: string | null;
-  summary: MonthSummary;
-  available: number;
 }
 
 type Tab = "my" | "approvals" | "team";
@@ -97,18 +90,43 @@ export function AttendanceView(props: {
   month: string;
   today: string;
   approver: boolean;
+  /** Admin: can switch any day between present and absent */
+  canEdit: boolean;
+  /** Super Admin has no attendance of their own */
+  hasOwnCalendar: boolean;
   canRequestLeave: boolean;
   viewing: { id: string; name: string; email: string } | null;
   monthView: MonthView;
   balance: LeaveBalance;
   leaves: LeaveRow[];
   approvals: ApprovalData | null;
-  team: TeamRow[] | null;
+  team: TeamMonthRow[] | null;
 }) {
   const { tab, month, approver, viewing, monthView, balance, leaves } = props;
   const router = useRouter();
   const { toast, show, hide } = useToast();
   const [requesting, setRequesting] = useState(false);
+  const [openEmployee, setOpenEmployee] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  /** Admin correction: present <-> absent (pending or not-marked days become present) */
+  const setDay = async (userId: string, cell: DayCell) => {
+    if (!isEditableDay(cell, props.today)) return;
+    const status = cell.status === "present" ? "absent" : "present";
+    setSaving(`${userId}|${cell.day}`);
+    const res = await fetch("/api/attendance/set", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, day: cell.day, status }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSaving(null);
+    if (!res.ok) return show(data.error ?? "Could not change attendance", "error");
+    show(`${fmtDayKey(cell.day)} set to ${status}`, "success");
+    router.refresh();
+  };
+
+  const employee = props.team?.find((t) => t.userId === openEmployee) ?? null;
 
   const href = (next: { tab?: Tab; month?: string; user?: string | null }) => {
     const p = new URLSearchParams();
@@ -121,7 +139,7 @@ export function AttendanceView(props: {
   };
 
   const tabs: { id: Tab; label: string; icon: typeof CalendarDays; count?: number }[] = [
-    { id: "my", label: viewing ? viewing.name : "My Attendance", icon: CalendarDays },
+    ...(props.hasOwnCalendar || viewing ? [{ id: "my" as const, label: viewing ? viewing.name : "My Attendance", icon: CalendarDays }] : []),
     ...(approver
       ? [
           { id: "approvals" as const, label: "Approvals", icon: ShieldCheck, count: props.approvals ? props.approvals.attendance.length + props.approvals.leave.length : undefined },
@@ -151,8 +169,8 @@ export function AttendanceView(props: {
             ))}
           </div>
           {viewing && (
-            <Link href={href({ tab: "my", user: null })} className="text-[12px] font-semibold text-indigo-600 hover:underline">
-              ← Back to my attendance
+            <Link href={props.hasOwnCalendar ? href({ tab: "my", user: null }) : href({ tab: "team", user: null })} className="text-[12px] font-semibold text-indigo-600 hover:underline">
+              {props.hasOwnCalendar ? "← Back to my attendance" : "← Back to team"}
             </Link>
           )}
           {tab !== "approvals" && (
@@ -172,16 +190,40 @@ export function AttendanceView(props: {
           <>
             <LeaveBalanceBar balance={balance} canRequest={props.canRequestLeave} onRequest={() => setRequesting(true)} viewing={viewing} />
             <SummaryCards summary={monthView.summary} />
-            <CalendarGrid view={monthView} />
+            <CalendarGrid
+              view={monthView}
+              today={props.today}
+              onEditDay={props.canEdit && viewing ? (cell) => setDay(viewing.id, cell) : undefined}
+            />
             <LeaveHistory leaves={leaves} canCancel={props.canRequestLeave} notify={show} onChange={() => router.refresh()} />
           </>
         )}
 
         {tab === "approvals" && props.approvals && <Approvals data={props.approvals} notify={show} onChange={() => router.refresh()} />}
 
-        {tab === "team" && props.team && <TeamTable team={props.team} month={month} href={href} />}
+        {tab === "team" && props.team && (
+          <TeamGrid
+            team={props.team}
+            month={month}
+            today={props.today}
+            canEdit={props.canEdit}
+            onEditDay={setDay}
+            onOpen={setOpenEmployee}
+          />
+        )}
       </div>
 
+      {employee && (
+        <EmployeeDialog
+          row={employee}
+          month={month}
+          today={props.today}
+          canEdit={props.canEdit}
+          saving={saving}
+          onEditDay={(cell) => setDay(employee.userId, cell)}
+          onClose={() => setOpenEmployee(null)}
+        />
+      )}
       {requesting && (
         <LeaveRequestDialog
           today={props.today}
@@ -256,26 +298,45 @@ function SummaryCards({ summary }: { summary: MonthSummary }) {
   );
 }
 
-function CalendarGrid({ view }: { view: MonthView }) {
+function CalendarGrid({ view, today, onEditDay, flat }: {
+  view: Pick<MonthView, "month" | "days">;
+  today: string;
+  onEditDay?: (cell: DayCell) => void;
+  /** Inside a dialog: no card chrome */
+  flat?: boolean;
+}) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
-          <CalendarCheck className="h-4 w-4 text-indigo-600" />
+    <div className={cn(!flat && "overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm")}>
+      {!flat && (
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+            <CalendarCheck className="h-4 w-4 text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-[13px] font-bold text-slate-900">{fmtMonth(view.month)}</p>
+            <p className="text-[11px] text-slate-400">
+              One row per week, Monday to Sunday. India time.{onEditDay ? " Click a day to switch it between present and absent." : ""}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-[13px] font-bold text-slate-900">{fmtMonth(view.month)}</p>
-          <p className="text-[11px] text-slate-400">One row per week, Monday to Sunday. India time.</p>
-        </div>
-      </div>
-      <div className="overflow-x-auto p-4">
+      )}
+      <div className={cn("overflow-x-auto", flat ? "py-2" : "p-4")}>
         <div className="grid min-w-[640px] grid-cols-7 gap-2">
           {WEEKDAYS.map((d, i) => (
             <p key={d} className={cn("pb-1 text-center text-[11px] font-semibold uppercase tracking-wide", i >= 5 ? "text-slate-400" : "text-slate-600")}>{d}</p>
           ))}
           {weeks(view.days).flat().map((cell, i) =>
             cell ? (
-              <div key={cell.day} title={CELL[cell.status].label} className={cn("flex h-[78px] flex-col justify-between rounded-xl border p-2", CELL[cell.status].box)}>
+              <div
+                key={cell.day}
+                title={onEditDay && isEditableDay(cell, today) ? `${CELL[cell.status].label} · click to mark ${cell.status === "present" ? "absent" : "present"}` : CELL[cell.status].label}
+                onClick={onEditDay && isEditableDay(cell, today) ? () => onEditDay(cell) : undefined}
+                className={cn(
+                  "flex h-[78px] flex-col justify-between rounded-xl border p-2",
+                  CELL[cell.status].box,
+                  onEditDay && isEditableDay(cell, today) && "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md",
+                )}
+              >
                 <div className="flex items-start justify-between">
                   <span className="text-[13px] font-bold text-slate-700">{Number(cell.day.slice(8))}</span>
                   <DayBadge status={cell.status} />
@@ -622,51 +683,143 @@ function Approvals({ data, notify, onChange }: { data: ApprovalData; notify: (m:
   );
 }
 
-function TeamTable({ team, month, href }: { team: TeamRow[]; month: string; href: (n: { tab?: Tab; month?: string; user?: string | null }) => string }) {
-  const cols: { label: string; get: (r: TeamRow) => number; color: string }[] = [
-    { label: "Present", get: (r) => r.summary.present, color: "text-emerald-700" },
-    { label: "Absent", get: (r) => r.summary.absent, color: "text-rose-600" },
-    { label: "Paid Leave", get: (r) => r.summary.paidLeave, color: "text-sky-700" },
-    { label: "Unpaid", get: (r) => r.summary.unpaidLeave, color: "text-orange-600" },
-    { label: "Pending", get: (r) => r.summary.pending, color: "text-amber-600" },
-    { label: "Leave Balance", get: (r) => r.available, color: "text-slate-800" },
-  ];
+const TOTALS: { label: string; get: (r: TeamMonthRow) => number; color: string }[] = [
+  { label: "Present", get: (r) => r.summary.present, color: "text-emerald-700" },
+  { label: "Absent", get: (r) => r.summary.absent, color: "text-rose-600" },
+  { label: "Leave", get: (r) => r.summary.paidLeave, color: "text-sky-700" },
+  { label: "LOP", get: (r) => r.summary.unpaidLeave, color: "text-orange-600" },
+  { label: "Pending", get: (r) => r.summary.pending, color: "text-amber-600" },
+  { label: "Balance", get: (r) => r.balance.available, color: "text-slate-800" },
+];
+
+/** Small day marker for the team grid */
+function MiniCell({ cell }: { cell: DayCell }) {
+  const base = "mx-auto flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold";
+  switch (cell.status) {
+    case "present": return <span className={cn(base, "bg-emerald-500 text-white")}><Check className="h-3.5 w-3.5" /></span>;
+    case "absent": return <span className={cn(base, "bg-rose-500 text-white", cell.sandwich && "ring-2 ring-rose-200")}>0</span>;
+    case "pending": return <span className={cn(base, "bg-amber-400 text-white")}><Clock className="h-3 w-3" /></span>;
+    case "leave": return <span className={cn(base, "bg-sky-500 text-white")}>L</span>;
+    case "unpaid": return <span className={cn(base, "bg-orange-500 text-[8px] text-white")}>LOP</span>;
+    case "leave-pending": return <span className={cn(base, "bg-violet-400 text-white")}>L?</span>;
+    case "weekend": return <span className={cn(base, "text-slate-300")}>·</span>;
+    case "today": return <span className={cn(base, "border border-dashed border-indigo-300")} />;
+    default: return <span className={base} />;
+  }
+}
+
+function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
+  team: TeamMonthRow[];
+  month: string;
+  today: string;
+  canEdit: boolean;
+  onEditDay: (userId: string, cell: DayCell) => void;
+  onOpen: (userId: string) => void;
+}) {
+  const days = team[0]?.days ?? [];
+  const first = team[0]?.summary;
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50"><Users2 className="h-4 w-4 text-indigo-600" /></div>
-        <div>
-          <p className="text-[13px] font-bold text-slate-900">Team Attendance · {fmtMonth(month)}</p>
+        <div className="mr-auto">
+          <p className="text-[13px] font-bold text-slate-900">All Employees · {fmtMonth(month)}</p>
           <p className="text-[11px] text-slate-400">
-            {team[0] ? `${team[0].summary.workingDays} working days (Mon–Fri) of ${team[0].summary.calendarDays} calendar days. ` : ""}Click a name to see their calendar.
+            {first ? `${first.calendarDays} calendar days · ${first.workingDays} working days (Mon–Fri). ` : ""}
+            Click a name to open their attendance.{canEdit ? " Click a day to switch it between present and absent." : ""}
           </p>
         </div>
+        <a href={`/api/attendance/export?month=${month}`}>
+          <Button size="sm" variant="outline"><Download className="h-3.5 w-3.5" /> Download Excel</Button>
+        </a>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-[12.5px]">
-          <thead className="bg-slate-800">
-            <tr>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300">Employee</th>
-              {cols.map((c) => (
-                <th key={c.label} className="whitespace-nowrap px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-300">{c.label}</th>
+        <table className="w-full border-separate border-spacing-0 text-[12px]">
+          <thead>
+            <tr className="bg-slate-800">
+              <th className="sticky left-0 z-10 min-w-[180px] bg-slate-800 px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300">Employee</th>
+              {days.map((d) => (
+                <th key={d.day} className={cn("min-w-[30px] px-0.5 py-1.5 text-center font-semibold", [0, 6].includes(weekday(d.day)) ? "text-slate-500" : "text-slate-200", d.day === today && "bg-indigo-600 text-white")}>
+                  <span className="block text-[11px]">{Number(d.day.slice(8))}</span>
+                  <span className="block text-[9px] font-normal">{"SMTWTFS"[weekday(d.day)]}</span>
+                </th>
+              ))}
+              {TOTALS.map((t) => (
+                <th key={t.label} className="whitespace-nowrap border-l border-slate-700 px-2.5 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-300">{t.label}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {team.map((r) => (
-              <tr key={r.userId} className="hover:bg-slate-50">
-                <td className="px-4 py-2.5">
-                  <Link href={href({ tab: "my", month, user: r.userId })} className="font-semibold text-slate-800 hover:text-indigo-600 hover:underline">{r.name}</Link>
-                  <p className="text-[11px] text-slate-400">{r.roleName ?? "—"} · {r.email}</p>
-                </td>
-                {cols.map((c) => {
-                  const v = c.get(r);
-                  return <td key={c.label} className={cn("px-4 py-2.5 text-right tabular-nums", v ? cn("font-semibold", c.color) : "text-slate-300")}>{v}</td>;
-                })}
-              </tr>
-            ))}
+          <tbody>
+            {team.length === 0 ? (
+              <tr><td colSpan={days.length + TOTALS.length + 1} className="px-4 py-8 text-center text-slate-400">No active employees with a role</td></tr>
+            ) : (
+              team.map((r) => (
+                <tr key={r.userId} className="group">
+                  <td className="sticky left-0 z-10 border-b border-slate-100 bg-white px-4 py-2 group-hover:bg-slate-50">
+                    <button onClick={() => onOpen(r.userId)} className="text-left font-semibold text-indigo-700 hover:underline">{r.name}</button>
+                    <p className="truncate text-[10.5px] text-slate-400">{r.roleName ?? "—"}</p>
+                  </td>
+                  {r.days.map((cell) => {
+                    const editable = canEdit && isEditableDay(cell, today);
+                    return (
+                      <td
+                        key={cell.day}
+                        onClick={editable ? () => onEditDay(r.userId, cell) : undefined}
+                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${editable ? ` · click to mark ${cell.status === "present" ? "absent" : "present"}` : ""}`}
+                        className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
+                      >
+                        <MiniCell cell={cell} />
+                      </td>
+                    );
+                  })}
+                  {TOTALS.map((t) => {
+                    const v = t.get(r);
+                    return (
+                      <td key={t.label} className={cn("border-b border-l border-slate-100 px-2.5 py-2 text-right tabular-nums group-hover:bg-slate-50", v ? cn("font-semibold", t.color) : "text-slate-300")}>{v}</td>
+                    );
+                  })}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function EmployeeDialog({ row, month, today, canEdit, saving, onEditDay, onClose }: {
+  row: TeamMonthRow;
+  month: string;
+  today: string;
+  canEdit: boolean;
+  saving: string | null;
+  onEditDay: (cell: DayCell) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]">
+      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
+      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-slate-800 px-5 py-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-white">{row.name}</h2>
+            <p className="text-[11.5px] text-slate-400">{row.roleName ?? "—"} · {row.email} · {fmtMonth(month)}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {saving?.startsWith(`${row.userId}|`) && <Loader2 className="h-4 w-4 animate-spin text-slate-300" />}
+            <button onClick={onClose} className="text-slate-300 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="space-y-4 p-5">
+          <SummaryCards summary={row.summary} />
+          <p className="text-[12px] text-slate-500">
+            Paid leave: <b className="text-slate-800">{row.balance.available}</b> available · {row.balance.accrued} earned · {row.balance.used} used
+            {row.balance.pending ? ` · ${row.balance.pending} pending` : ""}
+            {canEdit && <span className="ml-2 text-indigo-600">Click a day to switch it between present and absent.</span>}
+          </p>
+          <CalendarGrid view={{ month, days: row.days }} today={today} onEditDay={canEdit ? onEditDay : undefined} flat />
+        </div>
       </div>
     </div>
   );

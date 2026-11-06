@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canViewScreen } from "@/lib/screen-access";
-import { ATTENDANCE_SCREEN, canApprove, marksAttendance } from "@/lib/attendance/access";
+import { ATTENDANCE_SCREEN, canApprove, canEditAttendance, marksAttendance } from "@/lib/attendance/access";
 import { dateToKey, isMonthKey, monthOf, todayKey } from "@/lib/attendance/dates";
 import { getLeaveBalance } from "@/lib/attendance/leave";
 import { buildMonth } from "@/lib/attendance/month";
-import { AttendanceView, type ApprovalData, type LeaveRow, type TeamRow } from "./attendance-view";
+import { getTeamMonth, type TeamMonthRow } from "@/lib/attendance/team";
+import { AttendanceView, type ApprovalData, type LeaveRow } from "./attendance-view";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,10 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const approver = canApprove(session);
   const month = isMonthKey(sp.month) ? sp.month : monthOf(todayKey());
-  const tab = approver && (sp.tab === "approvals" || sp.tab === "team") ? sp.tab : "my";
+  // Super Admin has no attendance of their own, so starts on the Team grid
+  const hasOwnCalendar = marksAttendance(session);
+  const requested = sp.tab ?? (!hasOwnCalendar && !sp.user ? "team" : "my");
+  const tab = approver && (requested === "approvals" || requested === "team") ? requested : "my";
 
   // Approvers can open any employee's calendar from the Team tab
   const viewUserId = tab === "my" && approver && sp.user ? sp.user : session.userId;
@@ -61,7 +65,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   ]);
 
   let approvals: ApprovalData | null = null;
-  let team: TeamRow[] | null = null;
+  let team: TeamMonthRow[] | null = null;
 
   if (approver && tab === "approvals") {
     const [attendance, leaveRequests] = await Promise.all([
@@ -99,19 +103,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     };
   }
 
-  if (approver && tab === "team") {
-    const users = await prisma.user.findMany({
-      where: { roleId: { not: null }, isActive: true },
-      select: { id: true, firstName: true, lastName: true, email: true, startDate: true, createdAt: true, role: { select: { name: true } } },
-      orderBy: { firstName: "asc" },
-    });
-    team = await Promise.all(
-      users.map(async (u) => {
-        const [m, b] = await Promise.all([buildMonth(u.id, month, dateToKey(u.startDate ?? u.createdAt)), getLeaveBalance(u.id)]);
-        return { userId: u.id, name: fullName(u), email: u.email, roleName: u.role?.name ?? null, summary: m.summary, available: b.available };
-      }),
-    );
-  }
+  if (approver && tab === "team") team = await getTeamMonth(month);
 
   return (
     <AttendanceView
@@ -119,6 +111,8 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       month={month}
       today={todayKey()}
       approver={approver}
+      canEdit={canEditAttendance(session)}
+      hasOwnCalendar={hasOwnCalendar}
       canRequestLeave={viewUser.id === session.userId && marksAttendance(session)}
       viewing={viewUser.id === session.userId ? null : { id: viewUser.id, name: fullName(viewUser), email: viewUser.email }}
       monthView={monthView}
