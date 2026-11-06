@@ -557,7 +557,8 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
       ...(requirement?.jobDescription ? ["", "--- Job Description ---", requirement.jobDescription.trim()] : []),
     ].join("\n"),
   );
-  const [useTailored, setUseTailored] = useState(!!consultant.tailored);
+  // The AI-updated resume when there is one, otherwise the original
+  const useTailored = !!consultant.tailored;
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
@@ -590,13 +591,6 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
           <button onClick={onClose} className="text-slate-300 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          <div className="flex flex-wrap gap-1.5">
-            {vendors.map((v) => (
-              <span key={v.email} className="rounded-lg bg-slate-100 px-2 py-1 text-[11.5px] text-slate-700" title={v.email}>
-                {v.name ?? v.email}{v.company ? ` · ${v.company}` : ""}
-              </span>
-            ))}
-          </div>
           <label className="block space-y-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Subject</span>
             <input value={subject} onChange={(e) => setSubject(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 px-3 text-[13px] focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" />
@@ -604,29 +598,15 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
           <label className="block space-y-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Message</span>
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={14} className="w-full resize-y rounded-lg border border-slate-200 p-3 font-[inherit] text-[12.5px] leading-relaxed focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" />
-            <span className="text-[11px] text-slate-400">{"{firstName}"} and {"{company}"} are filled in for each vendor.</span>
           </label>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12.5px]">
-            <p className="font-semibold text-slate-700">Attachment</p>
-            {consultant.tailored && (
-              <label className="mt-1.5 flex items-center gap-2">
-                <input type="radio" checked={useTailored} onChange={() => setUseTailored(true)} className="accent-indigo-600" />
-                <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> AI-updated: {consultant.tailored.name}
-                <span className="text-[11px] text-slate-400">ATS {consultant.tailored.atsAfter}%</span>
-              </label>
-            )}
-            {consultant.resume && (
-              <label className="mt-1.5 flex items-center gap-2">
-                <input type="radio" checked={!useTailored || !consultant.tailored} onChange={() => setUseTailored(false)} className="accent-indigo-600" />
-                <FileText className="h-3.5 w-3.5 text-slate-500" /> Original: {consultant.resume.name}
-              </label>
-            )}
-            {!attachment && <p className="mt-1 font-medium text-rose-600">No resume to attach. Upload one first.</p>}
-          </div>
+          {!attachment && (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">
+              {consultant.name} has no resume to attach. Close this and upload one first.
+            </p>
+          )}
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">{error}</p>}
         </div>
-        <div className="flex items-center gap-2 border-t border-slate-100 px-5 py-3">
-          <p className="mr-auto text-[11px] text-slate-400">Sent from your Gmail if connected, otherwise from the company mailbox with replies to {sender.email}.</p>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={send} disabled={sending || !attachment || !subject.trim()}>
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {sending ? "Sending…" : `Send to ${vendors.length}`}
