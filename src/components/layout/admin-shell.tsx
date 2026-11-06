@@ -23,6 +23,9 @@ interface AdminShellProps {
 export function AdminShell({ allowedPaths, userEmail, userName, roleName, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Until today's attendance is marked, the app behind the popup can't be used
+  const [promptOpen, setPromptOpen] = useState(!!attendancePrompt);
+  const blocked = promptOpen && !!attendancePrompt;
 
   const toggle = () => {
     if (window.matchMedia("(min-width: 1024px)").matches) {
@@ -36,6 +39,7 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, initia
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
+      <div inert={blocked} aria-hidden={blocked || undefined} className="flex min-h-0 flex-1 flex-col">
       <TopNav userEmail={userEmail} userName={userName} roleName={roleName} onToggleSidebar={toggle} notifications={notifications} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
@@ -46,7 +50,8 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, initia
         />
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
       </div>
-      {attendancePrompt && <AttendancePrompt data={attendancePrompt} />}
+      </div>
+      {blocked && <AttendancePrompt data={attendancePrompt} onDone={() => setPromptOpen(false)} />}
     </div>
   );
 }

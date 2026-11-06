@@ -2,21 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Quote, Sun, X } from "lucide-react";
+import { CheckCircle2, Loader2, Quote, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AttendancePromptData } from "@/lib/attendance/prompt";
 
-/** First login of the day: confirm "I'm in"; the mark then waits for a POC / Manager to approve it */
-export function AttendancePrompt({ data }: { data: AttendancePromptData }) {
+/**
+ * First login of the day: confirm "I'm in" before using the app. It can't be closed or skipped; the
+ * mark then waits for a POC / Manager to approve it.
+ */
+export function AttendancePrompt({ data, onDone }: { data: AttendancePromptData; onDone: () => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
-
-  if (!open) return null;
 
   const submit = async () => {
     setSaving(true);
@@ -35,16 +35,13 @@ export function AttendancePrompt({ data }: { data: AttendancePromptData }) {
   };
 
   const close = () => {
-    setOpen(false);
-    if (done) router.refresh();
+    onDone();
+    router.refresh();
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <button onClick={close} aria-label="Close" className="absolute right-3 top-3 z-10 rounded-lg p-1 text-white/70 hover:bg-white/10 hover:text-white">
-          <X className="h-4 w-4" />
-        </button>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Mark today's attendance">
+      <div className="relative max-h-[95vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl">
 
         <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 px-6 pb-6 pt-7 text-white">
           <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-white/75">
@@ -74,7 +71,7 @@ export function AttendancePrompt({ data }: { data: AttendancePromptData }) {
             <>
               <div>
                 <p className="text-[15px] font-bold text-slate-900">Mark today&apos;s attendance</p>
-                <p className="text-[12.5px] text-slate-500">Your POC / Manager will approve it.</p>
+                <p className="text-[12.5px] text-slate-500">Please confirm to continue. Your POC / Manager will approve it.</p>
               </div>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 hover:border-indigo-300 hover:bg-indigo-50/40">
                 <input
@@ -96,13 +93,10 @@ export function AttendancePrompt({ data }: { data: AttendancePromptData }) {
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
               {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">{error}</p>}
-              <div className="flex items-center gap-2">
-                <Button className="flex-1" onClick={submit} disabled={!confirmed || saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {saving ? "Marking…" : "Mark Attendance"}
-                </Button>
-                <Button variant="ghost" onClick={close}>Later</Button>
-              </div>
+              <Button className="w-full" onClick={submit} disabled={!confirmed || saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {saving ? "Marking…" : "Mark Attendance"}
+              </Button>
             </>
           )}
         </div>
