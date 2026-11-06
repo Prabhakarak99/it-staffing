@@ -384,15 +384,18 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
   }
   if (state.error) return <p className="py-2 text-[12.5px] font-medium text-rose-600">{state.error}</p>;
 
-  const all = state.vendors.map((v) => v.email);
   const toggle = (email: string) => setSelected((s) => { const n = new Set(s); if (n.has(email)) n.delete(email); else n.add(email); return n; });
+  const setGroup = (emails: string[], on: boolean) =>
+    setSelected((s) => { const n = new Set(s); emails.forEach((e) => (on ? n.add(e) : n.delete(e))); return n; });
   const where = sub.clientName || sub.implementationName ? [sub.clientName, sub.implementationName].filter(Boolean).join(" / ") : sub.technology;
+  const primary = state.vendors.filter((v) => v.primary);
+  const secondary = state.vendors.filter((v) => !v.primary);
 
   return (
     <div className="overflow-hidden rounded-xl border border-sky-200 bg-white">
       <div className="flex flex-wrap items-center gap-2 border-b border-sky-100 px-4 py-2.5">
         <p className="mr-auto text-[12.5px] font-bold text-slate-800">
-          {state.vendors.length} vendor{state.vendors.length === 1 ? "" : "s"} for {where}
+          {state.vendors.length} vendor{state.vendors.length === 1 ? "" : "s"} for {where} · {primary.length} primary
           <span className="ml-2 text-[11px] font-normal text-slate-400">
             for {consultant.name}{state.hidden ? ` · ${state.hidden} already submitted / sent, hidden` : ""}
           </span>
@@ -406,36 +409,27 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
           No other vendors on file for this client. Add vendors in <Link href="/admin/vendor-management" className="font-semibold text-indigo-600 hover:underline">Vendor Management</Link> with this client or implementation partner.
         </p>
       ) : (
-        <div className="max-h-[360px] overflow-auto">
-          <table className="w-full text-[12.5px]">
-            <thead className="sticky top-0 bg-slate-100">
-              <tr>
-                <th className="w-10 px-3 py-2">
-                  <input type="checkbox" className="h-3.5 w-3.5 accent-indigo-600" checked={selected.size === all.length} onChange={(e) => setSelected(e.target.checked ? new Set(all) : new Set())} />
-                </th>
-                {["Vendor", "Company", "Email", "Phone", "Found in", ""].map((h, i) => (
-                  <th key={i} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {state.vendors.map((v) => (
-                <tr key={v.email} className={cn("hover:bg-slate-50", selected.has(v.email) && "bg-indigo-50/40")}>
-                  <td className="px-3 py-2"><input type="checkbox" className="h-3.5 w-3.5 accent-indigo-600" checked={selected.has(v.email)} onChange={() => toggle(v.email)} /></td>
-                  <td className="px-3 py-2 font-semibold text-slate-800">{v.name ?? "—"}</td>
-                  <td className="px-3 py-2 text-slate-600">{v.company ?? "—"}</td>
-                  <td className="px-3 py-2 text-slate-600">{v.email}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-500">{v.phone ?? "—"}</td>
-                  <td className="px-3 py-2 text-[11px] text-slate-400">{v.sources.join(", ")}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => setComposeFor([v])} className="inline-flex items-center gap-1 text-[12px] font-semibold text-indigo-600 hover:underline">
-                      <Send className="h-3 w-3" /> Send
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="max-h-[520px] overflow-auto">
+          <VendorGroup
+            title={`Primary · last submission on ${sub.technology}`}
+            hint="Vendors whose most recent submission (or vendor book entry) is on this technology"
+            tone="primary"
+            vendors={primary}
+            selected={selected}
+            onToggle={toggle}
+            onSetAll={(on) => setGroup(primary.map((v) => v.email), on)}
+            onSend={(v) => setComposeFor([v])}
+          />
+          <VendorGroup
+            title={`Secondary · other vendors for ${where}`}
+            hint="Their last submission was on another technology, or they have no submission history"
+            tone="secondary"
+            vendors={secondary}
+            selected={selected}
+            onToggle={toggle}
+            onSetAll={(on) => setGroup(secondary.map((v) => v.email), on)}
+            onSend={(v) => setComposeFor([v])}
+          />
         </div>
       )}
 
@@ -454,6 +448,80 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
             onSent();
           }}
         />
+      )}
+    </div>
+  );
+}
+
+const fmtShortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+
+function VendorGroup({ title, hint, tone, vendors, selected, onToggle, onSetAll, onSend }: {
+  title: string;
+  hint: string;
+  tone: "primary" | "secondary";
+  vendors: VendorOption[];
+  selected: Set<string>;
+  onToggle: (email: string) => void;
+  onSetAll: (on: boolean) => void;
+  onSend: (v: VendorOption) => void;
+}) {
+  const picked = vendors.filter((v) => selected.has(v.email)).length;
+  return (
+    <div className="border-b border-slate-100 last:border-b-0">
+      <div className={cn("sticky top-0 z-10 flex flex-wrap items-center gap-2 px-4 py-2", tone === "primary" ? "bg-emerald-50" : "bg-slate-100")}>
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5 accent-indigo-600"
+          disabled={vendors.length === 0}
+          checked={vendors.length > 0 && picked === vendors.length}
+          onChange={(e) => onSetAll(e.target.checked)}
+          aria-label={`Select all ${tone} vendors`}
+        />
+        <p className={cn("text-[12px] font-bold", tone === "primary" ? "text-emerald-800" : "text-slate-700")}>
+          {title} <span className="font-semibold">({vendors.length})</span>
+        </p>
+        <span className="text-[11px] text-slate-400">{hint}</span>
+      </div>
+      {vendors.length === 0 ? (
+        <p className="px-4 py-3 text-[12px] text-slate-400">None</p>
+      ) : (
+        <table className="w-full text-[12.5px]">
+          <thead>
+            <tr className="border-b border-slate-100">
+              <th className="w-10 px-3 py-1.5" />
+              {["Vendor", "Company", "Email", "Phone", "Last Submission", "Found in", ""].map((h, i) => (
+                <th key={i} className="whitespace-nowrap px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {vendors.map((v) => (
+              <tr key={v.email} className={cn("hover:bg-slate-50", selected.has(v.email) && "bg-indigo-50/40")}>
+                <td className="px-3 py-2"><input type="checkbox" className="h-3.5 w-3.5 accent-indigo-600" checked={selected.has(v.email)} onChange={() => onToggle(v.email)} /></td>
+                <td className="px-3 py-2 font-semibold text-slate-800">{v.name ?? "—"}</td>
+                <td className="px-3 py-2 text-slate-600">{v.company ?? "—"}</td>
+                <td className="px-3 py-2 text-slate-600">{v.email}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-slate-500">{v.phone ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  {v.lastTechnology ? (
+                    <>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-semibold", tone === "primary" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600")}>{v.lastTechnology}</span>
+                      {v.lastSubmittedAt && <span className="ml-1.5 text-[11px] text-slate-400">{fmtShortDate(v.lastSubmittedAt)}</span>}
+                    </>
+                  ) : (
+                    <span className="text-[11px] text-slate-300">No submissions</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-[11px] text-slate-400">{v.sources.join(", ")}</td>
+                <td className="px-3 py-2 text-right">
+                  <button onClick={() => onSend(v)} className="inline-flex items-center gap-1 text-[12px] font-semibold text-indigo-600 hover:underline">
+                    <Send className="h-3 w-3" /> Send
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

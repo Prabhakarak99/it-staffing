@@ -151,12 +151,18 @@ export interface VendorOption {
   company: string | null;
   phone: string | null;
   sources: string[];
+  /** Technology and date of this vendor's most recent submission in our data */
+  lastTechnology: string | null;
+  lastSubmittedAt: string | null;
+  /** Primary: last submission (or their vendor book / contact entry) is on the requirement's technology */
+  primary: boolean;
 }
 
 /**
  * Vendors we know for the submission's client / implementation partner, from every recruiter's vendor
  * book, the vendor contact list and past submissions. Vendors this consultant was already submitted to
  * for the same client (or already emailed from here for this requirement) are left out.
+ * Primary vendors are the ones whose last submission was on the same technology.
  */
 export async function vendorsFor(submissionId: string, consultantId: string) {
   const sub = await prisma.submission.findUnique({ where: { id: submissionId } });
@@ -172,7 +178,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
       where: client || impl
         ? { OR: [...(client ? [{ clients: like(client) }, { implementationPartners: like(client) }] : []), ...(impl ? [{ implementationPartners: like(impl) }, { clients: like(impl) }] : [])] }
         : { technologies: like(stem) },
-      select: { email: true, name: true, companyName: true, phone: true },
+      select: { email: true, name: true, companyName: true, phone: true, technologies: true },
     }),
     prisma.vendorContact.findMany({
       where: {
@@ -181,7 +187,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
           ? { OR: [...(client ? [{ clientName: like(client) }] : []), ...(impl ? [{ implementationName: like(impl) }] : [])] }
           : { technology: like(stem) }),
       },
-      select: { email: true, recruiterName: true, vendorCompany: true, phone: true },
+      select: { email: true, recruiterName: true, vendorCompany: true, phone: true, technology: true },
     }),
     client || impl
       ? prisma.submission.findMany({
@@ -209,15 +215,20 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   const excluded = new Set([...alreadySubmitted.map((s) => s.vendorRecruiterEmail), ...alreadySent.map((s) => s.vendorEmail)].map((e) => e.trim().toLowerCase()));
   const byEmail = new Map<string, VendorOption>();
   const hidden = new Set<string>();
+  const stemLower = stem.toLowerCase();
+  const onTech = (t: string | null | undefined) => !!t && t.toLowerCase().includes(stemLower);
+  /** Vendors whose vendor book / contact entry lists the technology */
+  const listedTech = new Set<string>();
 
-  const add = (email: string | null | undefined, name: string | null, company: string | null, phone: string | null, source: string) => {
+  const add = (email: string | null | undefined, name: string | null, company: string | null, phone: string | null, source: string, tech?: string | null) => {
     const key = email?.trim().toLowerCase();
     if (!key || !/\S+@\S+\.\S+/.test(key)) return;
     if (excluded.has(key)) {
       hidden.add(key);
       return;
     }
-    const v = byEmail.get(key) ?? { email: key, name: null, company: null, phone: null, sources: [] };
+    if (onTech(tech)) listedTech.add(key);
+    const v = byEmail.get(key) ?? { email: key, name: null, company: null, phone: null, sources: [], lastTechnology: null, lastSubmittedAt: null, primary: false };
     v.name ??= name?.trim() || null;
     v.company ??= company?.trim() || null;
     v.phone ??= phone?.trim() || null;
@@ -225,10 +236,32 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
     byEmail.set(key, v);
   };
 
-  book.forEach((v) => add(v.email, v.name, v.companyName, v.phone, "Vendor book"));
-  contacts.forEach((v) => add(v.email, v.recruiterName, v.vendorCompany, v.phone, "Vendor contacts"));
+  book.forEach((v) => add(v.email, v.name, v.companyName, v.phone, "Vendor book", v.technologies));
+  contacts.forEach((v) => add(v.email, v.recruiterName, v.vendorCompany, v.phone, "Vendor contacts", v.technology));
   past.forEach((v) => add(v.vendorRecruiterEmail, v.vendorRecruiterName, v.vendorCompany, v.vendorRecruiterPhone, "Past submissions"));
 
-  const vendors = [...byEmail.values()].sort((a, b) => b.sources.length - a.sources.length || (a.company ?? "").localeCompare(b.company ?? ""));
+  // Each vendor's most recent submission, from any client, decides primary vs secondary
+  const emails = [...byEmail.keys()];
+  const history = emails.length
+    ? await prisma.submission.findMany({
+        where: { OR: emails.map((e) => ({ vendorRecruiterEmail: { equals: e, mode: "insensitive" as const } })) },
+        select: { vendorRecruiterEmail: true, technology: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+  for (const h of history) {
+    const v = byEmail.get(h.vendorRecruiterEmail.trim().toLowerCase());
+    if (!v || v.lastSubmittedAt) continue; // newest first: keep the first one seen
+    v.lastTechnology = h.technology;
+    v.lastSubmittedAt = h.createdAt.toISOString();
+  }
+  for (const v of byEmail.values()) v.primary = onTech(v.lastTechnology) || listedTech.has(v.email);
+
+  const vendors = [...byEmail.values()].sort(
+    (a, b) =>
+      Number(b.primary) - Number(a.primary) ||
+      (b.lastSubmittedAt ?? "").localeCompare(a.lastSubmittedAt ?? "") ||
+      (a.company ?? "").localeCompare(b.company ?? ""),
+  );
   return { vendors, hidden: hidden.size, client, implementation: impl };
 }
