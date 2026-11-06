@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { MARKETING_STATUSES } from "@/lib/easy/data";
 
 export interface ReportRow {
   recruiterId: string;
@@ -11,6 +12,21 @@ export interface ReportRow {
   count: number;
 }
 
+/** In-Market consultant, so the reports can list the ones with zero submissions */
+export interface MarketConsultant {
+  id: string;
+  name: string;
+  technology: string;
+  recruiterId: string | null;
+  recruiterName: string;
+  lastSubmittedAt: string | null;
+}
+
+export interface ReportRecruiter {
+  id: string;
+  name: string;
+}
+
 const fullName = (p: { firstName: string; lastName: string }) =>
   `${p.firstName} ${p.lastName}`.replace(/\s+/g, " ").trim();
 
@@ -19,6 +35,7 @@ const fullName = (p: { firstName: string; lastName: string }) =>
  * Counts per (recruiter, consultant, technology) in [from, to).
  * The client computes from/to in the viewer's local timezone.
  * Interviews only count once their start time has passed ("done").
+ * Submission reports also return every In-Market consultant and every recruiter, for the zero rows.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -90,5 +107,37 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ type, from, to, rows: [...rows.values()] });
+  if (type === "interviews") return NextResponse.json({ type, from, to, rows: [...rows.values()] });
+
+  const [students, recruiters] = await Promise.all([
+    prisma.student.findMany({
+      where: { projectStatus: { in: MARKETING_STATUSES } },
+      select: {
+        id: true, firstName: true, lastName: true, technology: true,
+        preMarketings: { select: { recruiter: person }, take: 1 },
+        submissions: { select: { technology: true, submissionDate: true }, orderBy: { submissionDate: "desc" }, take: 1 },
+      },
+    }),
+    prisma.user.findMany({ where: { role: { name: "Recruiter" } }, select: { id: true, firstName: true, lastName: true } }),
+  ]);
+
+  const consultants: MarketConsultant[] = students.map((s) => {
+    const recruiter = s.preMarketings[0]?.recruiter;
+    const last = s.submissions[0];
+    return {
+      id: s.id,
+      name: fullName(s),
+      technology: s.technology?.trim() || last?.technology?.trim() || "—",
+      recruiterId: recruiter?.id ?? null,
+      recruiterName: recruiter ? fullName(recruiter) : "—",
+      lastSubmittedAt: last?.submissionDate.toISOString() ?? null,
+    };
+  });
+
+  return NextResponse.json({
+    type, from, to,
+    rows: [...rows.values()],
+    consultants,
+    recruiters: recruiters.map((r): ReportRecruiter => ({ id: r.id, name: fullName(r) })),
+  });
 }

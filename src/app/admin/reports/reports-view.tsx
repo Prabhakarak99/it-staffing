@@ -4,20 +4,21 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Download, Loader2, Minus, Plus, RefreshCw, Search } from "lucide-react";
 import { Toast, useToast } from "@/components/ui/toast";
-import type { ReportRow } from "@/app/api/reports/route";
+import type { MarketConsultant, ReportRecruiter, ReportRow } from "@/app/api/reports/route";
 
 /* ── Report definitions ─────────────────────────────────────────────────── */
-type ReportKey = "recruiter-submissions" | "recruiter-interviews" | "consultant-submissions" | "consultant-interviews";
+type ReportKey = "recruiter-submissions" | "recruiter-interviews" | "consultant-submissions" | "consultant-interviews" | "consultant-zero";
 type Period = "daily" | "weekly" | "monthly";
 const PERIODS: Period[] = ["daily", "weekly", "monthly"];
 const PERIOD_TITLE: Record<Period, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly" };
 const CURRENT_LABEL: Record<Period, string> = { daily: "Today", weekly: "This week", monthly: "This month" };
 
-const REPORTS: { key: ReportKey; label: string; type: "submissions" | "interviews"; by: "recruiter" | "consultant" }[] = [
+const REPORTS: { key: ReportKey; label: string; type: "submissions" | "interviews"; by: "recruiter" | "consultant" | "zero" }[] = [
   { key: "recruiter-submissions",  label: "Submissions By Recruiter", type: "submissions", by: "recruiter" },
   { key: "recruiter-interviews",   label: "Interviews By Recruiter",  type: "interviews",  by: "recruiter" },
   { key: "consultant-submissions", label: "Consultant Submissions",   type: "submissions", by: "consultant" },
   { key: "consultant-interviews",  label: "Consultant Interviews",    type: "interviews",  by: "consultant" },
+  { key: "consultant-zero",        label: "Zero Submissions",         type: "submissions", by: "zero" },
 ];
 
 /* ── Local-time period helpers ──────────────────────────────────────────── */
@@ -80,9 +81,22 @@ interface DisplayRow {
   key: string;
   cells: string[];
   count: number;
+  /** Nothing submitted in the period (In-Market consultant or recruiter) */
+  zero?: boolean;
   /** Recruiter reports: the consultant / technology breakdown shown when expanded */
   details?: ReportRow[];
 }
+
+interface ReportResult {
+  key: string;
+  rows: ReportRow[];
+  /** Submission reports only: In-Market consultants and recruiters, for the zero rows */
+  consultants: MarketConsultant[];
+  recruiters: ReportRecruiter[];
+}
+
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never";
 
 interface ReportsViewProps {
   initialReport?: string;
@@ -97,7 +111,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
   );
   const [period, setPeriod] = useState<Period>(PERIODS.find((p) => p === initialPeriod) ?? "weekly");
   const [anchor, setAnchor] = useState<Date>(() => parseYmd(initialDate));
-  const [result, setResult] = useState<{ key: string; rows: ReportRow[] } | null>(null);
+  const [result, setResult] = useState<ReportResult | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -115,6 +129,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
   const isCurrentPeriod = from <= new Date() && new Date() < to;
   const title = `${PERIOD_TITLE[period]} ${report.label}`;
   const countLabel = report.type === "submissions" ? "Submissions Count" : "Interviews Done";
+  const isZero = report.by === "zero";
 
   // Keep the selection in the URL so refresh / back restores it
   useEffect(() => {
@@ -126,6 +141,8 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
   const requestKey = `${report.type}|${from.toISOString()}|${to.toISOString()}|${reloadTick}`;
   const isLoading = result?.key !== requestKey;
   const rows = useMemo(() => (isLoading || !result ? [] : result.rows), [isLoading, result]);
+  const consultants = useMemo(() => (isLoading || !result ? [] : result.consultants), [isLoading, result]);
+  const recruiters = useMemo(() => (isLoading || !result ? [] : result.recruiters), [isLoading, result]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,14 +151,18 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to load report");
-        return data.rows as ReportRow[];
+        return {
+          rows: data.rows as ReportRow[],
+          consultants: (data.consultants ?? []) as MarketConsultant[],
+          recruiters: (data.recruiters ?? []) as ReportRecruiter[],
+        };
       })
       .catch((err) => {
         if (!cancelled) show(err instanceof Error ? err.message : "Failed to load report", "error");
-        return [] as ReportRow[];
+        return { rows: [], consultants: [], recruiters: [] };
       })
       .then((loaded) => {
-        if (!cancelled) setResult({ key: requestKey, rows: loaded });
+        if (!cancelled) setResult({ key: requestKey, ...loaded });
       });
     return () => {
       cancelled = true;
@@ -149,17 +170,35 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
   }, [requestKey, report.type, from, to, show]);
 
   // Recruiter reports show only the totals per recruiter (no consultant names);
-  // consultant reports keep the consultant / recruiter / technology breakdown
+  // consultant reports keep the consultant / recruiter / technology breakdown.
+  // Submission reports also list In-Market consultants and recruiters with zero submissions.
   const headers =
-    report.by === "recruiter" ? ["Recruiter Name"] : ["Consultant Name", "Recruiter Name", "Technology"];
+    report.by === "recruiter"
+      ? ["Recruiter Name"]
+      : isZero
+        ? ["Consultant Name", "Recruiter Name", "Technology", "Last Submission"]
+        : ["Consultant Name", "Recruiter Name", "Technology"];
 
   const tableRows = useMemo<DisplayRow[]>(() => {
-    if (report.by === "consultant") {
-      return rows.map((r) => ({
-        key: `${r.recruiterId}|${r.consultantId}|${r.technology}`,
-        cells: [r.consultantName, r.recruiterName, r.technology],
-        count: r.count,
+    const submitted = new Set(rows.map((r) => r.consultantId));
+    const idle = consultants.filter((c) => !submitted.has(c.id));
+    if (report.by === "zero") {
+      return idle.map((c) => ({
+        key: c.id,
+        cells: [c.name, c.recruiterName, c.technology, fmtDate(c.lastSubmittedAt)],
+        count: 0,
+        zero: true,
       }));
+    }
+    if (report.by === "consultant") {
+      return [
+        ...rows.map((r) => ({
+          key: `${r.recruiterId}|${r.consultantId}|${r.technology}`,
+          cells: [r.consultantName, r.recruiterName, r.technology],
+          count: r.count,
+        })),
+        ...idle.map((c) => ({ key: c.id, cells: [c.name, c.recruiterName, c.technology], count: 0, zero: true })),
+      ];
     }
     const byRecruiter = new Map<string, DisplayRow>();
     for (const r of rows) {
@@ -176,8 +215,11 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
         (a, b) => b.count - a.count || a.consultantName.localeCompare(b.consultantName) || a.technology.localeCompare(b.technology)
       );
     }
+    for (const r of recruiters) {
+      if (!byRecruiter.has(r.id)) byRecruiter.set(r.id, { key: r.id, cells: [r.name], count: 0, zero: true });
+    }
     return [...byRecruiter.values()];
-  }, [rows, report.by]);
+  }, [rows, consultants, recruiters, report.by]);
 
   const visibleRows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -192,17 +234,24 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
 
   const total = visibleRows.reduce((sum, r) => sum + r.count, 0);
   const primaryCount = new Set(visibleRows.map((r) => r.cells[0])).size;
-  const colSpan = headers.length + 2;
+  const zeroCount = visibleRows.filter((r) => r.zero).length;
+  const colSpan = headers.length + (isZero ? 1 : 2);
 
   const exportCsv = () =>
-    downloadCsv(
-      `${title.replace(/\s+/g, "-")}-${toYmd(from)}.csv`,
-      ["#", ...headers, countLabel],
-      [
-        ...visibleRows.map((r, i) => [i + 1, ...r.cells, r.count]),
-        ["", "Total", ...headers.slice(1).map(() => ""), total],
-      ]
-    );
+    isZero
+      ? downloadCsv(
+          `${title.replace(/\s+/g, "-")}-${toYmd(from)}.csv`,
+          ["#", ...headers],
+          visibleRows.map((r, i) => [i + 1, ...r.cells])
+        )
+      : downloadCsv(
+          `${title.replace(/\s+/g, "-")}-${toYmd(from)}.csv`,
+          ["#", ...headers, countLabel],
+          [
+            ...visibleRows.map((r, i) => [i + 1, ...r.cells, r.count]),
+            ["", "Total", ...headers.slice(1).map(() => ""), total],
+          ]
+        );
 
   return (
     <div className="space-y-6 p-6">
@@ -317,14 +366,33 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
         </div>
 
         <div className="flex flex-wrap gap-6 border-b border-slate-100 px-5 py-3 text-sm">
-          <span className="text-slate-500">
-            {report.type === "submissions" ? "Total submissions" : "Total interviews done"}:{" "}
-            <span className="font-bold text-slate-900">{total}</span>
-          </span>
-          <span className="text-slate-500">
-            {report.by === "recruiter" ? "Recruiters" : "Consultants"}:{" "}
-            <span className="font-bold text-slate-900">{primaryCount}</span>
-          </span>
+          {isZero ? (
+            <>
+              <span className="text-slate-500">
+                In-Market consultants with zero submissions:{" "}
+                <span className="font-bold text-rose-600">{visibleRows.length}</span>
+              </span>
+              <span className="text-slate-500">
+                In-Market consultants: <span className="font-bold text-slate-900">{consultants.length}</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-slate-500">
+                {report.type === "submissions" ? "Total submissions" : "Total interviews done"}:{" "}
+                <span className="font-bold text-slate-900">{total}</span>
+              </span>
+              <span className="text-slate-500">
+                {report.by === "recruiter" ? "Recruiters" : "Consultants"}:{" "}
+                <span className="font-bold text-slate-900">{primaryCount}</span>
+              </span>
+              {report.type === "submissions" && (
+                <span className="text-slate-500">
+                  Zero submissions: <span className="font-bold text-rose-600">{zeroCount}</span>
+                </span>
+              )}
+            </>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -335,7 +403,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
                 {headers.map((h) => (
                   <th key={h} className="px-5 py-3">{h}</th>
                 ))}
-                <th className="px-5 py-3 text-right">{countLabel}</th>
+                {!isZero && <th className="px-5 py-3 text-right">{countLabel}</th>}
               </tr>
             </thead>
             <tbody>
@@ -348,7 +416,9 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
               ) : visibleRows.length === 0 ? (
                 <tr>
                   <td colSpan={colSpan} className="px-5 py-12 text-center text-slate-400">
-                    No {report.type === "submissions" ? "submissions" : "interviews"} in this period.
+                    {isZero
+                      ? "Every In-Market consultant has a submission in this period."
+                      : `No ${report.type === "submissions" ? "submissions" : "interviews"} in this period.`}
                   </td>
                 </tr>
               ) : (
@@ -359,7 +429,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
                       <tr className={cn("border-b border-slate-50 hover:bg-slate-50/60", isOpen && "bg-indigo-50/40")}>
                         <td className="px-5 py-3 text-slate-400">
                           <div className="flex items-center gap-2">
-                            {r.details && (
+                            {!!r.details?.length && (
                               <button
                                 type="button"
                                 onClick={() => toggleExpanded(r.key)}
@@ -381,7 +451,11 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
                             {cell}
                           </td>
                         ))}
-                        <td className="px-5 py-3 text-right font-semibold text-slate-900">{r.count}</td>
+                        {!isZero && (
+                          <td className={cn("px-5 py-3 text-right font-semibold", r.zero ? "text-rose-600" : "text-slate-900")}>
+                            {r.count}
+                          </td>
+                        )}
                       </tr>
                       {isOpen && r.details && (
                         <tr className="border-b border-slate-100 bg-slate-50/60">
@@ -417,7 +491,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
                 })
               )}
             </tbody>
-            {!isLoading && visibleRows.length > 0 && (
+            {!isLoading && !isZero && visibleRows.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-50/60 font-semibold text-slate-900">
                   <td className="px-5 py-3" colSpan={colSpan - 1}>Total</td>
