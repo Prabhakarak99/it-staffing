@@ -13,10 +13,18 @@ export interface TeamMonthRow {
   balance: LeaveBalance;
 }
 
-/** Every active employee with a role: their days, totals and leave balance for one month */
+/** Kept off the team grid and its Excel sheet: the CEO role and demo accounts */
+const notTracked = [
+  { role: { name: { contains: "CEO", mode: "insensitive" as const } } },
+  { firstName: { contains: "demo", mode: "insensitive" as const } },
+  { lastName: { contains: "demo", mode: "insensitive" as const } },
+  { email: { contains: "demo", mode: "insensitive" as const } },
+];
+
+/** Every active employee with a role (except CEOs and demo accounts): days, totals and leave balance for one month */
 export async function getTeamMonth(month: string): Promise<TeamMonthRow[]> {
   const users = await prisma.user.findMany({
-    where: { roleId: { not: null }, isActive: true },
+    where: { roleId: { not: null }, isActive: true, NOT: notTracked },
     select: { id: true, firstName: true, lastName: true, email: true, startDate: true, createdAt: true, role: { select: { name: true } } },
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
   });
