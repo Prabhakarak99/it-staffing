@@ -108,11 +108,18 @@ export function AttendanceView(props: {
   const [requesting, setRequesting] = useState(false);
   const [openEmployee, setOpenEmployee] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ userId: string; name: string; cell: DayCell } | null>(null);
 
-  /** Admin correction: present <-> absent (pending or not-marked days become present) */
-  const setDay = async (userId: string, cell: DayCell) => {
+  /** Admin correction: asks first, then sets the day present or absent */
+  const setDay = (userId: string, cell: DayCell) => {
     if (!isEditableDay(cell, props.today)) return;
-    const status = cell.status === "present" ? "absent" : "present";
+    const name = props.team?.find((t) => t.userId === userId)?.name ?? (viewing?.id === userId ? viewing.name : "");
+    setConfirming({ userId, name, cell });
+  };
+
+  const applyDay = async (status: "present" | "absent") => {
+    if (!confirming) return;
+    const { userId, cell } = confirming;
     setSaving(`${userId}|${cell.day}`);
     const res = await fetch("/api/attendance/set", {
       method: "POST",
@@ -122,7 +129,8 @@ export function AttendanceView(props: {
     const data = await res.json().catch(() => ({}));
     setSaving(null);
     if (!res.ok) return show(data.error ?? "Could not change attendance", "error");
-    show(`${fmtDayKey(cell.day)} set to ${status}`, "success");
+    setConfirming(null);
+    show(`${confirming.name ? `${confirming.name}: ` : ""}${fmtDayKey(cell.day)} set to ${status}`, "success");
     router.refresh();
   };
 
@@ -224,6 +232,15 @@ export function AttendanceView(props: {
           onClose={() => setOpenEmployee(null)}
         />
       )}
+      {confirming && (
+        <ConfirmDayDialog
+          name={confirming.name}
+          cell={confirming.cell}
+          saving={!!saving}
+          onPick={applyDay}
+          onClose={() => setConfirming(null)}
+        />
+      )}
       {requesting && (
         <LeaveRequestDialog
           today={props.today}
@@ -233,6 +250,45 @@ export function AttendanceView(props: {
       )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
     </>
+  );
+}
+
+/** Admin: confirm a day's change before it's saved */
+function ConfirmDayDialog({ name, cell, saving, onPick, onClose }: {
+  name: string;
+  cell: DayCell;
+  saving: boolean;
+  onPick: (status: "present" | "absent") => void;
+  onClose: () => void;
+}) {
+  const current = CELL[cell.status].label || "Not marked";
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label="Change attendance">
+      <div className="absolute inset-0" onClick={saving ? undefined : onClose} aria-hidden="true" />
+      <div className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+        <button onClick={onClose} disabled={saving} className="absolute right-3 top-3 text-slate-400 hover:text-slate-700" aria-label="Cancel">
+          <X className="h-4 w-4" />
+        </button>
+        <p className="text-[15px] font-bold text-slate-900">Change attendance?</p>
+        <p className="mt-1 text-[12.5px] text-slate-500">
+          {name && <b className="text-slate-700">{name}</b>}{name && " · "}{fmtDayKey(cell.day, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+        </p>
+        <p className="mt-3 text-[12.5px] text-slate-600">
+          Currently: <span className={cn("rounded px-1.5 py-0.5 text-[11.5px] font-semibold", CELL[cell.status].badge ?? "bg-slate-100 text-slate-600")}>{current}</span>
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button onClick={() => onPick("present")} disabled={saving || cell.status === "present"} className="bg-emerald-600 hover:bg-emerald-700">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Mark Present
+          </Button>
+          <Button onClick={() => onPick("absent")} disabled={saving || cell.status === "absent"} className="bg-rose-600 hover:bg-rose-700">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Mark Absent
+          </Button>
+        </div>
+        <button onClick={onClose} disabled={saving} className="mt-2 w-full rounded-lg py-1.5 text-[12.5px] font-semibold text-slate-500 hover:bg-slate-50">
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -315,7 +371,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
           <div>
             <p className="text-[13px] font-bold text-slate-900">{fmtMonth(view.month)}</p>
             <p className="text-[11px] text-slate-400">
-              One row per week, Monday to Sunday. India time.{onEditDay ? " Click a day to switch it between present and absent." : ""}
+              One row per week, Monday to Sunday. India time.{onEditDay ? " Click a day to mark it present or absent (you confirm first)." : ""}
             </p>
           </div>
         </div>
@@ -329,7 +385,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
             cell ? (
               <div
                 key={cell.day}
-                title={onEditDay && isEditableDay(cell, today) ? `${CELL[cell.status].label} · click to mark ${cell.status === "present" ? "absent" : "present"}` : CELL[cell.status].label}
+                title={onEditDay && isEditableDay(cell, today) ? `${CELL[cell.status].label} · click to change` : CELL[cell.status].label}
                 onClick={onEditDay && isEditableDay(cell, today) ? () => onEditDay(cell) : undefined}
                 className={cn(
                   "flex h-[78px] flex-col justify-between rounded-xl border p-2",
@@ -726,7 +782,7 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
           <p className="text-[13px] font-bold text-slate-900">All Employees · {fmtMonth(month)}</p>
           <p className="text-[11px] text-slate-400">
             {first ? `${first.calendarDays} calendar days · ${first.workingDays} working days (Mon–Fri). ` : ""}
-            Click a name to open their attendance.{canEdit ? " Click a day to switch it between present and absent." : ""}
+            Click a name to open their attendance.{canEdit ? " Click a day to mark it present or absent (you confirm first)." : ""}
           </p>
         </div>
         <a href={`/api/attendance/export?month=${month}`}>
@@ -765,7 +821,7 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
                       <td
                         key={cell.day}
                         onClick={editable ? () => onEditDay(r.userId, cell) : undefined}
-                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${editable ? ` · click to mark ${cell.status === "present" ? "absent" : "present"}` : ""}`}
+                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${editable ? ` · click to change` : ""}`}
                         className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
                       >
                         <MiniCell cell={cell} />
@@ -816,7 +872,7 @@ function EmployeeDialog({ row, month, today, canEdit, saving, onEditDay, onClose
           <p className="text-[12px] text-slate-500">
             Paid leave: <b className="text-slate-800">{row.balance.available}</b> available · {row.balance.accrued} earned · {row.balance.used} used
             {row.balance.pending ? ` · ${row.balance.pending} pending` : ""}
-            {canEdit && <span className="ml-2 text-indigo-600">Click a day to switch it between present and absent.</span>}
+            {canEdit && <span className="ml-2 text-indigo-600">Click a day to mark it present or absent (you confirm first).</span>}
           </p>
           <CalendarGrid view={{ month, days: row.days }} today={today} onEditDay={canEdit ? onEditDay : undefined} flat />
         </div>
