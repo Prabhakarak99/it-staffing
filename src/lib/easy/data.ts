@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth";
 import { isManager } from "@/lib/roles";
 import { addDays, todayKey } from "@/lib/attendance/dates";
+import { dayStart } from "@/lib/tz";
 
 export const EASY_SCREEN = { name: "Easy Submissions", path: "/admin/easy-submissions" };
 
@@ -11,9 +12,9 @@ const RECENT_SUBMISSION_MS = 60 * 86_400_000;
 
 const fullName = (u: { firstName: string; lastName: string } | null | undefined) => (u ? `${u.firstName} ${u.lastName}`.trim() : null);
 
-/** Start and end of an India calendar day as instants */
-export function istDay(key = todayKey()) {
-  return { start: new Date(`${key}T00:00:00+05:30`), end: new Date(`${addDays(key, 1)}T00:00:00+05:30`) };
+/** Start and end of a Central calendar day as instants */
+export function dayRange(key = todayKey()) {
+  return { start: dayStart(key), end: dayStart(addDays(key, 1)) };
 }
 
 export interface EasySubmissionRow {
@@ -32,9 +33,9 @@ export interface EasySubmissionRow {
   hasJobDescription: boolean;
 }
 
-/** Today's submissions (India date): the recruiter's own, or everyone's for managers */
+/** Today's submissions (Central date): the recruiter's own, or everyone's for managers */
 export async function todaysSubmissions(session: SessionPayload): Promise<EasySubmissionRow[]> {
-  const { start, end } = istDay();
+  const { start, end } = dayRange();
   const rows = await prisma.submission.findMany({
     where: {
       OR: [{ submissionDate: { gte: start, lt: end } }, { createdAt: { gte: start, lt: end } }],

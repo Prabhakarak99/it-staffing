@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { addDays, fmtDayKey, keyToDate, todayKey } from "@/lib/attendance/dates";
-import { istDay } from "@/lib/easy/data";
+import { dayRange } from "@/lib/easy/data";
 import {
   CLOSED_STATUSES, FIRST_DUE_DAYS, GRACE_DAYS, MAX_FOLLOWUPS, SECOND_DUE_DAYS,
   draftBody, type FollowUpKind,
@@ -63,8 +63,8 @@ function standing(kind: FollowUpKind, day: string, sent: Date[], today: string) 
  */
 export async function listFollowUps(recruiterId: string | null): Promise<FollowUpItem[]> {
   const today = todayKey();
-  const since = istDay(addDays(today, -LOOKBACK_DAYS)).start;
-  const todayStart = istDay(today).start;
+  const since = dayRange(addDays(today, -LOOKBACK_DAYS)).start;
+  const todayStart = dayRange(today).start;
   const mine = recruiterId ? { recruiterId } : {};
   const person = { select: { firstName: true, lastName: true } };
   const sentOnly = { where: { status: "sent" }, select: { createdAt: true }, orderBy: { createdAt: "asc" as const } };

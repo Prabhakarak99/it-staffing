@@ -11,6 +11,7 @@ import {
   Link2, Users, Building2,
 } from "lucide-react";
 import { validateOptionalUrl } from "@/lib/validators";
+import { fromWallInput, toWallInput } from "@/lib/tz";
 
 const INTERVIEW_LEVELS = ["Screening", "Level 1", "Level 2", "Level 3", "Final"];
 const INTERVIEW_STATUSES = ["Rejected", "Moved To Next Round", "Confirmation"];
@@ -126,14 +127,12 @@ function calcDuration(start: string, end: string): string {
 
 function isInterviewFinished(endDate: string) {
   if (!endDate) return false;
-  return new Date() >= new Date(endDate);
+  return new Date() >= fromWallInput(endDate);
 }
 
+/** Interview times are entered and shown in Central time, whatever the browser's time zone */
 function toDateTimeLocal(value: string | Date | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return value ? toWallInput(value) : "";
 }
 
 const EMPTY_FORM = {
@@ -266,8 +265,8 @@ export function InterviewForm({ recruiterName, nextInterviewId, submissionOption
       try {
         const payload = {
           submissionId: form.submissionId,
-          interviewStartDate: form.interviewStartDate,
-          interviewEndDate: form.interviewEndDate,
+          interviewStartDate: fromWallInput(form.interviewStartDate).toISOString(),
+          interviewEndDate: fromWallInput(form.interviewEndDate).toISOString(),
           interviewLevel: form.interviewLevel,
           interviewStatus: form.interviewStatus || (statusRequired ? "" : "Scheduled"),
           techSupportId: form.techSupportId || null,
@@ -415,13 +414,13 @@ export function InterviewForm({ recruiterName, nextInterviewId, submissionOption
         <SectionCard icon={Clock} title="Interview Schedule" color="violet">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 items-start">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Start Date & Time *</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Start Date & Time (CT) *</label>
               <input id="startDate" type="datetime-local" value={form.interviewStartDate} onChange={set("interviewStartDate")}
                 className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
               {errors.interviewStartDate && <p className="mt-1 text-xs text-rose-500">{errors.interviewStartDate}</p>}
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">End Date & Time *</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">End Date & Time (CT) *</label>
               <input id="endDate" type="datetime-local" value={form.interviewEndDate} onChange={set("interviewEndDate")}
                 className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20" />
               {errors.interviewEndDate && <p className="mt-1 text-xs text-rose-500">{errors.interviewEndDate}</p>}

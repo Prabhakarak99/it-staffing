@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { APP_TZ } from "@/lib/tz";
 import type { FollowUpItem } from "@/lib/followups/data";
 import { MAX_FOLLOWUPS, type FollowUpKind } from "@/lib/followups/templates";
 
@@ -15,7 +16,7 @@ const TABS: { kind: FollowUpKind; label: string; hint: string }[] = [
   { kind: "interview", label: "Interviews", hint: "Interview was yesterday: ask the vendor for feedback. A second follow-up comes due a week after the first." },
 ];
 
-const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ });
 
 export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, dayLabel }: {
   initialItems: FollowUpItem[];

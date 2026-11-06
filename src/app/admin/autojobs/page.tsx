@@ -8,6 +8,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import {
   Zap, Upload, Pause, Play, Send, RefreshCw, ChevronDown, ChevronRight,
 } from "lucide-react";
+import { APP_TZ } from "@/lib/tz";
 
 interface AutoJobsConfig {
   paused: boolean;
@@ -395,7 +396,7 @@ function RunRow({
         <td className="px-4 py-3 text-right tabular-nums">{run.emailsSent}</td>
         <td className="px-4 py-3">{runStatusBadge(run.status)}</td>
         <td className="px-4 py-3 whitespace-nowrap text-slate-500">
-          {new Date(run.createdAt).toLocaleString()}
+          {new Date(run.createdAt).toLocaleString("en-US", { timeZone: APP_TZ })}
         </td>
       </tr>
       {expanded && (
@@ -432,7 +433,7 @@ function RunRow({
                         )}
                       </td>
                       <td className="py-2 text-slate-500">
-                        {app.sentAt ? new Date(app.sentAt).toLocaleString() : "—"}
+                        {app.sentAt ? new Date(app.sentAt).toLocaleString("en-US", { timeZone: APP_TZ }) : "—"}
                       </td>
                     </tr>
                   ))}

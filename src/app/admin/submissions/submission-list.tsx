@@ -17,6 +17,7 @@ import {
   type DatePreset,
   type SortDir,
 } from "@/components/ui/table-column-filters";
+import { APP_TZ } from "@/lib/tz";
 
 const STATUSES = [
   "Submission Submitted", "In Review", "Rejected",
@@ -68,7 +69,7 @@ const EMPTY_FILTERS = (): Filters => ({
 });
 
 function fmt(d: Date | string) {
-  return new Date(d).toLocaleDateString("en-US", { dateStyle: "medium" });
+  return new Date(d).toLocaleDateString("en-US", { timeZone: APP_TZ, dateStyle: "medium" });
 }
 
 function getFilterValue(submission: SubmissionRecord, key: FilterKey): string {

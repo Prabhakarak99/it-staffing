@@ -15,16 +15,17 @@ import {
   BarChart3, Activity, Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { APP_TZ, centralHour, centralPeriods } from "@/lib/tz";
 import { getTodayAttendance, type TodayPerson } from "@/lib/attendance/team";
 
 function greeting() {
-  const h = new Date().getHours();
+  const h = centralHour();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
 function todayStr() {
   return new Date().toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
+    timeZone: APP_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
 }
 
@@ -263,12 +264,8 @@ export default async function AdminDashboard() {
      RECRUITER DASHBOARD
   ══════════════════════════════════════════════════════════════════════════ */
   if (isRecruiter) {
-    // ── Date boundaries (Mon-based week) ─────────────────────────────────────
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dow = now.getDay(); // 0=Sun
-    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 6 : dow - 1));
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // ── Date boundaries (Central time, Mon-based week) ───────────────────────
+    const { today: todayStart, week: weekStart, month: monthStart } = centralPeriods();
 
     // Each consultant should get 10 submissions per 5-day work week (= 100%)
     const WEEKLY_SUB_TARGET = 10;

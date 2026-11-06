@@ -10,6 +10,7 @@ import {
 } from "@/components/forms/compact-slide-form";
 import { EditUserForm } from "./edit-user-form";
 import type { Role } from "@/generated/prisma/client";
+import { APP_TZ } from "@/lib/tz";
 
 type UserRecord = {
   id: string;
@@ -28,7 +29,7 @@ function initials(name: string) {
 }
 
 function fmtDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(value).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" });
 }
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {

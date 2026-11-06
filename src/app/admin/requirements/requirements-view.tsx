@@ -13,6 +13,7 @@ import { JobCard } from "./job-card";
 import { JobFilters, EMPTY_FILTERS, type Filters } from "./job-filters";
 import { JobDetailModal, type JobResult } from "./job-detail-modal";
 import { Toast, useToast } from "@/components/ui/toast";
+import { APP_TZ } from "@/lib/tz";
 
 interface Props {
   initialJobs: JobResult[];
@@ -34,7 +35,7 @@ function fmtTime(d: string | null) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric" });
 }
 
 export function RequirementsView({

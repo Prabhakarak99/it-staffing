@@ -6,6 +6,7 @@ import {
   X, MapPin, Mail, Phone, ExternalLink, Calendar, Building2,
   Briefcase, DollarSign, Wifi, Shield, Tag, Globe, Clock,
 } from "lucide-react";
+import { APP_TZ } from "@/lib/tz";
 
 export interface JobResult {
   id: string;
@@ -53,7 +54,7 @@ const JOB_TYPE_STYLE: Record<string, string> = {
 
 function fmtDate(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" });
 }
 
 interface Props { job: JobResult; onClose: () => void; }

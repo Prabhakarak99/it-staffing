@@ -14,6 +14,7 @@ import {
   SlideFormShell,
 } from "@/components/forms/compact-slide-form";
 import { SubmissionForm } from "./submission-form";
+import { APP_TZ } from "@/lib/tz";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "info" | "default"> = {
   "Submission Submitted": "info",
@@ -52,7 +53,7 @@ type SubmissionDetailRecord = {
 };
 
 function fmtDate(value: string) {
-  return new Date(value).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(value).toLocaleString("en-US", { timeZone: APP_TZ, dateStyle: "medium", timeStyle: "short" });
 }
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {

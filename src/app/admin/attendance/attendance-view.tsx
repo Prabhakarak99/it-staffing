@@ -10,6 +10,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { APP_TZ } from "@/lib/tz";
 import { fmtDayKey, fmtMonth, shiftMonth, weekday } from "@/lib/attendance/dates";
 import type { LeaveBalance } from "@/lib/attendance/leave";
 import { isEditableDay } from "@/lib/attendance/cells";
@@ -371,7 +372,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
           <div>
             <p className="text-[13px] font-bold text-slate-900">{fmtMonth(view.month)}</p>
             <p className="text-[11px] text-slate-400">
-              One row per week, Monday to Sunday. India time.{onEditDay ? " Click a day to mark it present or absent (you confirm first)." : ""}
+              One row per week, Monday to Sunday. Central time (CT).{onEditDay ? " Click a day to mark it present or absent (you confirm first)." : ""}
             </p>
           </div>
         </div>
@@ -669,7 +670,7 @@ function Approvals({ data, notify, onChange }: { data: ApprovalData; notify: (m:
                     <td className="whitespace-nowrap px-4 py-2.5 font-medium text-slate-800">{fmtDayKey(a.day)}</td>
                     <td className="px-4 py-2.5"><p className="font-semibold text-slate-800">{a.name}</p><p className="text-[11px] text-slate-400">{a.email}</p></td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">
-                      {new Date(a.markedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST
+                      {new Date(a.markedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ })} CT
                     </td>
                     <td className="max-w-[260px] truncate px-4 py-2.5 text-slate-500" title={a.note ?? ""}>{a.note || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">

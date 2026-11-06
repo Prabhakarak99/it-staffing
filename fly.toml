@@ -8,6 +8,8 @@ primary_region = "dfw"
 [env]
   NODE_ENV = "production"
   PORT     = "3000"
+  # Whole app runs on US Central time (CST / CDT); see src/lib/tz.ts
+  TZ       = "America/Chicago"
 
 # Secrets (set these via CLI — never put real values here):
 #   fly secrets set JWT_SECRET="..."

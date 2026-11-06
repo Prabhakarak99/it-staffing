@@ -14,6 +14,7 @@ import {
   SlideFormShell,
 } from "@/components/forms/compact-slide-form";
 import { InterviewForm } from "./interview-form";
+import { APP_TZ } from "@/lib/tz";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "info" | "default"> = {
   Rejected: "danger",
@@ -61,7 +62,7 @@ type InterviewDetailRecord = {
 };
 
 function fmtDate(value: string) {
-  return new Date(value).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(value).toLocaleString("en-US", { timeZone: APP_TZ, dateStyle: "medium", timeStyle: "short" });
 }
 
 function calcDuration(start: string, end: string) {

@@ -1,7 +1,9 @@
-// Attendance dates are India calendar days, passed around as "yyyy-mm-dd" keys and stored as DATE
+// Attendance dates are US Central calendar days (see src/lib/tz.ts), passed around as "yyyy-mm-dd" keys and stored as DATE
 // (UTC midnight). No server imports: the attendance grid uses these too.
 
-export const ATTENDANCE_TZ = "Asia/Kolkata";
+import { APP_TZ } from "@/lib/tz";
+
+export const ATTENDANCE_TZ = APP_TZ;
 
 /** First day attendance is tracked; earlier days are never shown as absent */
 export const ATTENDANCE_START = "2026-11-06";
@@ -11,7 +13,7 @@ export const ACCRUAL_START_MONTH = "2026-11";
 
 const keyFormat = new Intl.DateTimeFormat("en-CA", { timeZone: ATTENDANCE_TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 
-/** Today's date in India */
+/** Today's date in Central time */
 export const todayKey = (now = new Date()) => keyFormat.format(now);
 
 export const keyToDate = (key: string) => new Date(`${key}T00:00:00.000Z`);

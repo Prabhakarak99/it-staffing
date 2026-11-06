@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { GmailSetup } from "@/lib/gmail/setup";
+import { APP_TZ } from "@/lib/tz";
 
 const CONSOLE = "https://console.cloud.google.com";
 
@@ -182,7 +183,7 @@ export function GmailSetupPanel({ setup: initial, onSaved, notify }: {
                 <div className={cn("flex items-center justify-between gap-2 border-t border-slate-200 pt-3")}>
                   <p className="text-[11px] text-slate-500">
                     Saved{setup.updatedByName ? ` by ${setup.updatedByName}` : ""}
-                    {setup.updatedAt ? ` on ${new Date(setup.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                    {setup.updatedAt ? ` on ${new Date(setup.updatedAt).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" })}` : ""}
                   </p>
                   <button type="button" onClick={remove} className="flex items-center gap-1 text-[11.5px] font-semibold text-rose-600 hover:underline">
                     <Trash2 className="h-3 w-3" /> Remove keys

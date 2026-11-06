@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Inbox, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EmailCounts } from "@/lib/gmail/stats";
+import { APP_TZ } from "@/lib/tz";
 
 /** Received / Sent × Today / This Week / This Month — used on the Mailbox page and the recruiter dashboard */
 export function EmailActivityCards({ counts, connected, lastSyncAt, compact }: {
@@ -21,7 +22,7 @@ export function EmailActivityCards({ counts, connected, lastSyncAt, compact }: {
         <p className="text-[13px] font-bold text-slate-900">Email Activity</p>
         {connected ? (
           <p className="text-[11px] text-slate-400">
-            {lastSyncAt ? `Updated ${new Date(lastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Counting…"}
+            {lastSyncAt ? `Updated ${new Date(lastSyncAt).toLocaleTimeString("en-US", { timeZone: APP_TZ, hour: "numeric", minute: "2-digit" })}` : "Counting…"}
           </p>
         ) : (
           <Link href="/admin/mailbox" className="text-[12px] font-semibold text-indigo-600 hover:underline">

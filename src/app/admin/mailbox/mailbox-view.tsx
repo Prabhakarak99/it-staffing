@@ -11,9 +11,10 @@ import type { EmailActivity } from "@/lib/gmail/activity";
 import type { GmailSetup } from "@/lib/gmail/setup";
 import { ComposeDialog } from "./compose-dialog";
 import { GmailSetupPanel } from "./gmail-setup";
+import { APP_TZ } from "@/lib/tz";
 
 const fmtTime = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+  iso ? new Date(iso).toLocaleString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
 
 const fmtDay = (day: string) =>
   new Date(`${day}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });

@@ -16,10 +16,11 @@ RUN npm run build
 # ── Stage 2: Production runner ─────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat tzdata
 
 WORKDIR /app
 ENV NODE_ENV=production
+ENV TZ=America/Chicago
 
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs

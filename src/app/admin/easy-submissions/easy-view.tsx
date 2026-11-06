@@ -9,6 +9,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { APP_TZ } from "@/lib/tz";
 import type { ConsultantOption, EasySubmissionRow, VendorOption } from "@/lib/easy/data";
 import { AccessDialog } from "./access-dialog";
 
@@ -27,7 +28,7 @@ interface VendorState { loading: boolean; error?: string; vendors: VendorOption[
 type Notify = (message: string, type: "success" | "error") => void;
 
 const resumeHref = (file: string) => `/api/resumes/${file}`;
-const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ });
 
 function ExpandButton({ open, onClick, label }: { open: boolean; onClick: () => void; label: string }) {
   return (
@@ -463,7 +464,7 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
   );
 }
 
-const fmtShortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+const fmtShortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit", timeZone: APP_TZ });
 
 function VendorGroup({ title, hint, tone, vendors, selected, onToggle, onSetAll, onSend }: {
   title: string;

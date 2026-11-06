@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { MapPin, Mail, Phone, ExternalLink, Calendar, Wifi, DollarSign, Building2, Trash2 } from "lucide-react";
 import { SOURCE_STYLE, type JobResult } from "./job-detail-modal";
+import { APP_TZ } from "@/lib/tz";
 
 const JOB_TYPE_STYLE: Record<string, string> = {
   "C2C":     "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -20,7 +21,7 @@ function fmtDate(d: string | null) {
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric" });
 }
 
 interface Props {

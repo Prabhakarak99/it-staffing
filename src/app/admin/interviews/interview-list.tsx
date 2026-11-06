@@ -17,6 +17,7 @@ import {
   type DatePreset,
   type SortDir,
 } from "@/components/ui/table-column-filters";
+import { APP_TZ } from "@/lib/tz";
 
 const INTERVIEW_STATUSES = ["Rejected", "Moved To Next Round", "Confirmation"];
 
@@ -226,7 +227,7 @@ export function InterviewList({
   }, [filters, datePresets, customFrom, customTo]);
 
   const fmtDate = (d: string | Date) =>
-    new Date(d).toLocaleDateString("en-US", { dateStyle: "medium" });
+    new Date(d).toLocaleDateString("en-US", { timeZone: APP_TZ, dateStyle: "medium" });
 
   const updateStatus = (id: string, interviewStatus: string) => {
     setUpdatingId(id);

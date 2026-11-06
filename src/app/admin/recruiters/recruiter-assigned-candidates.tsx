@@ -16,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import type { RecruiterUser } from "./recruiter-list";
+import { APP_TZ } from "@/lib/tz";
 
 type CandidateRange = "all" | "day" | "week" | "month";
 
@@ -50,7 +51,7 @@ function fmtDate(d: string | null) {
 
 function fmtDateTime(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(d).toLocaleString("en-US", { timeZone: APP_TZ, dateStyle: "medium", timeStyle: "short" });
 }
 
 function matchesDateRange(createdAt: string, filters: DateRangeFilters) {

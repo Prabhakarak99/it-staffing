@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Download, Loader2, Minus, Plus, RefreshCw, Search } from "lucide-react";
 import { Toast, useToast } from "@/components/ui/toast";
+import { APP_TZ, dayKeyOf, dayStart } from "@/lib/tz";
 import type { MarketConsultant, ReportRecruiter, ReportRow } from "@/app/api/reports/route";
 
 /* ── Report definitions ─────────────────────────────────────────────────── */
@@ -21,7 +22,8 @@ const REPORTS: { key: ReportKey; label: string; type: "submissions" | "interview
   { key: "consultant-zero",        label: "Zero Submissions",         type: "submissions", by: "zero" },
 ];
 
-/* ── Local-time period helpers ──────────────────────────────────────────── */
+/* ── Period helpers ─────────────────────────────────────────────────────── */
+// Calendar math runs on plain dates; each period is then sent as Central-time instants (src/lib/tz.ts)
 function startOfWeek(d: Date) {
   const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   s.setDate(s.getDate() - ((s.getDay() + 6) % 7)); // Monday
@@ -62,7 +64,13 @@ const toYmd = (d: Date) =>
 
 function parseYmd(value: string | undefined) {
   const m = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date();
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : centralToday();
+}
+
+/** Today's Central date as a calendar date */
+function centralToday() {
+  const [y, m, d] = dayKeyOf().split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {
@@ -96,7 +104,7 @@ interface ReportResult {
 }
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never";
+  iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" }) : "Never";
 
 interface ReportsViewProps {
   initialReport?: string;
@@ -126,7 +134,10 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
 
   const report = REPORTS.find((r) => r.key === reportKey)!;
   const { from, to } = useMemo(() => periodRange(period, anchor), [period, anchor]);
-  const isCurrentPeriod = from <= new Date() && new Date() < to;
+  const today = centralToday();
+  const isCurrentPeriod = from <= today && today < to;
+  const fromIso = dayStart(toYmd(from)).toISOString();
+  const toIso = dayStart(toYmd(to)).toISOString();
   const title = `${PERIOD_TITLE[period]} ${report.label}`;
   const countLabel = report.type === "submissions" ? "Submissions Count" : "Interviews Done";
   const isZero = report.by === "zero";
@@ -138,7 +149,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
   }, [reportKey, period, anchor]);
 
   // Loading = the latest request key hasn't resolved yet (bump `reloadTick` to refetch)
-  const requestKey = `${report.type}|${from.toISOString()}|${to.toISOString()}|${reloadTick}`;
+  const requestKey = `${report.type}|${fromIso}|${toIso}|${reloadTick}`;
   const isLoading = result?.key !== requestKey;
   const rows = useMemo(() => (isLoading || !result ? [] : result.rows), [isLoading, result]);
   const consultants = useMemo(() => (isLoading || !result ? [] : result.consultants), [isLoading, result]);
@@ -146,7 +157,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ type: report.type, from: from.toISOString(), to: to.toISOString() });
+    const params = new URLSearchParams({ type: report.type, from: fromIso, to: toIso });
     fetch(`/api/reports?${params}`, { cache: "no-store" })
       .then(async (res) => {
         const data = await res.json();
@@ -167,7 +178,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
     return () => {
       cancelled = true;
     };
-  }, [requestKey, report.type, from, to, show]);
+  }, [requestKey, report.type, fromIso, toIso, show]);
 
   // Recruiter reports show only the totals per recruiter (no consultant names);
   // consultant reports keep the consultant / recruiter / technology breakdown.
@@ -346,7 +357,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
               {!isCurrentPeriod && (
                 <button
                   type="button"
-                  onClick={() => setAnchor(new Date())}
+                  onClick={() => setAnchor(centralToday())}
                   className="ml-1 rounded-lg px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
                 >
                   {CURRENT_LABEL[period]}

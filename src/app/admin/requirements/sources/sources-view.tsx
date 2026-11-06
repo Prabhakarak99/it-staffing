@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Toast, useToast } from "@/components/ui/toast";
 import type { JobFeedOverview } from "@/lib/jobfeed/overview";
+import { APP_TZ } from "@/lib/tz";
 
 type Company = JobFeedOverview["companies"][number];
 type Config = JobFeedOverview["config"];
@@ -32,7 +33,7 @@ function fmtAgo(d: string | null) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric" });
 }
 
 function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {

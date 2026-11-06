@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText } from "lucide-react";
+import { APP_TZ } from "@/lib/tz";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "info" | "default"> = {
   "Submission Submitted": "info",
@@ -72,7 +73,7 @@ export default async function SubmissionDetailPage({
   }
 
   const fmt = (d: Date | string) =>
-    new Date(d).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    new Date(d).toLocaleString("en-US", { timeZone: APP_TZ, dateStyle: "medium", timeStyle: "short" });
 
   return (
     <>

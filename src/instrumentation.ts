@@ -9,6 +9,9 @@ export async function register() {
   // Register screens added after the initial seed (e.g. Vendor Management) so User Roles can grant them.
   void ensureScreens().catch((err) => console.error("[screens] ensureScreens failed:", err));
   void grantScreensOnce().catch((err) => console.error("[screens] grantScreensOnce failed:", err));
+  void import("@/lib/tz-migration")
+    .then(({ migrateToCentralOnce }) => migrateToCentralOnce())
+    .catch((err) => console.error("[tz] Central time migration failed:", err));
   void import("@/lib/attendance/quotes")
     .then(({ ensureQuotes }) => ensureQuotes())
     .catch((err) => console.error("[attendance] ensureQuotes failed:", err));

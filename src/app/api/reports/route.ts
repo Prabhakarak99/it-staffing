@@ -33,7 +33,7 @@ const fullName = (p: { firstName: string; lastName: string }) =>
 /**
  * GET /api/reports?type=submissions|interviews&from=ISO&to=ISO
  * Counts per (recruiter, consultant, technology) in [from, to).
- * The client computes from/to in the viewer's local timezone.
+ * The client sends from/to as Central-time day boundaries.
  * Interviews only count once their start time has passed ("done").
  * Submission reports also return every In-Market consultant and every recruiter, for the zero rows.
  */

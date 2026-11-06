@@ -53,7 +53,7 @@ export interface TodayPerson {
   onLeave?: boolean;
 }
 
-/** Who is in today (India date), for the dashboard: same people as the team grid */
+/** Who is in today (Central date), for the dashboard: same people as the team grid */
 export async function getTodayAttendance() {
   const today = todayKey();
   const [users, marks, leaves] = await Promise.all([

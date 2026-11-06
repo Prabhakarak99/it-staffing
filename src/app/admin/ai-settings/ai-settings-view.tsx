@@ -9,6 +9,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/catalog";
 import type { AiProviderRow } from "@/lib/ai/admin";
+import { APP_TZ } from "@/lib/tz";
 
 interface FormState {
   id?: string;
@@ -131,7 +132,7 @@ export function AiSettingsView({ providers: initial }: { providers: AiProviderRo
                 {p.lastTestedAt && (
                   <p className={cn("mt-3 flex items-center gap-1.5 text-[11.5px]", p.lastError ? "text-rose-600" : "text-emerald-700")}>
                     {p.lastError ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    {p.lastError ?? "Working"} · tested {new Date(p.lastTestedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {p.lastError ?? "Working"} · tested {new Date(p.lastTestedAt).toLocaleString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                   </p>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">

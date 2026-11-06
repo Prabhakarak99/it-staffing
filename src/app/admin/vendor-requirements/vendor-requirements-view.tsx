@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Building2, Mail, Phone, Search, Users2, FileText, Plus } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { cn } from "@/lib/utils";
+import { APP_TZ } from "@/lib/tz";
 
 export interface VendorSuggestion {
   id: string;
@@ -24,7 +25,7 @@ export interface VendorSuggestion {
 }
 
 const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  new Date(iso).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" });
 
 export function VendorRequirementsView({ today, suggestions, sourceCount }: {
   today: string; suggestions: VendorSuggestion[]; sourceCount: number;

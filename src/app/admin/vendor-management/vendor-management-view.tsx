@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { VendorList } from "@/lib/vendors/list";
+import { APP_TZ } from "@/lib/tz";
 
 type Vendor = VendorList["vendors"][number];
 
@@ -38,7 +39,7 @@ const TEMPLATES = [
 const splitList = (s: string | null) => (s ?? "").split(",").map((t) => t.trim()).filter(Boolean);
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" }) : "—";
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   useEffect(() => {

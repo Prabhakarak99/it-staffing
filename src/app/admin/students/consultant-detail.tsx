@@ -14,6 +14,7 @@ import {
 import { ConsultantForm } from "./consultant-form";
 import { normalizeConsultantComments, getConsultantLevelCommentsText, type ConsultantComment } from "@/lib/premarketing-checklist";
 import { formatDateOnly } from "@/lib/dates";
+import { APP_TZ } from "@/lib/tz";
 
 type ConsultantDetail = {
   id: string;
@@ -78,7 +79,7 @@ function initials(name: string) {
 
 function fmtDateTime(value: string | null) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", {
+  return new Date(value).toLocaleDateString("en-US", { timeZone: APP_TZ,
     month: "short", day: "numeric", year: "numeric",
   });
 }

@@ -11,11 +11,12 @@ import {
 import { LeadForm, leadToForm } from "./lead-form";
 import { STATUS_STYLES, fmtOptDate, isLeadStatus, type LeadRow } from "@/lib/leads/fields";
 import { cn } from "@/lib/utils";
+import { APP_TZ } from "@/lib/tz";
 
 type LeadRecord = LeadRow;
 
 function fmtDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(value).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" });
 }
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {

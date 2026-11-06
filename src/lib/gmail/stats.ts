@@ -1,20 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { countMessages } from "./api";
 import { GmailNotConnectedError, isGmailConfigured } from "./oauth";
+import { addKeyDays, centralPeriods, dayKeyOf, dayStart } from "@/lib/tz";
 
 /** Re-count an account at most this often from the background worker */
 const SYNC_EVERY_MS = 15 * 60_000;
 
-/** Same boundaries as the recruiter dashboard: server-local day, Monday-based week, calendar month */
-export function periodStarts(now = new Date()) {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dow = now.getDay();
-  const week = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 6 : dow - 1));
-  const month = new Date(now.getFullYear(), now.getMonth(), 1);
-  return { today, week, month, earliest: week < month ? week : month };
-}
+/** Same boundaries as the recruiter dashboard: Central day, Monday-based week, calendar month */
+export const periodStarts = centralPeriods;
 
-const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const epoch = (d: Date) => Math.floor(d.getTime() / 1000);
 
 /**
@@ -26,12 +20,14 @@ export async function syncEmailStats(userId: string) {
   const account = await prisma.gmailAccount.findUnique({ where: { userId } });
   if (!account) return;
 
-  const { today, earliest } = periodStarts();
-  const from = account.lastSyncAt ? addDays(today, -1) : earliest;
+  // Each row's `day` is midnight Central at the start of that day
+  const { todayKey, earliestKey } = periodStarts();
+  const fromKey = account.lastSyncAt ? addKeyDays(todayKey, -1) : earliestKey;
 
   try {
-    for (let day = from; day <= today; day = addDays(day, 1)) {
-      const range = `after:${epoch(day)} before:${epoch(addDays(day, 1))}`;
+    for (let key = fromKey; key <= todayKey; key = addKeyDays(key, 1)) {
+      const day = dayStart(key);
+      const range = `after:${epoch(day)} before:${epoch(dayStart(addKeyDays(key, 1)))}`;
       const [received, sent] = await Promise.all([
         countMessages(userId, `${range} in:inbox`),
         countMessages(userId, `${range} in:sent`),
@@ -118,7 +114,7 @@ export async function getDailyRows(userIds: string[]): Promise<DailyRow[]> {
     orderBy: [{ day: "desc" }, { sent: "desc" }],
   });
   return rows.map((r) => ({
-    day: `${r.day.getFullYear()}-${String(r.day.getMonth() + 1).padStart(2, "0")}-${String(r.day.getDate()).padStart(2, "0")}`,
+    day: dayKeyOf(r.day),
     userId: r.userId,
     name: `${r.user.firstName} ${r.user.lastName}`.trim(),
     email: r.email,

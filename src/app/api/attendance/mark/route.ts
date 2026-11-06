@@ -5,7 +5,7 @@ import { marksAttendance } from "@/lib/attendance/access";
 import { keyToDate, todayKey } from "@/lib/attendance/dates";
 import { quoteForDay } from "@/lib/attendance/quotes";
 
-/** POST /api/attendance/mark { note? } — "Yes, I'm in" for today (India date); goes to the approvers */
+/** POST /api/attendance/mark { note? } — "Yes, I'm in" for today (Central date); goes to the approvers */
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
