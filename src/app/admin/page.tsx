@@ -15,6 +15,7 @@ import {
   BarChart3, Activity, Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getTodayAttendance, type TodayPerson } from "@/lib/attendance/team";
 
 function greeting() {
   const h = new Date().getHours();
@@ -92,6 +93,57 @@ function QuickAction({ label, href, icon: Icon, color }: {
 // ── Consultant Today / Week / Month count table ───────────────────────────────
 interface PeriodCounts { today: number; week: number; month: number }
 interface ConsultantCountRow extends PeriodCounts { id: string; name: string; technology: string | null }
+
+/** Banner tile: who is in today. Hover (or keyboard focus) shows the present / absent names. */
+function AttendanceTodayTile({ present, absent, total }: { present: TodayPerson[]; absent: TodayPerson[]; total: number }) {
+  return (
+    <div className="group relative">
+      <Link
+        href="/admin/attendance?tab=team"
+        className="block rounded-lg border border-white/[0.08] bg-white/[0.05] px-2.5 py-1.5 text-center backdrop-blur-sm transition hover:border-white/20"
+      >
+        <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Present Today</p>
+        <p className="text-[16px] font-bold tabular-nums leading-none text-sky-300">
+          {present.length}<span className="text-[11px] font-semibold text-slate-500">/{total}</span>
+        </p>
+      </Link>
+      <div className="invisible absolute right-0 top-full z-50 pt-2 opacity-0 transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+        <div className="w-[420px] max-w-[90vw] rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[12px] font-bold text-slate-800">Attendance today</p>
+            <Link href="/admin/attendance?tab=team" className="text-[11px] font-semibold text-indigo-600 hover:underline">Full report →</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { title: "Present", people: present, head: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
+              { title: "Absent", people: absent, head: "bg-rose-50 text-rose-700", dot: "bg-rose-500" },
+            ].map(({ title, people, head, dot }) => (
+              <div key={title} className="overflow-hidden rounded-lg border border-slate-100">
+                <p className={cn("flex items-center justify-between px-2.5 py-1.5 text-[11px] font-bold", head)}>
+                  {title} <span className="tabular-nums">{people.length}</span>
+                </p>
+                <ul className="max-h-64 divide-y divide-slate-50 overflow-y-auto">
+                  {people.length === 0 ? (
+                    <li className="px-2.5 py-2 text-[11px] text-slate-400">No one</li>
+                  ) : (
+                    people.map((p) => (
+                      <li key={p.id} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11.5px] text-slate-700">
+                        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
+                        <span className="truncate">{p.name}</span>
+                        {p.pending && <span className="ml-auto shrink-0 rounded bg-amber-50 px-1 text-[9.5px] font-semibold text-amber-700">Awaiting approval</span>}
+                        {p.onLeave && <span className="ml-auto shrink-0 rounded bg-sky-50 px-1 text-[9.5px] font-semibold text-sky-700">On leave</span>}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CountCell({ value, color }: { value: number; color: string }) {
   return (
@@ -381,7 +433,7 @@ export default async function AdminDashboard() {
     userCount, recruiterCount, roleCount, activeCount,
     studentCount, submissionCount, interviewCount, techSupportCount,
     inMarketCount, onProjectCount, preMarketingCount, projectCompletedCount,
-    pendingExpenses, recentSubs, recentIntvs,
+    pendingExpenses, recentSubs, recentIntvs, attendanceToday,
   ] = await Promise.all([
     prisma.user.count(),
     recruiterRole ? prisma.user.count({ where: { roleId: recruiterRole.id } }) : Promise.resolve(0),
@@ -395,10 +447,10 @@ export default async function AdminDashboard() {
     prisma.student.count({ where: { projectStatus: "In-Project" } }),
     prisma.student.count({ where: { projectStatus: "Pre-Marketing" } }),
     prisma.student.count({ where: { projectStatus: "Project Completed- InMarket" } }),
-    prisma.student.count({ where: { projectStatus: "Second Project" } }),
     prisma.expense.count({ where: { status: "Pending" } }),
     prisma.submission.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
     prisma.interview.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    getTodayAttendance(),
   ]);
 
   const primaryStats: StatCardProps[] = [
@@ -420,7 +472,7 @@ export default async function AdminDashboard() {
   return (
     <div className="flex h-full flex-col p-4">
       {/* Welcome banner */}
-      <div className="relative shrink-0 overflow-hidden rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 px-4 py-3 shadow-sm">
+      <div className="relative z-20 shrink-0 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 px-4 py-3 shadow-sm">
         <div className="relative flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -433,6 +485,7 @@ export default async function AdminDashboard() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <AttendanceTodayTile {...attendanceToday} />
             {[
               { label: "Pre-Marketing", value: preMarketingCount, color: "text-amber-300" },
               { label: "In-Market", value: inMarketCount, color: "text-indigo-300" },
