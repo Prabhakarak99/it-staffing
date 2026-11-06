@@ -225,7 +225,7 @@ export default async function AdminDashboard() {
     const periodStart = weekStart < monthStart ? weekStart : monthStart;
 
     // ── Queries ──────────────────────────────────────────────────────────────
-    const [periodSubs, periodIntvs, assigned, monthSubsByRecruiter, recruiterTotal] = await Promise.all([
+    const [periodSubs, periodIntvs, assigned, monthSubsByRecruiter, recruiters] = await Promise.all([
       prisma.submission.findMany({
         where: { recruiterId: session.userId, createdAt: { gte: periodStart } },
         select: { consultantId: true, createdAt: true },
@@ -239,14 +239,16 @@ export default async function AdminDashboard() {
         where: { recruiterId: session.userId },
         select: { consultantId: true },
       }),
-      // Company-wide monthly submissions per recruiter (for the rank)
+      // Company-wide monthly submissions per recruiter (for the rank); the latest one is when they
+      // reached their current count, which breaks ties
       prisma.submission.groupBy({
         by: ["recruiterId"],
         where: { createdAt: { gte: monthStart } },
         _count: { _all: true },
+        _max: { createdAt: true },
       }),
-      // Total recruiters in the company (rank denominator)
-      prisma.user.count({ where: { role: { name: "Recruiter" } } }),
+      // Every recruiter (rank denominator, and the order for those with no submissions yet)
+      prisma.user.findMany({ where: { role: { name: "Recruiter" } }, select: { id: true, firstName: true, lastName: true } }),
     ]);
 
     // My consultants = assigned to me + any I submitted/interviewed this period
@@ -290,11 +292,18 @@ export default async function AdminDashboard() {
     const submissionRows = buildRows(subCounts);
     const interviewRows = buildRows(intvCounts);
 
-    // ── Monthly company rank (by total submissions this month) ───────────────
-    const myMonthSubs = monthSubsByRecruiter.find((g) => g.recruiterId === session.userId)?._count._all ?? 0;
-    const ahead = monthSubsByRecruiter.filter((g) => g._count._all > myMonthSubs).length;
-    const rank = ahead + 1;
-    const totalRecruiters = Math.max(recruiterTotal, monthSubsByRecruiter.length, rank);
+    // ── Monthly company rank ─────────────────────────────────────────────────
+    // Most submissions this month first. Equal counts never share a rank: whoever reached the count
+    // first (earlier latest submission) is ahead; people with none yet are ordered by name.
+    const reached = new Map(monthSubsByRecruiter.map((g) => [g.recruiterId, { count: g._count._all, at: g._max.createdAt?.getTime() ?? 0 }]));
+    const names = new Map(recruiters.map((r) => [r.id, `${r.firstName} ${r.lastName}`.trim().toLowerCase()]));
+    const standings = [...new Set([...reached.keys(), ...names.keys(), session.userId])]
+      .map((id) => ({ id, count: reached.get(id)?.count ?? 0, at: reached.get(id)?.at ?? Infinity, name: names.get(id) ?? "" }))
+      .sort((a, b) => b.count - a.count || a.at - b.at || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    const myMonthSubs = reached.get(session.userId)?.count ?? 0;
+    const rank = standings.findIndex((r) => r.id === session.userId) + 1;
+    const totalRecruiters = standings.length;
+    const tiedWith = standings.filter((r) => r.count === myMonthSubs && r.id !== session.userId).length;
     const rankOrdinal = (n: number) => {
       const s = ["th", "st", "nd", "rd"], v = n % 100;
       return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
@@ -320,7 +329,9 @@ export default async function AdminDashboard() {
                     <span className="text-[34px] font-extrabold leading-none text-white">{rankOrdinal(rank)}</span>
                     <span className="text-[13px] font-medium text-indigo-200">of {totalRecruiters} recruiters</span>
                   </div>
-                  <p className="mt-1 text-[12px] text-indigo-100/90">By total submissions this month</p>
+                  <p className="mt-1 text-[12px] text-indigo-100/90">
+                    By total submissions this month{myMonthSubs > 0 && tiedWith > 0 ? ` · tied with ${tiedWith} on ${myMonthSubs}, ranked by who reached it first` : ""}
+                  </p>
                 </div>
               </div>
               <div className="rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-center backdrop-blur-sm">
