@@ -35,6 +35,8 @@ const SCREENS = [
   { name: "Vendor Requirements", path: "/admin/vendor-requirements" },
   { name: "Vendor Management", path: "/admin/vendor-management" },
   { name: "Attendance", path: "/admin/attendance" },
+  { name: "Easy Submissions", path: "/admin/easy-submissions" },
+  { name: "AI Settings", path: "/admin/ai-settings" },
   { name: "Reports", path: "/admin/reports" },
   { name: "Users", path: "/admin/users" },
   { name: "Dashboard", path: "/admin" },

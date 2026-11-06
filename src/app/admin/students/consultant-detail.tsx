@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   GraduationCap, Loader2, User, MapPin, BookOpen, CreditCard,
-  Briefcase, FileCheck, ExternalLink, Phone, Pencil, MessageSquare,
+  Briefcase, FileCheck, ExternalLink, Phone, Pencil, MessageSquare, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +50,8 @@ type ConsultantDetail = {
   dlDocument: string | null;
   passportDocument: string | null;
   visaCopyDocument: string | null;
+  resumeFile?: string | null;
+  resumeFileName?: string | null;
   projectStatus: string | null;
   jobTitle: string | null;
   verbalConfirmationDate: string | null;
@@ -103,6 +105,48 @@ function DocumentLink({ label, filename }: { label: string; filename: string | n
       >
         View document <ExternalLink className="h-3 w-3" />
       </a>
+    </div>
+  );
+}
+
+/** Resume lives in the private store (signed-in download), unlike the public documents above */
+function ResumeField({ consultantId, file, name, onUploaded }: {
+  consultantId: string;
+  file: string | null | undefined;
+  name: string | null | undefined;
+  onUploaded: (file: string, name: string) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  const upload = async (f: File) => {
+    setUploading(true);
+    setError("");
+    const fd = new FormData();
+    fd.set("file", f);
+    const res = await fetch(`/api/students/${consultantId}/resume`, { method: "POST", body: fd });
+    const d = await res.json().catch(() => ({}));
+    setUploading(false);
+    if (!res.ok) return setError(d.error ?? "Upload failed");
+    onUploaded(d.resumeFile, d.resumeFileName);
+  };
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Resume</p>
+      {file ? (
+        <a href={`/api/resumes/${file}`} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex max-w-full items-center gap-1 text-xs font-medium text-indigo-600 hover:underline">
+          <span className="truncate">{name ?? "View resume"}</span> <ExternalLink className="h-3 w-3 shrink-0" />
+        </a>
+      ) : (
+        <p className="mt-0.5 text-xs font-medium text-slate-800">—</p>
+      )}
+      <label className="mt-1 flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600">
+        {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+        {file ? "Replace (PDF / Word)" : "Upload (PDF / Word)"}
+        <input type="file" accept=".pdf,.docx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
+      </label>
+      {error && <p className="mt-0.5 text-[11px] text-rose-600">{error}</p>}
     </div>
   );
 }
@@ -283,6 +327,12 @@ export function ConsultantDetail({ consultantId }: { consultantId: string }) {
             <DocumentLink label="Driver's License" filename={consultant.dlDocument} />
             <DocumentLink label="Passport" filename={consultant.passportDocument} />
             <DocumentLink label="Visa Copy" filename={consultant.visaCopyDocument} />
+            <ResumeField
+              consultantId={consultant.id}
+              file={consultant.resumeFile}
+              name={consultant.resumeFileName}
+              onUploaded={(file, name) => setConsultant((c) => (c ? { ...c, resumeFile: file, resumeFileName: name } : c))}
+            />
             </div>
           </SlideFormSection>
 

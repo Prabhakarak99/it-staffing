@@ -6,7 +6,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
-  ClipboardList, BookUser, Inbox, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
+  ClipboardList, BookUser, Inbox, Zap, Bot, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
 } from "lucide-react";
 
 interface NavItem {
@@ -44,6 +44,7 @@ const NAV: NavGroup[] = [
     label: "Bench Sales",
     items: [
       { label: "Submissions",         href: "/admin/submissions/list",   match: "/admin/submissions",         icon: Send },
+      { label: "Easy Submissions",    href: "/admin/easy-submissions",   match: "/admin/easy-submissions",    icon: Zap },
       { label: "Interviews",          href: "/admin/interviews/list",    match: "/admin/interviews",          icon: Calendar },
       { label: "Vendor Requirements", href: "/admin/vendor-requirements", match: "/admin/vendor-requirements", icon: ClipboardList },
       { label: "Vendor Management",   href: "/admin/vendor-management",  match: "/admin/vendor-management",  icon: BookUser },
@@ -58,6 +59,7 @@ const NAV: NavGroup[] = [
       { label: "Users",      href: "/admin/users",      match: "/admin/users",      icon: Users },
       { label: "User Roles", href: "/admin/userrole",   match: "/admin/userrole",   icon: Shield },
       { label: "Recruiters", href: "/admin/recruiters", match: "/admin/recruiters", icon: UserPlus },
+      { label: "AI Settings", href: "/admin/ai-settings", match: "/admin/ai-settings", icon: Bot },
     ],
   },
   {

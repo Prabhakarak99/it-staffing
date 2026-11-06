@@ -83,6 +83,8 @@ model User {
   attendanceReviews Attendance[]   @relation("AttendanceReviewer")
   leaveRequests  LeaveRequest[]    @relation("LeaveUser")
   leaveReviews   LeaveRequest[]    @relation("LeaveReviewer")
+  tailoredResumes TailoredResume[]
+  easySends      EasySubmissionSend[]
 }
 
 model Student {
@@ -142,6 +144,10 @@ model Student {
   // Legacy / search
   phoneNumber            String?
   technology             String?
+  // Resume (file in the private resume store, see src/lib/files/resumes.ts)
+  resumeFile             String?
+  resumeFileName         String?
+  resumeUpdatedAt        DateTime?
   comments               Json?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
@@ -151,6 +157,8 @@ model Student {
   expenses            Expense[]            @relation("ExpenseConsultant")
   leads               Lead[]
   autoJobApplications AutoJobApplication[]
+  tailoredResumes     TailoredResume[]
+  easySends           EasySubmissionSend[]
 }
 
 model Submission {
@@ -178,6 +186,8 @@ model Submission {
   recruiter  User        @relation(fields: [recruiterId], references: [id])
   consultant Student     @relation(fields: [consultantId], references: [id])
   interviews Interview[]
+  tailoredResumes TailoredResume[]
+  easySends  EasySubmissionSend[]
 }
 
 model TechSupport {
@@ -565,4 +575,71 @@ model LeaveRequest {
 
   @@index([userId, status])
   @@index([status])
+}
+
+// ── AI providers (Admin → AI Settings) ──────────────────────────────────────
+
+/// An AI API an admin configured. The default enabled one is used for resume updates.
+model AiProvider {
+  id           String    @id @default(cuid())
+  provider     String    // openai | anthropic | gemini | openai-compatible
+  label        String
+  apiKeyEnc    String
+  model        String
+  baseUrl      String?   // openai-compatible only (Azure, Groq, DeepSeek, OpenRouter, ...)
+  isEnabled    Boolean   @default(true)
+  isDefault    Boolean   @default(false)
+  lastTestedAt DateTime?
+  lastError    String?
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ── Easy Submissions ────────────────────────────────────────────────────────
+
+/// A consultant's resume rewritten by AI for one submission's job description, with ATS scores
+model TailoredResume {
+  id            String   @id @default(cuid())
+  submissionId  String
+  consultantId  String
+  createdById   String
+  file          String   // in the private resume store
+  fileName      String   // download name
+  atsBefore     Int      // keyword match of the original resume against the JD (0–100)
+  atsAfter      Int      // same for the updated resume
+  keywords      Json     // { matched: string[], missing: string[] }
+  provider      String
+  model         String
+  createdAt     DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  consultant Student    @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation(fields: [createdById], references: [id])
+
+  @@index([submissionId, consultantId])
+}
+
+/// Every resume emailed to a vendor from Easy Submissions; also hides vendors already sent for that consultant
+model EasySubmissionSend {
+  id               String   @id @default(cuid())
+  submissionId     String   // the submission the requirement came from
+  consultantId     String
+  senderId         String
+  vendorEmail      String
+  vendorName       String?
+  vendorCompany    String?
+  tailoredResumeId String?
+  subject          String
+  via              String   // gmail | smtp
+  status           String   // sent | failed
+  error            String?
+  createdAt        DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  consultant Student    @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  sender     User       @relation(fields: [senderId], references: [id])
+
+  @@index([consultantId, vendorEmail])
+  @@index([submissionId])
 }

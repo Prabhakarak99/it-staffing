@@ -45,3 +45,6 @@ next-env.d.ts
 # local databases & uploads
 *.db
 /public/uploads/
+
+# Local resume store (production uses /data/resumes)
+/storage

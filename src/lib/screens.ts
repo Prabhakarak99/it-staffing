@@ -3,6 +3,8 @@ import { VENDOR_SCREEN } from "@/lib/vendors/access";
 import { MAILBOX_SCREEN } from "@/lib/gmail/access";
 import { LEADS_SCREEN } from "@/lib/leads/access";
 import { ATTENDANCE_SCREEN } from "@/lib/attendance/access";
+import { EASY_SCREEN } from "@/lib/easy/data";
+import { AI_SETTINGS_SCREEN } from "@/lib/ai/admin";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -11,6 +13,8 @@ import { ATTENDANCE_SCREEN } from "@/lib/attendance/access";
 const LATE_SCREENS = [
   { ...VENDOR_SCREEN, grantLike: "/admin/submissions" },
   { ...MAILBOX_SCREEN, grantLike: "/admin/submissions" },
+  { ...EASY_SCREEN, grantLike: "/admin/submissions" },
+  { ...AI_SETTINGS_SCREEN, grantLike: "/admin/users" },
 ];
 
 export async function ensureScreens() {

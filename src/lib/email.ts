@@ -91,6 +91,7 @@ export async function sendVendorEmail(opts: {
   body: string;
   senderName: string;
   replyTo: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }) {
   await getTransporter().sendMail({
     from: `"${opts.senderName.replace(/"/g, "")}" <${process.env.SMTP_USER}>`,
@@ -99,5 +100,6 @@ export async function sendVendorEmail(opts: {
     subject: opts.subject,
     text: opts.body,
     html: `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#1e293b;white-space:pre-wrap;">${escapeHtml(opts.body)}</div>`,
+    attachments: opts.attachments,
   });
 }
