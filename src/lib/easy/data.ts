@@ -113,22 +113,26 @@ export interface ConsultantOption {
   resume: { file: string; name: string } | null;
   tailored: { id: string; file: string; name: string; atsBefore: number; atsAfter: number; missing: string[]; createdAt: string } | null;
   sentCount: number;
-  isOriginal: boolean;
 }
 
 /**
- * In-Market consultants on the submission's technology, plus the submitted consultant. The profile's
- * technology decides; only profiles without one fall back to the technology of their submissions.
+ * Other In-Market consultants on the same technology as the submitted consultant's profile (the
+ * submission's technology only when that profile has none). The submitted consultant is left out.
+ * Each candidate's own profile technology decides; profiles without one fall back to their submissions.
  */
-export async function consultantsFor(submissionId: string): Promise<ConsultantOption[] | null> {
-  const sub = await prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, consultantId: true, technology: true } });
+export async function consultantsFor(submissionId: string): Promise<{ technology: string; consultants: ConsultantOption[] } | null> {
+  const sub = await prisma.submission.findUnique({
+    where: { id: submissionId },
+    select: { id: true, consultantId: true, technology: true, consultant: { select: { technology: true } } },
+  });
   if (!sub) return null;
-  const stem = techStem(sub.technology);
+  const technology = sub.consultant.technology?.trim() || sub.technology.trim();
+  const stem = techStem(technology);
 
   const students = await prisma.student.findMany({
     where: {
-      OR: [
-        { id: sub.consultantId },
+      id: { not: sub.consultantId },
+      AND: [
         {
           // In-Market, or no status set but submitted recently (so clearly being marketed)
           AND: [{
@@ -139,7 +143,7 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
           }],
           OR: [
             techWhere("technology", stem),
-            { technology: { equals: sub.technology, mode: "insensitive" } },
+            { technology: { equals: technology, mode: "insensitive" } },
             // Submission history only counts when the profile has no technology of its own
             {
               OR: [{ technology: null }, { technology: "" }],
@@ -159,8 +163,7 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
   });
 
-  return students
-    .map((s) => {
+  const consultants = students.map((s) => {
       const t = s.tailoredResumes[0];
       const keywords = (t?.keywords ?? {}) as { missing?: string[] };
       return {
@@ -176,10 +179,9 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
           ? { id: t.id, file: t.file, name: t.fileName, atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString() }
           : null,
         sentCount: s._count.easySends,
-        isOriginal: s.id === sub.consultantId,
       };
-    })
-    .sort((a, b) => Number(b.isOriginal) - Number(a.isOriginal));
+    });
+  return { technology, consultants };
 }
 
 export interface VendorOption {

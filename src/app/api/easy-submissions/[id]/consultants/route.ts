@@ -6,13 +6,13 @@ import { getActiveAi } from "@/lib/ai/providers";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** GET — consultants to submit for this requirement, plus the requirement details for the email draft */
+/** GET — other consultants to submit for this requirement, plus the requirement details for the email draft */
 export async function GET(_req: NextRequest, { params }: RouteContext) {
   const access = await easyAccess();
   if (!access.ok) return access.response;
 
   const { id } = await params;
-  const [consultants, sub, ai] = await Promise.all([
+  const [found, sub, ai] = await Promise.all([
     consultantsFor(id),
     prisma.submission.findUnique({
       where: { id },
@@ -20,6 +20,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     }),
     getActiveAi(),
   ]);
-  if (!consultants || !sub) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
-  return NextResponse.json({ consultants, requirement: sub, aiReady: !!ai });
+  if (!found || !sub) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+  // `technology` is what the list was matched on: the submitted consultant's profile technology
+  return NextResponse.json({ consultants: found.consultants, technology: found.technology, requirement: sub, aiReady: !!ai });
 }

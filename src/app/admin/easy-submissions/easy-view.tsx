@@ -22,7 +22,7 @@ interface Requirement {
   payRate: string | null;
 }
 
-interface ConsultantState { loading: boolean; error?: string; consultants: ConsultantOption[]; requirement?: Requirement }
+interface ConsultantState { loading: boolean; error?: string; consultants: ConsultantOption[]; requirement?: Requirement; technology?: string }
 interface VendorState { loading: boolean; error?: string; vendors: VendorOption[]; hidden: number }
 
 type Notify = (message: string, type: "success" | "error") => void;
@@ -73,12 +73,12 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
   const [managingAccess, setManagingAccess] = useState(false);
 
   const loadConsultants = (subId: string) => {
-    setConsultants((c) => ({ ...c, [subId]: { loading: true, consultants: c[subId]?.consultants ?? [], requirement: c[subId]?.requirement } }));
+    setConsultants((c) => ({ ...c, [subId]: { ...c[subId], loading: true, consultants: c[subId]?.consultants ?? [] } }));
     fetch(`/api/easy-submissions/${subId}/consultants`)
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load consultants");
-        setConsultants((c) => ({ ...c, [subId]: { loading: false, consultants: d.consultants, requirement: d.requirement } }));
+        setConsultants((c) => ({ ...c, [subId]: { loading: false, consultants: d.consultants, requirement: d.requirement, technology: d.technology } }));
       })
       .catch((err: Error) => setConsultants((c) => ({ ...c, [subId]: { loading: false, consultants: [], error: err.message } })));
   };
@@ -274,9 +274,9 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
       <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
         <Users2 className="h-4 w-4 text-indigo-600" />
         <p className="text-[12.5px] font-bold text-slate-800">
-          {state.consultants.length} consultant{state.consultants.length === 1 ? "" : "s"} on {sub.technology}
+          {state.consultants.length} more consultant{state.consultants.length === 1 ? "" : "s"} on {state.technology ?? sub.technology}
         </p>
-        <span className="text-[11px] text-slate-400">In-Market (or recently submitted), any recruiter</span>
+        <span className="text-[11px] text-slate-400">Same technology as {sub.consultantName}&apos;s profile · In-Market (or recently submitted), any recruiter</span>
         {!state.requirement?.jobDescription && (
           <span className="ml-auto flex items-center gap-1 text-[11.5px] font-medium text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" /> No job description on this submission, so AI updates are off
@@ -292,6 +292,13 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
+            {state.consultants.length === 0 && (
+              <tr>
+                <td colSpan={cols.length + 1} className="px-4 py-8 text-center text-slate-400">
+                  No other In-Market consultants on {state.technology ?? sub.technology}.
+                </td>
+              </tr>
+            )}
             {state.consultants.map((c) => {
               const open = openConsultants.has(c.id);
               const busy = tailoring.has(c.id);
@@ -303,7 +310,6 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                     <td className="px-3 py-2">
                       <p className="font-semibold text-slate-800">{c.name}</p>
                       <div className="mt-0.5 flex flex-wrap gap-1">
-                        {c.isOriginal && <span className="rounded bg-indigo-100 px-1.5 text-[10px] font-semibold text-indigo-700">Submitted</span>}
                         {c.projectStatus && <span className="rounded bg-slate-100 px-1.5 text-[10px] text-slate-500">{c.projectStatus}</span>}
                         {c.sentCount > 0 && <span className="rounded bg-emerald-50 px-1.5 text-[10px] font-semibold text-emerald-700">Sent to {c.sentCount}</span>}
                       </div>
