@@ -85,8 +85,8 @@ export interface ConsultantOption {
 }
 
 /**
- * In-Market consultants on the submission's technology, plus the submitted consultant. Many profiles
- * have no technology filled in, so a consultant also counts when any of their submissions was for it.
+ * In-Market consultants on the submission's technology, plus the submitted consultant. The profile's
+ * technology decides; only profiles without one fall back to the technology of their submissions.
  */
 export async function consultantsFor(submissionId: string): Promise<ConsultantOption[] | null> {
   const sub = await prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, consultantId: true, technology: true } });
@@ -108,7 +108,11 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
           OR: [
             { technology: { contains: stem, mode: "insensitive" } },
             { technology: { equals: sub.technology, mode: "insensitive" } },
-            { submissions: { some: { technology: { contains: stem, mode: "insensitive" } } } },
+            // Submission history only counts when the profile has no technology of its own
+            {
+              OR: [{ technology: null }, { technology: "" }],
+              submissions: { some: { technology: { contains: stem, mode: "insensitive" } } },
+            },
           ],
         },
       ],
