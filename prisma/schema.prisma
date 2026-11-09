@@ -604,25 +604,34 @@ model AiProvider {
 // ── Easy Submissions ────────────────────────────────────────────────────────
 
 /// A consultant's resume rewritten by AI for one submission's job description, with ATS scores
+/// AI-updated resumes, each with the job description it was written for (from a submission in
+/// Easy Submissions, or pasted / uploaded on the Resumes tab)
 model TailoredResume {
-  id           String   @id @default(cuid())
-  submissionId String
-  consultantId String
-  createdById  String
-  file         String // in the private resume store
-  fileName     String // download name
-  atsBefore    Int // keyword match of the original resume against the JD (0–100)
-  atsAfter     Int // same for the updated resume
-  keywords     Json // { matched: string[], missing: string[] }
-  provider     String
-  model        String
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  submissionId   String? // null when generated on the Resumes tab
+  consultantId   String
+  jobTitle       String?
+  clientName     String?
+  technology     String?
+  jobDescription String? // the JD text the resume was tailored to
+  jdFile         String? // uploaded JD file in the private resume store
+  jdFileName     String? // its download name
+  createdById    String
+  file           String // in the private resume store
+  fileName       String // download name
+  atsBefore      Int // keyword match of the original resume against the JD (0–100)
+  atsAfter       Int // same for the updated resume
+  keywords       Json // { matched: string[], missing: string[] }
+  provider       String
+  model          String
+  createdAt      DateTime @default(now())
 
-  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  consultant Student    @relation(fields: [consultantId], references: [id], onDelete: Cascade)
-  createdBy  User       @relation(fields: [createdById], references: [id])
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  consultant Student     @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  createdBy  User        @relation(fields: [createdById], references: [id])
 
   @@index([submissionId, consultantId])
+  @@index([consultantId, createdAt])
 }
 
 /// Every resume emailed to a vendor from Easy Submissions; also hides vendors already sent for that consultant

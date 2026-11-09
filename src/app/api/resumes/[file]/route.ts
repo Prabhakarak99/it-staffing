@@ -13,11 +13,12 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   const { file } = await params;
   if (!isStoredName(file)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [student, tailored] = await Promise.all([
+  const [student, tailored, jd] = await Promise.all([
     prisma.student.findFirst({ where: { resumeFile: file }, select: { resumeFileName: true } }),
     prisma.tailoredResume.findFirst({ where: { file }, select: { fileName: true } }),
+    prisma.tailoredResume.findFirst({ where: { jdFile: file }, select: { jdFileName: true } }),
   ]);
-  const downloadName = student?.resumeFileName ?? tailored?.fileName;
+  const downloadName = student?.resumeFileName ?? tailored?.fileName ?? jd?.jdFileName;
   if (!downloadName) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {

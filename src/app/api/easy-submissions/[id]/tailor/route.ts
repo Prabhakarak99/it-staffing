@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const { consultantId } = (await req.json()) as { consultantId?: unknown };
   if (typeof consultantId !== "string") return NextResponse.json({ error: "consultantId is required" }, { status: 400 });
 
-  return NextResponse.json({ jobId: startTailorJob(id, consultantId, access.session.userId) }, { status: 202 });
+  return NextResponse.json({ jobId: startTailorJob({ submissionId: id, consultantId, userId: access.session.userId }) }, { status: 202 });
 }
 
 /** GET ?job= — status of a running update: running | done (with the result) | failed (with the reason) */

@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { AiError } from "@/lib/ai/providers";
-import { tailorResume } from "./tailor";
+import { tailorResume, type TailorInput } from "./tailor";
 
 /**
  * AI resume updates take a minute or two, longer than a proxy will hold an idle request, so they run
@@ -17,14 +17,15 @@ export interface TailorJob {
 const jobs = ((globalThis as { __tailorJobs?: Map<string, TailorJob> }).__tailorJobs ??= new Map());
 const KEEP_MS = 30 * 60_000;
 
-export function startTailorJob(submissionId: string, consultantId: string, userId: string) {
+export function startTailorJob(input: TailorInput) {
+  const { userId } = input;
   for (const [id, job] of jobs) if (Date.now() - job.startedAt > KEEP_MS) jobs.delete(id);
 
   const id = randomBytes(12).toString("hex");
   const job: TailorJob = { userId, status: "running", startedAt: Date.now() };
   jobs.set(id, job);
 
-  tailorResume(submissionId, consultantId, userId)
+  tailorResume(input)
     .then((t) => {
       const keywords = t.keywords as { missing?: string[] };
       job.status = "done";
@@ -36,7 +37,7 @@ export function startTailorJob(submissionId: string, consultantId: string, userI
     .catch((err: unknown) => {
       job.status = "failed";
       job.error = err instanceof AiError ? err.message : "Could not update the resume. Please try again.";
-      if (!(err instanceof AiError)) console.error("[easy-submissions] tailor failed:", err);
+      if (!(err instanceof AiError)) console.error("[resumes] tailor failed:", err);
     });
   return id;
 }

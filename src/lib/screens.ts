@@ -6,6 +6,7 @@ import { ATTENDANCE_SCREEN } from "@/lib/attendance/access";
 import { EASY_SCREEN } from "@/lib/easy/data";
 import { AI_SETTINGS_SCREEN } from "@/lib/ai/admin";
 import { FOLLOWUPS_SCREEN } from "@/lib/followups/templates";
+import { RESUMES_SCREEN } from "@/lib/resumes/data";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -16,6 +17,7 @@ const LATE_SCREENS = [
   { ...MAILBOX_SCREEN, grantLike: "/admin/submissions" },
   { ...EASY_SCREEN, grantLike: "/admin/submissions" },
   { ...FOLLOWUPS_SCREEN, grantLike: "/admin/submissions" },
+  { ...RESUMES_SCREEN, grantLike: "/admin/submissions" },
   { ...AI_SETTINGS_SCREEN, grantLike: "/admin/users" },
 ];
 

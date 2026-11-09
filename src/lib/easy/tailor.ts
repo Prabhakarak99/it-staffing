@@ -61,21 +61,50 @@ function normalize(raw: Record<string, unknown>, fallbackName: string): Tailored
   };
 }
 
+export interface JobDescriptionInput {
+  text: string;
+  jobTitle?: string | null;
+  clientName?: string | null;
+  technology?: string | null;
+  /** When the JD was uploaded as a file: stored name and download name */
+  file?: string | null;
+  fileName?: string | null;
+}
+
+export interface TailorInput {
+  consultantId: string;
+  userId: string;
+  /** Easy Submissions: the JD comes from this submission */
+  submissionId?: string | null;
+  /** Resumes tab: a pasted or uploaded JD */
+  jd?: JobDescriptionInput;
+}
+
 /**
- * Rewrites a consultant's resume for one submission's job description with the configured AI,
- * saves it as Word, and scores the original and the update against the JD's key terms.
+ * Rewrites a consultant's resume for a job description (a submission's, or one pasted / uploaded)
+ * with the configured AI, saves it as Word, scores the original and the update against the JD's
+ * key terms, and keeps the JD with it.
  */
-export async function tailorResume(submissionId: string, consultantId: string, userId: string) {
+export async function tailorResume({ consultantId, userId, submissionId = null, jd: givenJd }: TailorInput) {
   const [sub, consultant, ai] = await Promise.all([
-    prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, technology: true, jobDescription: true, clientName: true } }),
+    submissionId
+      ? prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, technology: true, jobDescription: true, clientName: true } })
+      : null,
     prisma.student.findUnique({ where: { id: consultantId }, select: { firstName: true, lastName: true, resumeFile: true } }),
     getActiveAi(),
   ]);
-  if (!sub) throw new AiError("Submission not found");
+  if (submissionId && !sub) throw new AiError("Submission not found");
   if (!consultant) throw new AiError("Consultant not found");
   if (!ai) throw new AiError("No AI provider is set up. An admin can add one under Administration → AI Settings.");
-  if (!sub.jobDescription?.trim()) throw new AiError("This submission has no job description. Add the JD to the submission first.");
+  const jd: JobDescriptionInput = sub
+    ? { text: sub.jobDescription ?? "", technology: sub.technology, clientName: sub.clientName }
+    : givenJd ?? { text: "" };
+  if (!jd.text.trim()) {
+    throw new AiError(sub ? "This submission has no job description. Add the JD to the submission first." : "Paste or upload the job description first");
+  }
+  if (jd.text.trim().length < 100) throw new AiError("The job description is too short. Paste the full JD.");
   if (!consultant.resumeFile) throw new AiError("Upload the consultant's resume first");
+  const role = [jd.jobTitle, jd.technology].filter(Boolean).join(", ") || "the role";
 
   const name = `${consultant.firstName} ${consultant.lastName}`.trim();
   const original = await resumeText(consultant.resumeFile);
@@ -83,7 +112,7 @@ export async function tailorResume(submissionId: string, consultantId: string, u
 
   const raw = await aiJson<Record<string, unknown>>(ai, {
     system: SYSTEM,
-    user: `JOB DESCRIPTION (${sub.technology}${sub.clientName ? `, client ${sub.clientName}` : ""}):\n${sub.jobDescription.slice(0, MAX_JD_CHARS)}\n\nORIGINAL RESUME OF ${name}:\n${original.slice(0, MAX_RESUME_CHARS)}`,
+    user: `JOB DESCRIPTION (${role}${jd.clientName ? `, client ${jd.clientName}` : ""}):\n${jd.text.slice(0, MAX_JD_CHARS)}\n\nORIGINAL RESUME OF ${name}:\n${original.slice(0, MAX_RESUME_CHARS)}`,
     maxTokens: 8000,
     timeoutMs: 170_000,
   });
@@ -98,12 +127,18 @@ export async function tailorResume(submissionId: string, consultantId: string, u
   const docx = await buildResumeDocx(content);
   const file = await saveResume(docx, "docx", "tailored");
   const safe = name.replace(/[^\w ]+/g, "").replace(/\s+/g, "_") || "Consultant";
-  const tech = sub.technology.replace(/[^\w ]+/g, "").replace(/\s+/g, "_").slice(0, 30);
+  const tech = (jd.technology || jd.jobTitle || "Resume").replace(/[^\w ]+/g, "").replace(/\s+/g, "_").slice(0, 30);
 
   return prisma.tailoredResume.create({
     data: {
       submissionId,
       consultantId,
+      jobTitle: jd.jobTitle?.trim() || null,
+      clientName: jd.clientName?.trim() || null,
+      technology: jd.technology?.trim() || null,
+      jobDescription: jd.text.trim(),
+      jdFile: jd.file ?? null,
+      jdFileName: jd.fileName ?? null,
       createdById: userId,
       file,
       fileName: `${safe}_${tech}_Updated.docx`,
