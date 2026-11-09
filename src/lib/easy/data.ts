@@ -70,6 +70,38 @@ export function techStem(technology: string) {
   return first.length > 3 ? first.replace(/s$/i, "") : first;
 }
 
+/**
+ * Short names (MES, DE, BA, QA, SAP) must match as a whole word, or "MES" would match "Mainframes"
+ * and "DE" would match "Devops". Longer stems match anywhere ("mainframe" in "Mainframe Developer").
+ */
+type TextFilter = { equals?: string; contains?: string; startsWith?: string; endsWith?: string; mode: "insensitive" };
+
+function techFilters(stem: string): TextFilter[] {
+  const ci = "insensitive" as const;
+  if (stem.length > 3) return [{ contains: stem, mode: ci }];
+  const seps = [" ", "/", "-", ","];
+  return [
+    { equals: stem, mode: ci },
+    { contains: `(${stem})`, mode: ci },
+    ...seps.flatMap((sep) => [
+      { startsWith: `${stem}${sep}`, mode: ci },
+      { endsWith: `${sep}${stem}`, mode: ci },
+      ...seps.map((after) => ({ contains: `${sep}${stem}${after}`, mode: ci })),
+    ]),
+  ];
+}
+
+/** Rows whose `field` is on the technology */
+const techWhere = <F extends string>(field: F, stem: string) => ({ OR: techFilters(stem).map((f) => ({ [field]: f }) as Record<F, TextFilter>) });
+
+/** Same rule in code, for values already loaded */
+export function onTechnology(value: string | null | undefined, stem: string) {
+  if (!value) return false;
+  if (stem.length > 3) return value.toLowerCase().includes(stem.toLowerCase());
+  const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, "i").test(value);
+}
+
 export interface ConsultantOption {
   id: string;
   name: string;
@@ -106,12 +138,12 @@ export async function consultantsFor(submissionId: string): Promise<ConsultantOp
             ],
           }],
           OR: [
-            { technology: { contains: stem, mode: "insensitive" } },
+            techWhere("technology", stem),
             { technology: { equals: sub.technology, mode: "insensitive" } },
             // Submission history only counts when the profile has no technology of its own
             {
               OR: [{ technology: null }, { technology: "" }],
-              submissions: { some: { technology: { contains: stem, mode: "insensitive" } } },
+              submissions: { some: techWhere("technology", stem) },
             },
           ],
         },
@@ -182,7 +214,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
     prisma.recruiterVendor.findMany({
       where: client || impl
         ? { OR: [...(client ? [{ clients: like(client) }, { implementationPartners: like(client) }] : []), ...(impl ? [{ implementationPartners: like(impl) }, { clients: like(impl) }] : [])] }
-        : { technologies: like(stem) },
+        : techWhere("technologies", stem),
       select: { email: true, name: true, companyName: true, phone: true, technologies: true },
     }),
     prisma.vendorContact.findMany({
@@ -190,7 +222,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
         doNotContact: false,
         ...(client || impl
           ? { OR: [...(client ? [{ clientName: like(client) }] : []), ...(impl ? [{ implementationName: like(impl) }] : [])] }
-          : { technology: like(stem) }),
+          : techWhere("technology", stem)),
       },
       select: { email: true, recruiterName: true, vendorCompany: true, phone: true, technology: true },
     }),
@@ -202,7 +234,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
           take: 300,
         })
       : prisma.submission.findMany({
-          where: { technology: like(stem) },
+          where: techWhere("technology", stem),
           select: { vendorRecruiterEmail: true, vendorRecruiterName: true, vendorCompany: true, vendorRecruiterPhone: true },
           distinct: ["vendorRecruiterEmail"],
           take: 300,
@@ -220,8 +252,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   const excluded = new Set([...alreadySubmitted.map((s) => s.vendorRecruiterEmail), ...alreadySent.map((s) => s.vendorEmail)].map((e) => e.trim().toLowerCase()));
   const byEmail = new Map<string, VendorOption>();
   const hidden = new Set<string>();
-  const stemLower = stem.toLowerCase();
-  const onTech = (t: string | null | undefined) => !!t && t.toLowerCase().includes(stemLower);
+  const onTech = (t: string | null | undefined) => onTechnology(t, stem);
   /** Vendors whose vendor book / contact entry lists the technology */
   const listedTech = new Set<string>();
 

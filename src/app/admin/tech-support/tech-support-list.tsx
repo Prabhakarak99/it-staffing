@@ -23,6 +23,7 @@ const TECH_COLOR: Record<string, string> = {
   "DS/GenAi/ML": "bg-pink-100 text-pink-700",
   "Devops": "bg-teal-100 text-teal-700",
   "Mainframes": "bg-slate-100 text-slate-700",
+  "MES": "bg-emerald-100 text-emerald-700",
   "Networking": "bg-blue-100 text-blue-700",
   "BA": "bg-amber-100 text-amber-700",
   "Sales Force": "bg-indigo-100 text-indigo-700",

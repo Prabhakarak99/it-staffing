@@ -22,7 +22,7 @@ import { PROJECT_STATUSES } from "@/lib/project-status";
 
 const VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
 const MARKETING_VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
-const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "Networking", "BA", "Sales Force", "SAP", "ServiceNow", "Manufacturing", "Others", "Cyber Security", "QA", "Oracle", "Dynamics 365", "SCM", "CSV"];
+const TECHNOLOGIES = [".Net", "Java", "DE", "DS/GenAi/ML", "Devops", "Mainframes", "MES", "Networking", "BA", "Sales Force", "SAP", "ServiceNow", "Manufacturing", "Others", "Cyber Security", "QA", "Oracle", "Dynamics 365", "SCM", "CSV"];
 const OFFER_LETTER_TYPES = ["Unpaid-Intern", "Paid-Stem"];
 const PAYROLLS = ["70/30", "80/20"];
 const WORK_MODES = ["Remote", "Hybrid", "Onsite"];
