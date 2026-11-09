@@ -142,7 +142,11 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
                       <Fragment key={s.id}>
                         <tr className={cn("hover:bg-slate-50", open && "bg-indigo-50/40")}>
                           <td className="px-3 py-2.5"><ExpandButton open={open} onClick={() => toggleSub(s.id)} label="Show consultants for this requirement" /></td>
-                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-[11.5px] text-slate-600">{s.submissionId}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 font-mono text-[11.5px]">
+                            <Link href={`/admin/submissions/${s.id}`} className="font-semibold text-indigo-600 hover:underline" title="Open this submission">
+                              {s.submissionId}
+                            </Link>
+                          </td>
                           <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-800">{s.consultantName}</td>
                           <td className="whitespace-nowrap px-4 py-2.5"><span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11.5px] font-semibold text-indigo-700">{s.technology}</span></td>
                           <td className="px-4 py-2.5 text-slate-700">
