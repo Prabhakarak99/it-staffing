@@ -194,7 +194,11 @@ export function AiSettingsView({ providers: initial }: { providers: AiProviderRo
                   </a>
                 )}
               </div>
-              <Input compact label="Model" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="Model name, e.g. gpt-4.1-mini" />
+              <ModelField
+                models={meta.models}
+                value={form.model}
+                onChange={(model) => setForm({ ...form, model })}
+              />
               {meta.needsBaseUrl && (
                 <Input compact label="Base URL" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://api.groq.com/openai/v1" />
               )}
@@ -209,5 +213,43 @@ export function AiSettingsView({ providers: initial }: { providers: AiProviderRo
       )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
     </>
+  );
+}
+
+const OTHER_MODEL = "__other__";
+
+/** Model dropdown for the provider, with "Other" to type a model that isn't listed */
+function ModelField({ models, value, onChange }: {
+  models: { id: string; note: string }[];
+  value: string;
+  onChange: (model: string) => void;
+}) {
+  const listed = models.find((m) => m.id === value);
+  const custom = models.length === 0 || !listed;
+  return (
+    <div className="space-y-1.5">
+      {models.length > 0 && (
+        <label className="block space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Model</span>
+          <select
+            value={custom ? OTHER_MODEL : value}
+            onChange={(e) => onChange(e.target.value === OTHER_MODEL ? "" : e.target.value)}
+            className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px]"
+          >
+            {models.map((m) => <option key={m.id} value={m.id}>{m.id} — {m.note}</option>)}
+            <option value={OTHER_MODEL}>Other (type a model name)…</option>
+          </select>
+        </label>
+      )}
+      {custom && (
+        <Input
+          compact
+          label={models.length ? "Model name" : "Model"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={models[0] ? `e.g. ${models[0].id}` : "Model name, e.g. llama-3.3-70b-versatile"}
+        />
+      )}
+    </div>
   );
 }
