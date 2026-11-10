@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Bot, FileText, Loader2, Minus, Plus, Send, ShieldCheck, Sparkles, Upload, Users2, X, Zap,
+  AlertTriangle, Bot, Download, Eye, FileText, Loader2, Minus, Plus, Send, ShieldCheck, Sparkles, Upload, Users2, X, Zap,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,105 @@ function AtsBadge({ before, after, missing }: { before: number; after: number; m
     >
       ATS {after}%<span className="font-medium opacity-70">(was {before}%)</span>
     </span>
+  );
+}
+
+interface PreviewData {
+  html: string;
+  file: string;
+  fileName: string;
+  atsBefore: number;
+  atsAfter: number;
+  keywords: { term: string; count: number }[];
+  total: number;
+  found: number;
+  mentions: number;
+}
+
+/** The AI-updated resume in a scrollable popup, with the JD keywords and how often each appears */
+function ResumePreview({ id, consultant, onClose }: { id: string; consultant: string; onClose: () => void }) {
+  const [data, setData] = useState<PreviewData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/tailored-resumes/${id}/preview`, { cache: "no-store" })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!live) return;
+        if (!r.ok) setError(d.error ?? "Could not load the resume");
+        else setData(d);
+      })
+      .catch(() => live && setError("Could not load the resume"));
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => { live = false; window.removeEventListener("keydown", onKey); };
+  }, [id, onClose]);
+
+  const ats = data?.atsAfter ?? 0;
+  const atsColor = ats >= 80 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : ats >= 60 ? "text-amber-700 bg-amber-50 border-amber-200" : "text-rose-700 bg-rose-50 border-rose-200";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-2 sm:p-6" onClick={onClose}>
+      <div className="flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-emerald-600" />
+          <div className="min-w-0">
+            <p className="truncate text-[14px] font-bold text-slate-800">{consultant} · Updated Resume (AI)</p>
+            {data && <p className="truncate text-[11.5px] text-slate-400">{data.fileName}</p>}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {data && (
+              <a href={resumeHref(data.file)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-50">
+                <Download className="h-3.5 w-3.5" /> Download
+              </a>
+            )}
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {!data ? (
+          <div className="flex flex-1 items-center justify-center text-[13px] text-slate-500">
+            {error ?? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading resume…</>}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+              <div
+                className="mx-auto max-w-[820px] rounded-md bg-white px-6 py-8 text-[13px] leading-relaxed text-slate-800 shadow-sm sm:px-10 [&_h1]:mb-1 [&_h1]:text-[20px] [&_h1]:font-bold [&_h2]:mb-2 [&_h2]:mt-5 [&_h2]:border-b [&_h2]:border-slate-200 [&_h2]:pb-1 [&_h2]:text-[14px] [&_h2]:font-bold [&_h2]:uppercase [&_h2]:tracking-wide [&_h3]:mt-3 [&_h3]:font-semibold [&_li]:mb-0.5 [&_p]:mb-1.5 [&_strong]:font-semibold [&_table]:w-full [&_td]:align-top [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-5"
+                dangerouslySetInnerHTML={{ __html: data.html }}
+              />
+            </div>
+
+            <aside className="flex max-h-[38%] shrink-0 flex-col border-b border-slate-200 md:max-h-none md:w-72 md:border-b-0 md:border-l">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">JD Keywords</p>
+                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-[13px] text-slate-700"><b className="text-[18px] tabular-nums text-slate-900">{data.found}</b> / {data.total} in this resume</span>
+                  <span className="text-[11.5px] text-slate-500">{data.mentions} mentions</span>
+                </div>
+                <span className={cn("mt-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-bold tabular-nums", atsColor)}>
+                  ATS {data.atsAfter}%<span className="font-medium opacity-70">(was {data.atsBefore}%)</span>
+                </span>
+              </div>
+              <ul className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+                {data.keywords.length === 0 && <li className="px-2 py-3 text-[12px] text-slate-400">No keywords were saved for this resume.</li>}
+                {data.keywords.map((k) => (
+                  <li key={k.term} className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[12px] hover:bg-slate-50">
+                    <span className={cn("min-w-0 truncate", k.count ? "text-slate-700" : "text-rose-600")} title={k.term}>{k.term}</span>
+                    <span className={cn("shrink-0 rounded px-1.5 text-[11px] font-bold tabular-nums", k.count ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600")}>
+                      {k.count ? `×${k.count}` : "missing"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -201,6 +300,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
   const [vendors, setVendors] = useState<Record<string, VendorState>>({});
   const [tailoring, setTailoring] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<{ id: string; consultant: string } | null>(null);
 
   if (!state || (state.loading && state.consultants.length === 0)) {
     return <div className="flex items-center gap-2 py-4 text-[12.5px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading consultants…</div>;
@@ -271,6 +371,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {previewing && <ResumePreview id={previewing.id} consultant={previewing.consultant} onClose={() => setPreviewing(null)} />}
       <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
         <Users2 className="h-4 w-4 text-indigo-600" />
         <p className="text-[12.5px] font-bold text-slate-800">
@@ -349,9 +450,14 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                     <td className="px-3 py-2">
                       {c.tailored ? (
                         <div className="flex flex-col items-start gap-1">
-                          <a href={resumeHref(c.tailored.file)} className="inline-flex max-w-[200px] items-center gap-1 text-[12px] font-medium text-emerald-700 hover:underline" title={c.tailored.name}>
-                            <Sparkles className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{c.tailored.name}</span>
-                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewing({ id: c.tailored!.id, consultant: c.name })}
+                            className="inline-flex max-w-[200px] items-center gap-1 text-left text-[12px] font-medium text-emerald-700 hover:underline"
+                            title={`Preview ${c.tailored.name}`}
+                          >
+                            <Eye className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{c.tailored.name}</span>
+                          </button>
                           <AtsBadge before={c.tailored.atsBefore} after={c.tailored.atsAfter} missing={c.tailored.missing} />
                         </div>
                       ) : (
