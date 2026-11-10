@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { AiError, aiJson, getActiveAi } from "@/lib/ai/providers";
 import { resumeText, saveResume } from "@/lib/files/resumes";
-import { atsScore } from "./ats";
+import { atsScore, countTerm, type KeywordPriority } from "./ats";
 import { buildResumeDocx, resumeContentText, type TailoredResumeContent } from "./resume-docx";
 
 const MAX_RESUME_CHARS = 30_000;
@@ -206,7 +206,94 @@ Return ONLY valid JSON in this structure:
   "jdKeywords": []
 }
 
-IMPORTANT: The experience array must contain every role from the original resume, in reverse chronological order. Never return only a rewritten profile summary and technical skills.`;
+IMPORTANT: The experience array must contain every role from the original resume, in reverse chronological order. Never return only a rewritten profile summary and technical skills.
+
+## 12. Keyword Plan (provided with each request)
+
+You work like a senior resume editor who has already analysed the JD against this resume. The request includes a KEYWORD PLAN that lists every JD keyword with its priority, the evidence for it in the original resume, and the roles where the consultant actually used it. Follow it exactly:
+
+- MAIN keywords with direct evidence: use each one 10–15 times across the resume, written exactly as in the plan (for example "PAS-X", not "PAS X"). Place them in the title where it fits, in 2–4 summary bullets, in the skills section, and in the description, responsibilities and environment of every role the plan lists for it. Spread them naturally: never more than twice in one bullet, never as a bare keyword list inside a sentence.
+- REQUIRED and PREFERRED keywords with direct evidence: use each at least 2–4 times, in the summary or skills and in the roles the plan lists.
+- Keywords with transferable evidence: use the JD's exact wording in the skills section and the summary, and describe the related work honestly in the listed roles (for example "MES integration similar to …"). Do not claim years of hands-on use you can't support.
+- Keywords with no evidence: do not claim them as experience. Leave them out of responsibilities and environment lines.
+- Use the JD's exact spelling and casing for every keyword.`;
+
+/** First pass: read the JD and the resume like a recruiter before anything is written */
+const PLAN_SYSTEM = `You are a senior US IT staffing recruiter and resume editor. Analyse a job description against a consultant's resume before the resume is rewritten.
+
+Return ONLY valid JSON:
+{
+  "roles": [{ "client": string, "role": string, "duration": string, "domain": string }],
+  "keywords": [{
+    "term": string,
+    "priority": "main" | "required" | "preferred",
+    "evidence": "direct" | "transferable" | "none",
+    "roles": string[],
+    "note": string
+  }]
+}
+
+Rules:
+- roles: every client / employer in the resume, most recent first, with its business domain.
+- keywords: 20–40 skills, tools, platforms, methodologies, regulations and certifications from the JD, each written exactly as the JD writes it (short terms like "PAS-X", "MES", "GMP", "ISA-95", not sentences).
+- priority "main": the 3–6 core skills the role is about (the ones in the job title, repeated in the JD, or listed first as must-haves). "required": other must-haves. "preferred": nice-to-haves.
+- evidence "direct": the resume clearly shows the consultant used it (same tool or an obvious alias, e.g. "Werum PAS-X" for "PAS-X"). "transferable": the resume shows closely related work (a similar tool, the same process area). "none": nothing in the resume supports it.
+- roles: the clients from the roles list where the consultant used it or related work (empty for "none").
+- note: a few words on the evidence.`;
+
+interface PlannedKeyword {
+  term: string;
+  priority: KeywordPriority;
+  evidence: "direct" | "transferable" | "none";
+  roles: string[];
+  note: string;
+}
+
+function normalizePlan(raw: Record<string, unknown>): PlannedKeyword[] {
+  const list = Array.isArray(raw.keywords) ? raw.keywords : [];
+  const seen = new Set<string>();
+  const out: PlannedKeyword[] = [];
+  for (const k of list as Record<string, unknown>[]) {
+    const term = typeof k?.term === "string" ? k.term.trim() : "";
+    if (term.length < 2 || term.length > 60 || seen.has(term.toLowerCase())) continue;
+    seen.add(term.toLowerCase());
+    out.push({
+      term,
+      priority: k.priority === "main" || k.priority === "preferred" ? k.priority : "required",
+      evidence: k.evidence === "direct" || k.evidence === "none" ? k.evidence : "transferable",
+      roles: asStrings(k.roles),
+      note: typeof k.note === "string" ? k.note.trim().slice(0, 200) : "",
+    });
+  }
+  return out.slice(0, 40);
+}
+
+/** How many times each kind of keyword should appear */
+const target = (k: PlannedKeyword) =>
+  k.evidence === "none" ? 0 : k.priority === "main" && k.evidence === "direct" ? 10 : k.evidence === "direct" ? 2 : 1;
+
+function planBrief(plan: PlannedKeyword[]) {
+  const line = (k: PlannedKeyword) => {
+    const goal = target(k);
+    const want = goal >= 10 ? "use 10–15 times" : goal === 2 ? "use 2–4 times" : goal === 1 ? "use 1–3 times (exact JD wording, honest framing)" : "do NOT claim";
+    return `- ${k.term} | ${k.priority.toUpperCase()} | evidence: ${k.evidence}${k.roles.length ? ` | roles: ${k.roles.join("; ")}` : ""} | ${want}${k.note ? ` | ${k.note}` : ""}`;
+  };
+  return `KEYWORD PLAN:\n${plan.map(line).join("\n")}`;
+}
+
+/** What the draft still lacks against the plan; empty when it's on target */
+function coverageGaps(text: string, plan: PlannedKeyword[]) {
+  const gaps: string[] = [];
+  for (const k of plan) {
+    const goal = target(k);
+    if (!goal) continue;
+    const n = countTerm(text, k.term);
+    if (goal >= 10 && n < 10) gaps.push(`"${k.term}" appears ${n} times; MAIN skill with direct evidence, raise it to 10–15 (roles: ${k.roles.join("; ") || "where used"})`);
+    else if (goal >= 10 && n > 18) gaps.push(`"${k.term}" appears ${n} times; reduce it to at most 15 so it reads naturally`);
+    else if (goal < 10 && n < goal) gaps.push(`"${k.term}" is missing; ${k.evidence} evidence, add it with the JD's exact wording (roles: ${k.roles.join("; ") || "summary / skills"})`);
+  }
+  return gaps;
+}
 
 const asStrings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim()) : []);
 
@@ -288,17 +375,45 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
   const original = await resumeText(consultant.resumeFile);
   if (original.length < 200) throw new AiError("Could not read enough text from the resume. Upload a text-based PDF or a Word file (not a scanned image).");
 
-  const raw = await aiJson<Record<string, unknown>>(ai, {
-    system: SYSTEM,
-    user: `JOB DESCRIPTION (${role}${jd.clientName ? `, client ${jd.clientName}` : ""}):\n${jd.text.slice(0, MAX_JD_CHARS)}\n\nORIGINAL RESUME OF ${name}:\n${original.slice(0, MAX_RESUME_CHARS)}`,
-    maxTokens: 16_000,
-    timeoutMs: 300_000,
-  });
-  const content = normalize(raw, name);
+  const inputs = `JOB DESCRIPTION (${role}${jd.clientName ? `, client ${jd.clientName}` : ""}):\n${jd.text.slice(0, MAX_JD_CHARS)}\n\nORIGINAL RESUME OF ${name}:\n${original.slice(0, MAX_RESUME_CHARS)}`;
+
+  // 1. Analyse: the JD's keywords by priority, and the evidence for each in this resume, role by role
+  let plan: PlannedKeyword[] = [];
+  try {
+    plan = normalizePlan(await aiJson<Record<string, unknown>>(ai, { system: PLAN_SYSTEM, user: inputs, maxTokens: 6000, timeoutMs: 150_000 }));
+  } catch (err) {
+    if (!(err instanceof AiError)) throw err;
+    console.warn("[resumes] keyword plan failed, writing without it:", err.message);
+  }
+
+  // 2. Write the full resume to the plan
+  const write = (user: string) => aiJson<Record<string, unknown>>(ai, { system: SYSTEM, user, maxTokens: 16_000, timeoutMs: 300_000 });
+  const brief = plan.length ? `\n\n${planBrief(plan)}` : "";
+  let content = normalize(await write(inputs + brief), name);
   if (content.experience.length === 0 && content.summary.length === 0) throw new AiError("The AI returned an empty resume. Please try again.");
 
-  // Fall back to the skill list if the model skipped the keywords
-  const keywords = content.jdKeywords.length ? content.jdKeywords : content.skills.flatMap((s) => s.items).slice(0, 30);
+  // 3. Check keyword coverage against the plan; one targeted revision when it's short
+  const gaps = plan.length ? coverageGaps(resumeContentText(content), plan) : [];
+  if (gaps.length) {
+    try {
+      const revised = normalize(
+        await write(
+          `${inputs}${brief}\n\nYOUR PREVIOUS DRAFT (JSON):\n${JSON.stringify(content)}\n\nREVISE THE DRAFT. Keep everything that is already right and every role. Fix these keyword gaps by working the terms into the summary, skills, project descriptions, responsibilities and environment lines of the roles listed, written naturally and only where the plan says the consultant has the evidence:\n${gaps.map((g) => `- ${g}`).join("\n")}\n\nReturn the complete revised resume JSON.`,
+        ),
+        name,
+      );
+      const better = (c: typeof content) => atsScore(resumeContentText(c), plan).score;
+      if (revised.experience.length >= content.experience.length && better(revised) >= better(content)) content = revised;
+    } catch (err) {
+      if (!(err instanceof AiError)) throw err;
+      console.warn("[resumes] keyword revision failed, keeping the first draft:", err.message);
+    }
+  }
+
+  // 4. Score both resumes on the same weighted keyword list
+  const keywords = plan.length
+    ? plan
+    : (content.jdKeywords.length ? content.jdKeywords : content.skills.flatMap((s) => s.items).slice(0, 30));
   const before = atsScore(original, keywords);
   const after = atsScore(resumeContentText(content), keywords);
 
@@ -322,7 +437,11 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
       fileName: `${safe}_${tech}_Updated.docx`,
       atsBefore: before.score,
       atsAfter: after.score,
-      keywords: { matched: after.matched, missing: after.missing },
+      keywords: {
+        matched: after.matched,
+        missing: after.missing,
+        plan: plan.map(({ term, priority, evidence, note }) => ({ term, priority, evidence, note })),
+      },
       provider: ai.label,
       model: ai.model,
     },

@@ -2,18 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readResume } from "@/lib/files/resumes";
+import { countTerm } from "@/lib/easy/ats";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-/** How many times each JD keyword appears in the resume (whole-term, same rule as the ATS score) */
-function keywordCounts(text: string, terms: string[]) {
-  const hay = ` ${text.toLowerCase().replace(/\s+/g, " ")} `;
-  return terms.map((term) => {
-    const escaped = term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-    const count = hay.match(new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "g"))?.length ?? 0;
-    return { term, count };
-  });
-}
 
 /** GET — the AI-updated resume as HTML for the preview popup, with the JD keywords and their counts */
 export async function GET(_req: NextRequest, { params }: RouteContext) {
@@ -39,9 +30,14 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     mammoth.extractRawText({ buffer }),
   ]);
 
-  const kw = (t.keywords ?? {}) as { matched?: string[]; missing?: string[] };
-  const terms = [...new Set([...(kw.matched ?? []), ...(kw.missing ?? [])])];
-  const keywords = keywordCounts(text, terms).sort((a, b) => b.count - a.count || a.term.localeCompare(b.term));
+  type Planned = { term: string; priority?: string; evidence?: string; note?: string };
+  const kw = (t.keywords ?? {}) as { matched?: string[]; missing?: string[]; plan?: Planned[] };
+  // Older resumes have no plan: just their keyword list
+  const planned: Planned[] = kw.plan?.length ? kw.plan : [...new Set([...(kw.matched ?? []), ...(kw.missing ?? [])])].map((term) => ({ term }));
+  const rank: Record<string, number> = { main: 0, required: 1, preferred: 2 };
+  const keywords = planned
+    .map((k) => ({ term: k.term, count: countTerm(text, k.term), priority: k.priority ?? null, evidence: k.evidence ?? null, note: k.note ?? null }))
+    .sort((a, b) => (rank[a.priority ?? ""] ?? 1) - (rank[b.priority ?? ""] ?? 1) || b.count - a.count || a.term.localeCompare(b.term));
 
   return NextResponse.json(
     {

@@ -65,7 +65,7 @@ interface PreviewData {
   fileName: string;
   atsBefore: number;
   atsAfter: number;
-  keywords: { term: string; count: number }[];
+  keywords: { term: string; count: number; priority: string | null; evidence: string | null; note: string | null }[];
   total: number;
   found: number;
   mentions: number;
@@ -141,14 +141,38 @@ function ResumePreview({ id, consultant, onClose }: { id: string; consultant: st
               </div>
               <ul className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
                 {data.keywords.length === 0 && <li className="px-2 py-3 text-[12px] text-slate-400">No keywords were saved for this resume.</li>}
-                {data.keywords.map((k) => (
-                  <li key={k.term} className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[12px] hover:bg-slate-50">
-                    <span className={cn("min-w-0 truncate", k.count ? "text-slate-700" : "text-rose-600")} title={k.term}>{k.term}</span>
-                    <span className={cn("shrink-0 rounded px-1.5 text-[11px] font-bold tabular-nums", k.count ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600")}>
-                      {k.count ? `×${k.count}` : "missing"}
-                    </span>
-                  </li>
-                ))}
+                {data.keywords.map((k, i) => {
+                  const main = k.priority === "main";
+                  const notHeld = k.evidence === "none";
+                  const low = main && !notHeld && k.count < 10;
+                  const heading = k.priority && k.priority !== data.keywords[i - 1]?.priority;
+                  return (
+                    <Fragment key={k.term}>
+                      {heading && (
+                        <li className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          {k.priority === "main" ? "Main skills · target 10–15×" : k.priority === "required" ? "Required" : "Preferred"}
+                        </li>
+                      )}
+                      <li
+                        className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[12px] hover:bg-slate-50"
+                        title={[k.term, k.note, notHeld ? "Not in the consultant's resume, so it isn't claimed. Confirm with the consultant." : ""].filter(Boolean).join("\n")}
+                      >
+                        <span className={cn("min-w-0 truncate", main && "font-semibold", k.count ? "text-slate-700" : "text-rose-600")}>
+                          {k.term}
+                          {notHeld && <span className="ml-1 text-[10px] font-medium text-slate-400">not in background</span>}
+                        </span>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded px-1.5 text-[11px] font-bold tabular-nums",
+                            !k.count ? "bg-rose-50 text-rose-600" : low ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700",
+                          )}
+                        >
+                          {k.count ? `×${k.count}` : "missing"}
+                        </span>
+                      </li>
+                    </Fragment>
+                  );
+                })}
               </ul>
             </aside>
           </div>
@@ -355,7 +379,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
     const started = await start.json().catch(() => ({}));
     if (!start.ok) { done(); return notify(started.error ?? "Could not start the update", "error"); }
 
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 300; i++) {
       await new Promise((r) => setTimeout(r, 3000));
       const res = await fetch(`/api/easy-submissions/${sub.id}/tailor?job=${started.jobId}`);
       const d = await res.json().catch(() => ({}));
@@ -477,7 +501,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                         title={!aiReady ? "No AI provider configured" : !c.resume ? "Upload a resume first" : !state.requirement?.jobDescription ? "Submission has no job description" : "Rewrite the resume for this job with AI and score it"}
                       >
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                        {busy ? "Updating… (≈1 min)" : c.tailored ? "Update Again" : "Update Resume"}
+                        {busy ? "Updating… (2–4 min)" : c.tailored ? "Update Again" : "Update Resume"}
                       </Button>
                     </td>
                   </tr>
