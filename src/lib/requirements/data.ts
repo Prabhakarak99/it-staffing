@@ -38,7 +38,7 @@ export async function listRequirements(
   const out: RequirementRow[] = [];
   for (const r of rows) {
     const receivers = [r.ownerId, ...r.alsoReceivedBy];
-    const audience = audienceFor(r.technology, receivers, consultants);
+    const audience = audienceFor(r.technology, consultants);
     if (!manager && !canSee(audience, session.userId)) continue;
     out.push({
       id: r.id,

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Building2, CircleSlash, Inbox, Loader2, Lock, Mail, Phone, RefreshCw, Search, Users2,
+  AlertTriangle, Building2, CircleSlash, Inbox, Loader2, Mail, Phone, RefreshCw, Search, Users2,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -258,7 +258,6 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
 function AudienceBadge({ row }: { row: RequirementRow }) {
   const { kind, names } = row.audience;
   const map = {
-    private: { icon: Lock, label: "Private", cls: "bg-amber-50 text-amber-700 border-amber-200", tip: `Only ${names.join(", ")}: they have a consultant on ${row.technology}` },
     shared: { icon: Users2, label: `${names.length} recruiter${names.length === 1 ? "" : "s"}`, cls: "bg-sky-50 text-sky-700 border-sky-200", tip: `Recruiters working ${row.technology} consultants: ${names.join(", ")}` },
     unassigned: { icon: CircleSlash, label: "No recruiter", cls: "bg-slate-50 text-slate-500 border-slate-200", tip: `Nobody has a ${row.technology ?? ""} consultant in market, so only managers see it` },
   }[kind];

@@ -10,9 +10,7 @@ export const REQ_TECHNOLOGIES = [
 
 /** Who can see a requirement */
 export type Audience =
-  /** The inbox owner has a consultant on this technology: only they see it */
-  | { kind: "private"; userIds: string[] }
-  /** Sent to the recruiters who work In-Market consultants on this technology */
+  /** Sent to every recruiter who works an In-Market consultant on this technology */
   | { kind: "shared"; userIds: string[] }
   /** Nobody works this technology: only managers see it */
   | { kind: "unassigned" };

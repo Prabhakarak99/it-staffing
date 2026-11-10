@@ -28,19 +28,13 @@ export function consultantsOn(technology: string | null, consultants: MarketedCo
 }
 
 /**
- * Who sees a requirement, worked out from today's consultant assignments (so it follows reassignments).
- * A recruiter only ever sees requirements on a technology they have an In-Market consultant on:
- * 1. A recruiter who received the email and has a consultant on the technology keeps it to themselves.
- * 2. Otherwise it goes to every recruiter who works a consultant on the technology.
- * 3. Nobody works that technology: only managers see it.
+ * Who sees a requirement, worked out from today's consultant assignments (so it follows reassignments):
+ * every recruiter with an In-Market consultant on its technology, whichever inbox it arrived in. A
+ * recruiter without one never sees it, even from their own inbox. Nobody on that technology: managers only.
  */
-export function audienceFor(technology: string | null, receivers: string[], consultants: MarketedConsultant[]): Audience {
-  const onTech = consultantsOn(technology, consultants);
-  const working = new Set(onTech.map((c) => c.recruiterId));
-  const owning = receivers.filter((id) => working.has(id));
-  if (owning.length) return { kind: "private", userIds: owning };
-  if (working.size) return { kind: "shared", userIds: [...working] };
-  return { kind: "unassigned" };
+export function audienceFor(technology: string | null, consultants: MarketedConsultant[]): Audience {
+  const working = new Set(consultantsOn(technology, consultants).map((c) => c.recruiterId));
+  return working.size ? { kind: "shared", userIds: [...working] } : { kind: "unassigned" };
 }
 
 export const canSee = (audience: Audience, userId: string) => audience.kind !== "unassigned" && audience.userIds.includes(userId);
