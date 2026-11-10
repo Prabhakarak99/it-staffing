@@ -780,13 +780,17 @@ model ConsultantMailbox {
   id                String    @id @default(cuid())
   consultantId      String    @unique
   email             String
-  /// AES-256-GCM encrypted; never sent to the browser
-  refreshTokenEnc   String
+  /// "app_password": Gmail address + Google App Password over IMAP/SMTP; "oauth": Google sign-in
+  authType          String    @default("oauth")
+  /// OAuth only (AES-256-GCM encrypted; never sent to the browser)
+  refreshTokenEnc   String?
+  /// App password only (AES-256-GCM encrypted; never sent to the browser)
+  appPasswordEnc    String?
   accessTokenEnc    String?
   accessTokenExpiry DateTime?
   connectedById     String
   connectedAt       DateTime  @default(now())
-  /// Set when Google rejects the token (must reconnect)
+  /// Set when Google rejects the token or app password (must reconnect)
   lastError         String?
   /// Last time it was read for vendor requirement emails
   reqScanAt         DateTime?

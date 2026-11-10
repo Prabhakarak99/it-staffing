@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { AiError, aiJson, getActiveAi, type AiConfig } from "@/lib/ai/providers";
 import { isGmailConfigured, GmailNotConnectedError, type MailboxOwner } from "@/lib/gmail/oauth";
 import { getFullMessage, listMessageIds, type FullMessage } from "@/lib/gmail/message";
+import { decrypt } from "@/lib/gmail/crypto";
+import { AppPasswordRejectedError, openImapReader } from "@/lib/consultant-mail/imap";
 import { REQ_TECHNOLOGIES } from "./constants";
 
 /** Each inbox is read at most this often */
@@ -129,16 +131,38 @@ async function scanMailbox(inbox: Inbox, ai?: AiConfig | null): Promise<{ added:
   const userId = inbox.kind === "user" ? inbox.userId : inbox.recruiterId;
   /** Key for the checked-message markers: each inbox has its own */
   const scanKey = inbox.kind === "user" ? inbox.userId : `c_${inbox.consultantId}`;
+  const box =
+    inbox.kind === "consultant"
+      ? await prisma.consultantMailbox.findUnique({
+          where: { consultantId: inbox.consultantId },
+          select: { reqScanAt: true, email: true, authType: true, appPasswordEnc: true },
+        })
+      : null;
   const account =
-    inbox.kind === "user"
-      ? await prisma.gmailAccount.findUnique({ where: { userId: inbox.userId }, select: { reqScanAt: true, email: true } })
-      : await prisma.consultantMailbox.findUnique({ where: { consultantId: inbox.consultantId }, select: { reqScanAt: true, email: true } });
+    inbox.kind === "user" ? await prisma.gmailAccount.findUnique({ where: { userId: inbox.userId }, select: { reqScanAt: true, email: true } }) : box;
   if (!account) throw new GmailNotConnectedError(inbox.kind === "user" ? "Connect your Gmail in Mailbox first" : "This consultant's Gmail isn't connected");
 
+  // Gmail API with the Google sign-in token, or IMAP with the consultant's App Password
+  const appPassword = box?.authType === "app_password" && box.appPasswordEnc ? decrypt(box.appPasswordEnc) : null;
+  let reader: { list: (q: string, max: number) => Promise<string[]>; get: (id: string) => Promise<FullMessage>; close: () => Promise<void> };
+  if (appPassword) {
+    try {
+      reader = await openImapReader({ email: account.email, password: appPassword });
+    } catch (err) {
+      if (err instanceof AppPasswordRejectedError && inbox.kind === "consultant") {
+        await prisma.consultantMailbox.update({ where: { consultantId: inbox.consultantId }, data: { lastError: err.message } });
+        throw new GmailNotConnectedError(err.message);
+      }
+      throw err;
+    }
+  } else {
+    reader = { list: (q, max) => listMessageIds(mailbox, q, max), get: (id) => getFullMessage(mailbox, id), close: async () => {} };
+  }
+  try {
   const startedAt = new Date();
   // Overlap the previous scan a little so nothing that arrived mid-scan is missed
   const since = account.reqScanAt ? new Date(account.reqScanAt.getTime() - 10 * 60_000) : null;
-  const ids = await listMessageIds(mailbox, searchFor(since), MAX_PER_SCAN * 3);
+  const ids = await reader.list(searchFor(since), MAX_PER_SCAN * 3);
   const done = new Set(
     (await prisma.emailScan.findMany({ where: { ownerId: scanKey, gmailMessageId: { in: ids } }, select: { gmailMessageId: true } })).map((s) => s.gmailMessageId),
   );
@@ -154,7 +178,7 @@ async function scanMailbox(inbox: Inbox, ai?: AiConfig | null): Promise<{ added:
   for (const id of todo) {
     let status = "skipped";
     try {
-      const m = await getFullMessage(mailbox, id);
+      const m = await reader.get(id);
       if (!team.has(m.fromEmail) && !gmailTeam.has(m.fromEmail) && m.text.length >= 80) {
         const found = await extract(cfg, m);
         status = found.length ? "duplicate" : "skipped";
@@ -209,18 +233,23 @@ async function scanMailbox(inbox: Inbox, ai?: AiConfig | null): Promise<{ added:
     else await prisma.consultantMailbox.update({ where: { consultantId: inbox.consultantId }, data: { reqScanAt: startedAt } });
   }
   return { added, checked: todo.length };
+  } finally {
+    await reader.close();
+  }
 }
 
 let running = false;
 
 /** Worker tick: read every connected inbox that is due, one at a time */
 export async function processRequirementInboxes() {
-  if (running || !(await isGmailConfigured())) return;
+  if (running) return;
   running = true;
   try {
     const ai = await getActiveAi();
     if (!ai) return;
-    const due = await prisma.gmailAccount.findMany({
+    // Recruiters' own inboxes need the Google setup; App Password mailboxes don't
+    const googleReady = await isGmailConfigured();
+    const due = !googleReady ? [] : await prisma.gmailAccount.findMany({
       where: { lastError: null, OR: [{ reqScanAt: null }, { reqScanAt: { lt: new Date(Date.now() - SCAN_EVERY_MS) } }] },
       select: { userId: true, email: true },
     });
@@ -235,7 +264,11 @@ export async function processRequirementInboxes() {
 
     // Consultants' connected Gmail: requirements go to the consultant's recruiter
     const boxes = await prisma.consultantMailbox.findMany({
-      where: { lastError: null, OR: [{ reqScanAt: null }, { reqScanAt: { lt: new Date(Date.now() - SCAN_EVERY_MS) } }] },
+      where: {
+        lastError: null,
+        ...(googleReady ? {} : { authType: "app_password" }),
+        OR: [{ reqScanAt: null }, { reqScanAt: { lt: new Date(Date.now() - SCAN_EVERY_MS) } }],
+      },
       select: { consultantId: true, email: true, connectedById: true, consultant: { select: { preMarketings: { select: { recruiterId: true }, take: 1 } } } },
     });
     for (const b of boxes) {

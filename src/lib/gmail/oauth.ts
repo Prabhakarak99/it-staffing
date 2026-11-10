@@ -160,6 +160,8 @@ export async function saveConsultantMailbox(consultantId: string, connectedById:
   if (!tokens.refresh_token) throw new Error("Google did not return a refresh token; please try connecting again");
   const data = {
     email,
+    authType: "oauth",
+    appPasswordEnc: null,
     refreshTokenEnc: encrypt(tokens.refresh_token),
     accessTokenEnc: encrypt(tokens.access_token),
     accessTokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
@@ -173,11 +175,14 @@ export async function saveConsultantMailbox(consultantId: string, connectedById:
 async function consultantAccessToken(consultantId: string): Promise<string> {
   const box = await prisma.consultantMailbox.findUnique({ where: { consultantId } });
   if (!box) throw new GmailNotConnectedError("This consultant's Gmail is not connected");
+  // Connected with an App Password: read over IMAP, there's no Google token
+  if (!box.refreshTokenEnc) throw new GmailNotConnectedError("This consultant's Gmail is connected with an App Password, not Google sign-in");
+  const refreshToken = box.refreshTokenEnc;
   if (box.accessTokenEnc && box.accessTokenExpiry && box.accessTokenExpiry.getTime() > Date.now() + 60_000) {
     return decrypt(box.accessTokenEnc);
   }
   try {
-    const tokens = await tokenRequest({ refresh_token: decrypt(box.refreshTokenEnc), grant_type: "refresh_token" });
+    const tokens = await tokenRequest({ refresh_token: decrypt(refreshToken), grant_type: "refresh_token" });
     await prisma.consultantMailbox.update({
       where: { consultantId },
       data: { accessTokenEnc: encrypt(tokens.access_token), accessTokenExpiry: new Date(Date.now() + tokens.expires_in * 1000), lastError: null },
@@ -192,14 +197,16 @@ async function consultantAccessToken(consultantId: string): Promise<string> {
   }
 }
 
-/** Revoke a consultant's Gmail at Google (best effort) and forget the tokens */
+/** Forget a consultant's Gmail; a Google sign-in token is revoked at Google too (best effort) */
 export async function disconnectConsultant(consultantId: string) {
   const box = await prisma.consultantMailbox.findUnique({ where: { consultantId } });
   if (!box) return;
-  try {
-    await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decrypt(box.refreshTokenEnc))}`, { method: "POST" });
-  } catch {
-    // Already revoked or unreachable; deleting locally is what matters
+  if (box.refreshTokenEnc) {
+    try {
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decrypt(box.refreshTokenEnc))}`, { method: "POST" });
+    } catch {
+      // Already revoked or unreachable; deleting locally is what matters
+    }
   }
   await prisma.consultantMailbox.delete({ where: { consultantId } });
 }

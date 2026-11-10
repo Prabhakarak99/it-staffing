@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Info, Link2, Loader2, MailPlus, RefreshCw, Search, ShieldCheck, Unlink } from "lucide-react";
+import {
+  AlertTriangle, CheckCircle2, ExternalLink, Eye, EyeOff, KeyRound, Link2, Loader2, MailPlus, RefreshCw, Search, ShieldCheck, Unlink, X,
+} from "lucide-react";
 import { Header } from "@/components/layout/header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { APP_TZ } from "@/lib/tz";
@@ -16,11 +17,10 @@ const fmtWhen = (iso: string) =>
 
 type Filter = "all" | "connected" | "not";
 
-export function ConsultantEmailsView({ rows, manager, gmailReady, result }: {
+export function ConsultantEmailsView({ rows, manager, result }: {
   rows: ConsultantMailboxRow[];
   manager: boolean;
-  gmailReady: boolean;
-  /** Back from Google: connected / denied / error */
+  /** Back from an older Google sign-in connection: connected / denied / error */
   result: { kind: string; message: string | null; email: string | null; name: string | null } | null;
 }) {
   const router = useRouter();
@@ -28,13 +28,13 @@ export function ConsultantEmailsView({ rows, manager, gmailReady, result }: {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<ConsultantMailboxRow | null>(null);
 
-  // Show how the Google sign-in went, then clean the address bar
   const reported = useRef(false);
   useEffect(() => {
     if (!result || reported.current) return;
     reported.current = true;
-    if (result.kind === "connected") show(`Connected ${result.email ?? "Gmail"}${result.name ? ` for ${result.name}` : ""} with read and send access`, "success");
+    if (result.kind === "connected") show(`Connected ${result.email ?? "Gmail"}${result.name ? ` for ${result.name}` : ""}`, "success");
     else if (result.kind === "denied") show("Access wasn't allowed in Google, so nothing was connected", "error");
     else show(result.message ?? "Could not connect Gmail", "error");
     router.replace("/admin/consultant-emails");
@@ -66,25 +66,13 @@ export function ConsultantEmailsView({ rows, manager, gmailReady, result }: {
     <>
       <Header title="Consultant Email Configuration" subtitle={manager ? "Every consultant's Gmail, connected with read and send access" : "Connect the Gmail you market each of your consultants from"} />
       <div className="space-y-4 p-4 sm:p-6">
-        {!gmailReady ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-[12.5px] text-amber-800">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <p>Gmail isn&apos;t set up for the app yet. An admin needs to finish the Google setup in <Link href="/admin/mailbox" className="font-semibold underline">Mailbox</Link> first.</p>
-          </div>
-        ) : (
-          <div className="flex items-start gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-5 py-3 text-[12.5px] text-slate-600">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
-            <div className="space-y-1">
-              <p>
-                Click <b>Connect Gmail</b> and sign in to Google <b>as the consultant&apos;s Gmail</b> (the marketing address), then allow access.
-                The app gets <b>read and send</b> access: it reads vendor requirements from that inbox into Vendor Requirements and can send from it. It can&apos;t permanently delete mail.
-              </p>
-              <p className="flex items-center gap-1 text-[11.5px] text-slate-500">
-                <Info className="h-3.5 w-3.5" /> If Google opens your own account, choose &quot;Use another account&quot;, or copy the link into a private window.
-              </p>
-            </div>
-          </div>
-        )}
+        <div className="flex items-start gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-5 py-3 text-[12.5px] text-slate-600">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+          <p>
+            Click <b>Connect Gmail</b>, then enter the consultant&apos;s Gmail address and a <b>Google App Password</b> (16 letters, made once in their Google account; the steps are in the popup).
+            The app can then <b>read</b> the inbox (vendor requirements go to Vendor Requirements) and <b>send</b> from it. The real Gmail password is never asked for or stored.
+          </p>
+        </div>
 
         <div className="grid grid-cols-3 gap-3">
           {[
@@ -178,16 +166,10 @@ export function ConsultantEmailsView({ rows, manager, gmailReady, result }: {
                       {manager && <td className="whitespace-nowrap px-4 py-3 text-slate-600">{r.recruiterName ?? "—"}</td>}
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="flex justify-end gap-1.5">
-                          {gmailReady && (
-                            // A full page visit: Google's sign-in can't open in a fetch
-                            <a
-                              href={`/api/consultant-emails/${r.id}/connect`}
-                              className={cn(buttonVariants({ size: "sm", variant: r.mailbox && !r.mailbox.lastError ? "outline" : "default" }), "inline-flex items-center gap-1.5")}
-                            >
-                              {r.mailbox ? <RefreshCw className="h-3.5 w-3.5" /> : <MailPlus className="h-3.5 w-3.5" />}
-                              {r.mailbox ? "Reconnect" : "Connect Gmail"}
-                            </a>
-                          )}
+                          <Button size="sm" variant={r.mailbox && !r.mailbox.lastError ? "outline" : "default"} onClick={() => setConnecting(r)}>
+                            {r.mailbox ? <RefreshCw className="h-3.5 w-3.5" /> : <MailPlus className="h-3.5 w-3.5" />}
+                            {r.mailbox ? "Reconnect" : "Connect Gmail"}
+                          </Button>
                           {r.mailbox && (
                             <Button size="sm" variant="ghost" onClick={() => disconnect(r)} disabled={busy === r.id} title="Disconnect">
                               {busy === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5" />}
@@ -203,10 +185,127 @@ export function ConsultantEmailsView({ rows, manager, gmailReady, result }: {
           </div>
         </div>
         <p className="flex items-center gap-1.5 text-[11.5px] text-slate-400">
-          <Link2 className="h-3.5 w-3.5" /> Tokens are stored encrypted and never shown in the browser. Disconnecting also revokes the access at Google.
+          <Link2 className="h-3.5 w-3.5" /> App Passwords are stored encrypted and never shown again. To cut access, disconnect here or delete the App Password in the consultant&apos;s Google account.
         </p>
       </div>
+
+      {connecting && (
+        <ConnectDialog
+          row={connecting}
+          onClose={() => setConnecting(null)}
+          onConnected={(email) => {
+            show(`Connected ${email} for ${connecting.name}: read and send`, "success");
+            setConnecting(null);
+            router.refresh();
+          }}
+        />
+      )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
     </>
+  );
+}
+
+function ConnectDialog({ row, onClose, onConnected }: { row: ConsultantMailboxRow; onClose: () => void; onConnected: (email: string) => void }) {
+  const [email, setEmail] = useState(row.mailbox?.email ?? row.marketingEmail ?? "");
+  const [password, setPassword] = useState("");
+  const [reveal, setReveal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const letters = password.replace(/\s+/g, "").length;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    const res = await fetch(`/api/consultant-emails/${row.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, appPassword: password }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setSaving(false);
+    if (!res.ok) return setError(d.error ?? "Could not connect");
+    onConnected(d.email ?? email);
+  };
+
+  const field = "h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 sm:p-6">
+      <div className="absolute inset-0" onClick={() => !saving && onClose()} aria-hidden="true" />
+      <form onSubmit={save} className="relative flex max-h-[94vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-slate-800 px-5 py-3">
+          <div>
+            <h2 className="text-[14px] font-semibold text-white">Connect {row.name}&apos;s Gmail</h2>
+            <p className="text-[11px] text-slate-400">Read and send access with a Google App Password</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="text-slate-300 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="space-y-4 overflow-y-auto px-5 py-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-[12.5px] text-slate-600">
+            <p className="mb-1.5 flex items-center gap-1.5 font-semibold text-slate-800"><KeyRound className="h-4 w-4 text-indigo-600" /> Get the App Password (once per consultant)</p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>Sign in to the consultant&apos;s Gmail in your browser.</li>
+              <li>
+                Turn on <b>2-Step Verification</b>:{" "}
+                <a href="https://myaccount.google.com/signinoptions/twosv" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:underline">
+                  open <ExternalLink className="h-3 w-3" />
+                </a>
+              </li>
+              <li>
+                Open{" "}
+                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:underline">
+                  App passwords <ExternalLink className="h-3 w-3" />
+                </a>
+                , type the name <b>GFT Vision</b> and click <b>Create</b>.
+              </li>
+              <li>Copy the 16-letter password Google shows and paste it below.</li>
+            </ol>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Consultant&apos;s Gmail address</span>
+            <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@gmail.com" className={field} autoComplete="off" />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">App Password</span>
+            <div className="relative">
+              <input
+                type={reveal ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="abcd efgh ijkl mnop"
+                className={cn(field, "pr-10 font-mono tracking-wider")}
+                autoComplete="new-password"
+                spellCheck={false}
+              />
+              <button type="button" onClick={() => setReveal((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label={reveal ? "Hide" : "Show"}>
+                {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <span className={cn("text-[11px]", letters === 16 ? "text-emerald-600" : "text-slate-400")}>
+              {letters}/16 letters{letters > 0 && letters !== 16 ? " (this isn't the normal Gmail password)" : ""}
+            </span>
+          </label>
+
+          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">{error}</p>}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" disabled={saving || !email.trim() || letters !== 16}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} {saving ? "Checking with Google…" : "Connect"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
