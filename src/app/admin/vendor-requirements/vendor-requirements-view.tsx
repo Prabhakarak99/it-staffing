@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Building2, CircleSlash, Inbox, Loader2, Mail, Phone, RefreshCw, Search, Send, Users2,
+  AlertTriangle, Building2, CheckCircle2, CircleSlash, Inbox, Loader2, Mail, Phone, RefreshCw, Search, Send, Users2,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -230,7 +230,16 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                           {r.source.email && <p className="text-[11px] text-slate-400">{r.source.email}</p>}
                           {r.alsoReceivedBy.length > 0 && <p className="text-[11px] text-slate-400">Also: {r.alsoReceivedBy.join(", ")}</p>}
                         </td>
-                        <td className="px-4 py-3"><AudienceBadge row={r} /></td>
+                        <td className="px-4 py-3">
+                          {r.workedBy.length > 0 ? (
+                            <span title={`Already submitted by ${r.workedBy.join(", ")}; hidden from other recruiters`}
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                              <CheckCircle2 className="h-3 w-3" /> Submitted · {r.workedBy.join(", ")}
+                            </span>
+                          ) : (
+                            <AudienceBadge row={r} />
+                          )}
+                        </td>
                         </>)}
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <Button

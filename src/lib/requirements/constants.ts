@@ -42,4 +42,6 @@ export interface RequirementRow {
   /** The viewer's own In-Market consultants on this technology */
   myConsultants: string[];
   mine: boolean;
+  /** Managers only: recruiters who already submitted for it (it's off everyone else's list) */
+  workedBy: string[];
 }

@@ -3,6 +3,7 @@ import { isManager } from "@/lib/roles";
 import type { SessionPayload } from "@/lib/auth";
 import { audienceFor, canSee, consultantsOn, marketedConsultants } from "./audience";
 import { onTechnology, techStem } from "@/lib/easy/data";
+import { ourCompany } from "./internal";
 import type { RequirementRow } from "./constants";
 
 /** How far back the tab looks */
@@ -23,7 +24,8 @@ export function isFullTimeOnly(r: { employmentType: string | null; jobTitle: str
 /**
  * Requirements this user may see, newest first. Managers see everything, with where each came from;
  * recruiters see only requirements on their consultants' technologies (src/lib/requirements/audience.ts)
- * and never which inbox they came from, and not the ones they've already done (see `doneBy`).
+ * and never which inbox they came from. Once any recruiter has worked a requirement it is theirs: it
+ * leaves every recruiter's list (see `workedBy`). Mail from our own company is never shown.
  * `createdAfter` is for the notifier.
  */
 export async function listRequirements(
@@ -32,7 +34,7 @@ export async function listRequirements(
 ): Promise<RequirementRow[]> {
   const manager = isManager(session);
   const since = new Date(Date.now() - (opts.days ?? LIST_DAYS) * 86_400_000);
-  const [rows, consultants, users, boxes, done] = await Promise.all([
+  const [rows, consultants, users, boxes, worked, us] = await Promise.all([
     prisma.emailRequirement.findMany({
       where: { receivedAt: { gte: since }, ...(opts.createdAfter ? { createdAt: { gt: opts.createdAfter } } : {}) },
       orderBy: { receivedAt: "desc" },
@@ -42,7 +44,8 @@ export async function listRequirements(
     marketedConsultants(),
     prisma.user.findMany({ select: { id: true, firstName: true, lastName: true } }),
     prisma.consultantMailbox.findMany({ select: { consultantId: true, email: true, consultant: { select: { firstName: true, lastName: true } } } }),
-    manager ? null : doneBy(session.userId, since),
+    workedBy(since),
+    ourCompany(),
   ]);
   const boxOf = new Map(boxes.map((b) => [b.consultantId, { email: b.email, name: fullName(b.consultant) }]));
   const nameOf = new Map(users.map((u) => [u.id, fullName(u)]));
@@ -50,7 +53,11 @@ export async function listRequirements(
   const out: RequirementRow[] = [];
   for (const r of rows) {
     if (isFullTimeOnly(r)) continue;
-    if (done?.(r)) continue;
+    // Our own recruiters' mail picked up before internal mail was filtered out
+    if (us.isOurs(r.fromEmail) || us.isOurs(r.vendorEmail, r.vendorCompany)) continue;
+    // Already submitted by a recruiter: private to them, and off everyone's list (managers still see it)
+    const doneBy = worked(r);
+    if (!manager && doneBy.length) continue;
     const receivers = [r.ownerId, ...r.alsoReceivedBy];
     const audience = audienceFor(r.technology, consultants);
     if (!manager && !canSee(audience, session.userId)) continue;
@@ -87,6 +94,7 @@ export async function listRequirements(
       },
       myConsultants: consultantsOn(r.technology, consultants).filter((c) => c.recruiterId === session.userId).map((c) => c.name),
       mine: manager && receivers.includes(session.userId),
+      workedBy: manager ? doneBy.map((id) => nameOf.get(id) ?? "").filter(Boolean) : [],
     });
     if (opts.limit && out.length >= opts.limit) break;
   }
@@ -94,29 +102,34 @@ export async function listRequirements(
 }
 
 /**
- * Requirements a recruiter has already worked: they sent a resume for it from Vendor Requirements, or
- * they logged a submission to the same vendor on the same technology after it arrived (a day's slack).
+ * Who has already worked each requirement: sent a resume for it from Vendor Requirements, or logged a
+ * submission to the same vendor on the same technology after it arrived (a day's slack). Returns the
+ * recruiter ids for a requirement (empty when nobody has).
  */
-async function doneBy(userId: string, since: Date) {
+async function workedBy(since: Date) {
   const [sent, subs] = await Promise.all([
-    prisma.emailRequirementSend.findMany({ where: { senderId: userId, status: "sent" }, select: { requirementId: true } }),
+    prisma.emailRequirementSend.findMany({ where: { status: "sent", createdAt: { gte: since } }, select: { requirementId: true, senderId: true } }),
     prisma.submission.findMany({
-      where: { recruiterId: userId, submissionDate: { gte: new Date(since.getTime() - 86_400_000) } },
-      select: { vendorRecruiterEmail: true, technology: true, submissionDate: true },
+      where: { submissionDate: { gte: new Date(since.getTime() - 86_400_000) } },
+      select: { recruiterId: true, vendorRecruiterEmail: true, technology: true, submissionDate: true },
     }),
   ]);
-  const sentIds = new Set(sent.map((s) => s.requirementId));
-  const byVendor = new Map<string, { technology: string; at: number }[]>();
+  const sentBy = new Map<string, Set<string>>();
+  for (const s of sent) sentBy.set(s.requirementId, (sentBy.get(s.requirementId) ?? new Set()).add(s.senderId));
+  const byVendor = new Map<string, { recruiterId: string; technology: string; at: number }[]>();
   for (const s of subs) {
     const key = s.vendorRecruiterEmail.trim().toLowerCase();
-    byVendor.set(key, [...(byVendor.get(key) ?? []), { technology: s.technology, at: s.submissionDate.getTime() }]);
+    byVendor.set(key, [...(byVendor.get(key) ?? []), { recruiterId: s.recruiterId, technology: s.technology, at: s.submissionDate.getTime() }]);
   }
   return (r: { id: string; vendorEmail: string | null; fromEmail: string; technology: string | null; receivedAt: Date }) => {
-    if (sentIds.has(r.id)) return true;
+    const who = new Set(sentBy.get(r.id) ?? []);
     const stem = r.technology && r.technology !== "Others" ? techStem(r.technology) : null;
     const after = r.receivedAt.getTime() - 86_400_000;
-    return [r.vendorEmail, r.fromEmail].some((e) =>
-      !!e && (byVendor.get(e.trim().toLowerCase()) ?? []).some((s) => s.at >= after && (!stem || onTechnology(s.technology, stem) || s.technology.toLowerCase() === r.technology!.toLowerCase())),
-    );
+    for (const e of new Set([r.vendorEmail, r.fromEmail].filter((x): x is string => !!x).map((x) => x.trim().toLowerCase()))) {
+      for (const s of byVendor.get(e) ?? []) {
+        if (s.at >= after && (!stem || onTechnology(s.technology, stem) || s.technology.toLowerCase() === r.technology!.toLowerCase())) who.add(s.recruiterId);
+      }
+    }
+    return [...who];
   };
 }

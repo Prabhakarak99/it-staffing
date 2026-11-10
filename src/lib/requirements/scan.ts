@@ -6,6 +6,7 @@ import { getFullMessage, listMessageIds, type FullMessage } from "@/lib/gmail/me
 import { decrypt } from "@/lib/gmail/crypto";
 import { AppPasswordRejectedError, openImapReader } from "@/lib/consultant-mail/imap";
 import { REQ_TECHNOLOGIES } from "./constants";
+import { ourCompany } from "./internal";
 
 /** Each inbox is read at most this often */
 const SCAN_EVERY_MS = 4 * 60_000;
@@ -28,6 +29,7 @@ const searchFor = (since: Date | null) =>
 const SYSTEM = `You read emails received by a US IT staffing (bench sales) recruiter and pick out vendor job requirements: emails from vendors, implementation partners or clients describing open IT positions they want consultants submitted for.
 
 Not requirements: replies about a consultant already submitted, interview scheduling, rate confirmations, newsletters, job alerts from job boards, marketing, personal or internal email, hotlists of available consultants.
+Also not requirements: anything sent by the recruiter's own company (named in OUR COMPANY below), including our recruiters submitting or forwarding a consultant's profile ("please find attached the resume of …", rate confirmations, right-to-represent). A person's name in such an email is our consultant, never a client.
 
 Return ONLY JSON:
 {
@@ -101,11 +103,11 @@ const fingerprintOf = (m: FullMessage, index: number) =>
     .update(`${m.fromEmail}|${m.subject.toLowerCase().replace(/^\s*((re|fw|fwd)\s*:\s*)+/i, "").replace(/\s+/g, " ").trim()}|${index}`)
     .digest("hex");
 
-async function extract(ai: AiConfig, m: FullMessage) {
+async function extract(ai: AiConfig, m: FullMessage, ourDomains: string[]) {
   const body = withoutQuoted(m.text).slice(0, MAX_BODY);
   const raw = await aiJson<unknown>(ai, {
     system: SYSTEM,
-    user: `FROM: ${m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail}\nSUBJECT: ${m.subject}\nDATE: ${m.receivedAt.toISOString()}\n\n${body}`,
+    user: `OUR COMPANY (the recruiter's employer, never a vendor): ${ourDomains.join(", ") || "unknown"}\n\nFROM: ${m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail}\nSUBJECT: ${m.subject}\nDATE: ${m.receivedAt.toISOString()}\n\n${body}`,
     maxTokens: 6000,
     timeoutMs: 120_000,
   });
@@ -173,14 +175,17 @@ async function scanMailbox(inbox: Inbox, ai?: AiConfig | null): Promise<{ added:
   const gmailTeam = new Set(
     [...(await prisma.gmailAccount.findMany({ select: { email: true } })), ...(await prisma.consultantMailbox.findMany({ select: { email: true } }))].map((a) => a.email.toLowerCase()),
   );
+  // Anyone at our own company domain (aliases, forwards) is internal too
+  const us = await ourCompany();
 
   let added = 0;
   for (const id of todo) {
     let status = "skipped";
     try {
       const m = await reader.get(id);
-      if (!team.has(m.fromEmail) && !gmailTeam.has(m.fromEmail) && m.text.length >= 80) {
-        const found = await extract(cfg, m);
+      if (!team.has(m.fromEmail) && !gmailTeam.has(m.fromEmail) && !us.isOurs(m.fromEmail) && m.text.length >= 80) {
+        // A "vendor" that is really us (our recruiter's signature in a forward) isn't a requirement
+        const found = (await extract(cfg, m, us.domains)).filter((q) => !us.isOurs(q.vendorEmail, q.vendorCompany));
         status = found.length ? "duplicate" : "skipped";
         for (const [i, q] of found.entries()) {
           const fingerprint = fingerprintOf(m, i);
