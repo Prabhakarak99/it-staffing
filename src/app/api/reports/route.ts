@@ -27,6 +27,14 @@ export interface ReportRecruiter {
   name: string;
 }
 
+/** Consultant statuses that mean they have left */
+const EXIT_STATUSES = ["Exit", "ProjectCompleted-Exit"];
+
+/** Employees who have left: deactivated, or their end date has passed */
+const exitedUser = (now: Date) => ({ OR: [{ isActive: false }, { endDate: { lte: now } }] });
+/** Consultants who have left */
+const exitedConsultant = { projectStatus: { in: EXIT_STATUSES } };
+
 const fullName = (p: { firstName: string; lastName: string }) =>
   `${p.firstName} ${p.lastName}`.replace(/\s+/g, " ").trim();
 
@@ -36,6 +44,7 @@ const fullName = (p: { firstName: string; lastName: string }) =>
  * The client sends from/to as Central-time day boundaries.
  * Interviews only count once their start time has passed ("done").
  * Submission reports also return every In-Market consultant and every recruiter, for the zero rows.
+ * Exited employees and exited consultants are left out everywhere.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -57,12 +66,14 @@ export async function GET(req: NextRequest) {
   }
 
   const person = { select: { id: true, firstName: true, lastName: true } };
+  const now = new Date();
+  const active = { recruiter: { NOT: exitedUser(now) }, consultant: { NOT: exitedConsultant } };
   const entries: { recruiter: { id: string; firstName: string; lastName: string };
     consultant: { id: string; firstName: string; lastName: string }; technology: string }[] = [];
 
   if (type === "submissions") {
     const submissions = await prisma.submission.findMany({
-      where: { submissionDate: { gte: from, lt: to } },
+      where: { submissionDate: { gte: from, lt: to }, ...active },
       select: { technology: true, recruiter: person, consultant: person },
     });
     entries.push(...submissions);
@@ -71,7 +82,9 @@ export async function GET(req: NextRequest) {
       where: {
         AND: [
           { interviewStartDate: { gte: from, lt: to } },
-          { interviewStartDate: { lte: new Date() } },
+          { interviewStartDate: { lte: now } },
+          { recruiter: active.recruiter },
+          { submission: { consultant: active.consultant } },
         ],
       },
       select: {
@@ -111,14 +124,15 @@ export async function GET(req: NextRequest) {
 
   const [students, recruiters] = await Promise.all([
     prisma.student.findMany({
-      where: { projectStatus: { in: MARKETING_STATUSES } },
+      where: { projectStatus: { in: MARKETING_STATUSES.filter((st) => !EXIT_STATUSES.includes(st)) } },
       select: {
         id: true, firstName: true, lastName: true, technology: true,
-        preMarketings: { select: { recruiter: person }, take: 1 },
+        // Only an active recruiter counts as assigned
+        preMarketings: { where: { recruiter: { NOT: exitedUser(now) } }, select: { recruiter: person }, take: 1 },
         submissions: { select: { technology: true, submissionDate: true }, orderBy: { submissionDate: "desc" }, take: 1 },
       },
     }),
-    prisma.user.findMany({ where: { role: { name: "Recruiter" } }, select: { id: true, firstName: true, lastName: true } }),
+    prisma.user.findMany({ where: { role: { name: "Recruiter" }, NOT: exitedUser(now) }, select: { id: true, firstName: true, lastName: true } }),
   ]);
 
   const consultants: MarketConsultant[] = students.map((s) => {
