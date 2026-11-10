@@ -7,6 +7,7 @@ import { isGmailConfigured } from "@/lib/gmail/oauth";
 import { fmtDayKey, todayKey } from "@/lib/attendance/dates";
 import { listFollowUps } from "@/lib/followups/data";
 import { FOLLOWUPS_SCREEN } from "@/lib/followups/templates";
+import { myEmailSetup } from "@/lib/email-templates/data";
 import { FollowUpsView } from "./follow-ups-view";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,12 @@ export default async function FollowUpsPage() {
   if (!session) redirect("/login");
   if (!(await canViewScreen(session, FOLLOWUPS_SCREEN.path))) redirect("/admin");
 
-  const [items, gmailReady, gmail] = await Promise.all([
+  const [items, gmailReady, gmail, emailSetup, me] = await Promise.all([
     listFollowUps(session.userId),
     isGmailConfigured(),
     prisma.gmailAccount.findUnique({ where: { userId: session.userId }, select: { email: true, lastError: true } }),
+    myEmailSetup(session.userId),
+    prisma.user.findUnique({ where: { id: session.userId }, select: { firstName: true, lastName: true, email: true } }),
   ]);
 
   return (
@@ -28,6 +31,8 @@ export default async function FollowUpsPage() {
       userId={session.userId}
       canSeeAll={isManager(session)}
       gmail={gmailReady && gmail && !gmail.lastError ? gmail.email : null}
+      templates={emailSetup.templates.filter((t) => t.category !== "submission")}
+      me={{ name: me ? `${me.firstName} ${me.lastName}`.trim() : session.email, email: me?.email ?? session.email, signature: emailSetup.signature }}
       dayLabel={fmtDayKey(todayKey(), { weekday: "long", month: "long", day: "numeric" })}
     />
   );

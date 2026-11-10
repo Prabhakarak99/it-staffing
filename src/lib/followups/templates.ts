@@ -1,4 +1,5 @@
 // Follow-up timing and email wording. No server imports: the Follow-ups page previews these.
+import { signOff, type TemplateVars } from "@/lib/email-templates/render";
 
 export const FOLLOWUPS_SCREEN = { name: "Follow-ups", path: "/admin/follow-ups" };
 
@@ -28,6 +29,8 @@ export interface DraftContext {
   dayLabel: string;
   interviewLevel?: string | null;
   senderName: string;
+  /** The sender's own signature (Email Templates); the plain sign-off when empty */
+  signature?: string | null;
 }
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || "there";
@@ -51,5 +54,28 @@ export function draftBody(c: DraftContext) {
         ? `Thank you for arranging ${c.consultantName}'s ${c.interviewLevel ? `${c.interviewLevel} ` : ""}interview on ${c.dayLabel} for ${role}. Could you please share the feedback and let me know the status and next steps?`
         : `Just following up again on the feedback for ${c.consultantName}'s ${c.interviewLevel ? `${c.interviewLevel} ` : ""}interview on ${c.dayLabel} for ${role}. Please let me know the status whenever you hear back from the client.`;
 
-  return `Hi ${firstName(c.vendorName)},\n\nHope you are doing well.\n\n${ask}\n\nLooking forward to hearing from you.\n\nThanks & Regards,\n${c.senderName}`;
+  return `Hi ${firstName(c.vendorName)},\n\nHope you are doing well.\n\n${ask}\n\nLooking forward to hearing from you.\n\n${signOff(c.signature, c.senderName)}`;
 }
+
+/** Fill-in values for a follow-up rendered from the sender's own template */
+export function followUpVars(
+  item: { vendorName: string; vendorCompany: string; consultantName: string; technology: string; clientName: string | null; dayLabel: string; interviewLevel: string | null },
+  me: { name: string; email: string; signature?: string | null },
+): TemplateVars {
+  return {
+    firstName: firstName(item.vendorName),
+    vendorName: item.vendorName,
+    company: item.vendorCompany,
+    consultantName: item.consultantName,
+    technology: item.technology,
+    client: item.clientName ?? "",
+    date: item.dayLabel,
+    interviewLevel: item.interviewLevel ?? "",
+    myName: me.name,
+    myEmail: me.email,
+    signature: signOff(me.signature, me.name),
+  };
+}
+
+/** Template category for each follow-up kind */
+export const FOLLOWUP_CATEGORY = { submission: "followup-submission", interview: "followup-interview" } as const;

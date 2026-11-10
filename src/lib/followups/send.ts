@@ -5,7 +5,8 @@ import { sendMail } from "@/lib/gmail/compose";
 import { GmailNotConnectedError, isGmailConfigured } from "@/lib/gmail/oauth";
 import { syncEmailStats } from "@/lib/gmail/stats";
 import { listFollowUps, type FollowUpItem } from "./data";
-import { freshSubject, type FollowUpKind } from "./templates";
+import { FOLLOWUP_CATEGORY, followUpVars, freshSubject, type FollowUpKind } from "./templates";
+import { fillFields, renderBody } from "@/lib/email-templates/render";
 
 export class FollowUpError extends Error {}
 
@@ -56,18 +57,26 @@ const replySubject = (subject: string) => (/^re:/i.test(subject.trim()) ? subjec
  * Sends the due follow-up for one of the sender's own submissions or interviews: from their Gmail as a
  * reply in the original thread when found, otherwise as a new email (company mailbox without Gmail).
  */
-export async function sendFollowUp(senderId: string, kind: FollowUpKind, id: string) {
+export async function sendFollowUp(senderId: string, kind: FollowUpKind, id: string, templateId: string | null = null) {
   const item = (await listFollowUps(senderId)).find((i) => i.kind === kind && i.id === id);
   if (!item) throw new FollowUpError("This follow-up isn't due. It may have been sent already, or the submission is closed.");
   if (item.state === "sent") throw new FollowUpError("This follow-up was already sent today.");
   if (!item.vendorEmail?.includes("@")) throw new FollowUpError("This submission has no vendor email.");
 
   const [sender, submission] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { firstName: true, lastName: true, email: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { firstName: true, lastName: true, email: true, emailSignature: true } }),
     prisma.submission.findUniqueOrThrow({ where: { id: item.submissionId }, select: { submissionDate: true } }),
   ]);
   const senderName = `${sender.firstName} ${sender.lastName}`.trim() || sender.email;
-  const fresh = freshSubject({ ...item, sequence: item.sequence, senderName });
+  // The sender's own template when one is picked (it must be theirs and for follow-ups)
+  const template = templateId
+    ? await prisma.emailTemplate.findFirst({ where: { id: templateId, userId: senderId, category: { in: [FOLLOWUP_CATEGORY[kind], "general"] } } })
+    : null;
+  if (templateId && !template) throw new FollowUpError("That template wasn't found. Pick another one.");
+  const vars = template ? followUpVars(item, { name: senderName, email: sender.email, signature: sender.emailSignature }) : null;
+  const body = template && vars ? renderBody(template.body, vars) : item.body;
+  // Used only when the original email isn't found; a reply keeps "Re: <original subject>" so it threads
+  const fresh = (template && vars && fillFields(template.subject, vars).trim()) || freshSubject({ ...item, sequence: item.sequence, senderName });
 
   let via: "gmail" | "smtp" =
     (await isGmailConfigured()) &&
@@ -86,7 +95,7 @@ export async function sendFollowUp(senderId: string, kind: FollowUpKind, id: str
         await sendMail(senderId, {
           to: item.vendorEmail,
           subject,
-          body: item.body,
+          body,
           thread: thread ? { threadId: thread.threadId, inReplyTo: thread.inReplyTo, references: thread.references } : undefined,
         });
       } catch (err) {
@@ -97,7 +106,7 @@ export async function sendFollowUp(senderId: string, kind: FollowUpKind, id: str
       }
     }
     if (via === "smtp") {
-      await sendVendorEmail({ to: item.vendorEmail, subject, body: item.body, senderName, replyTo: sender.email });
+      await sendVendorEmail({ to: item.vendorEmail, subject, body, senderName, replyTo: sender.email });
     }
   } catch (err) {
     error = err instanceof Error ? err.message.slice(0, 300) : "Send failed";

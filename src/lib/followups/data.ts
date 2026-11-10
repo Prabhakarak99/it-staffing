@@ -87,7 +87,7 @@ export async function listFollowUps(recruiterId: string | null): Promise<FollowU
         followUps: sentOnly,
       },
     }),
-    recruiterId ? prisma.user.findUnique({ where: { id: recruiterId }, select: { firstName: true, lastName: true } }) : null,
+    recruiterId ? prisma.user.findUnique({ where: { id: recruiterId }, select: { firstName: true, lastName: true, emailSignature: true } }) : null,
   ]);
 
   const items: FollowUpItem[] = [];
@@ -108,7 +108,7 @@ export async function listFollowUps(recruiterId: string | null): Promise<FollowU
       vendorCompany: s.vendorCompany, vendorName: s.vendorRecruiterName, vendorEmail: s.vendorRecruiterEmail,
       recruiterId: s.recruiterId, recruiterName: fullName(s.recruiter),
       sentAt: st.sentAt?.toISOString() ?? null, sentCount: s.followUps.length,
-      body: draftBody({ kind: "submission", sequence: st.sequence, ...ctx, senderName: fullName(sender ?? s.recruiter) }),
+      body: draftBody({ kind: "submission", sequence: st.sequence, ...ctx, senderName: fullName(sender ?? s.recruiter), signature: sender?.emailSignature }),
     });
   }
 
@@ -129,7 +129,7 @@ export async function listFollowUps(recruiterId: string | null): Promise<FollowU
       vendorCompany: sub.vendorCompany, vendorName: sub.vendorRecruiterName, vendorEmail: sub.vendorRecruiterEmail,
       recruiterId: iv.recruiterId, recruiterName: fullName(iv.recruiter),
       sentAt: st.sentAt?.toISOString() ?? null, sentCount: iv.followUps.length,
-      body: draftBody({ kind: "interview", sequence: st.sequence, ...ctx, senderName: fullName(sender ?? iv.recruiter) }),
+      body: draftBody({ kind: "interview", sequence: st.sequence, ...ctx, senderName: fullName(sender ?? iv.recruiter), signature: sender?.emailSignature }),
     });
   }
 

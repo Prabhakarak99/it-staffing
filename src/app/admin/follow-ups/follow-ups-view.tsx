@@ -9,7 +9,8 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { APP_TZ } from "@/lib/tz";
 import type { FollowUpItem } from "@/lib/followups/data";
-import { MAX_FOLLOWUPS, type FollowUpKind } from "@/lib/followups/templates";
+import { FOLLOWUP_CATEGORY, MAX_FOLLOWUPS, followUpVars, type FollowUpKind } from "@/lib/followups/templates";
+import { defaultTemplate, renderBody, type EmailTemplateDto } from "@/lib/email-templates/render";
 
 const TABS: { kind: FollowUpKind; label: string; hint: string }[] = [
   { kind: "submission", label: "Submissions", hint: "Submitted a week ago: ask the vendor for an update. A second follow-up comes due a week after the first." },
@@ -18,13 +19,16 @@ const TABS: { kind: FollowUpKind; label: string; hint: string }[] = [
 
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ });
 
-export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, dayLabel }: {
+export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, templates, me, dayLabel }: {
   initialItems: FollowUpItem[];
   userId: string;
   /** Managers can also look at every recruiter's list (sending stays with each recruiter) */
   canSeeAll: boolean;
   /** Connected Gmail address, or null (follow-ups then go from the company mailbox as new emails) */
   gmail: string | null;
+  /** The user's own follow-up and general templates */
+  templates: EmailTemplateDto[];
+  me: { name: string; email: string; signature: string };
   dayLabel: string;
 }) {
   const { toast, show, hide } = useToast();
@@ -34,6 +38,17 @@ export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, dayLabel
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
   const [preview, setPreview] = useState<Set<string>>(new Set());
+  // Template per tab: the default for that follow-up kind, or the built-in wording ("")
+  const [templateFor, setTemplateFor] = useState<Record<FollowUpKind, string>>({
+    submission: defaultTemplate(templates, FOLLOWUP_CATEGORY.submission)?.id ?? "",
+    interview: defaultTemplate(templates, FOLLOWUP_CATEGORY.interview)?.id ?? "",
+  });
+  const tabTemplates = (kind: FollowUpKind) => templates.filter((t) => t.category === FOLLOWUP_CATEGORY[kind] || t.category === "general");
+  /** The email as it will go out: the picked template filled in, or the built-in draft */
+  const bodyOf = (item: FollowUpItem) => {
+    const t = templates.find((x) => x.id === templateFor[item.kind]);
+    return t ? renderBody(t.body, followUpVars(item, me)) : item.body;
+  };
 
   const load = (next: "mine" | "all") => {
     setLoading(true);
@@ -65,7 +80,7 @@ export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, dayLabel
     const res = await fetch("/api/follow-ups", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: item.kind, id: item.id }),
+      body: JSON.stringify({ kind: item.kind, id: item.id, templateId: templateFor[item.kind] || null }),
     });
     const d = await res.json().catch(() => ({}));
     setSending(null);
@@ -131,6 +146,18 @@ export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, dayLabel
               ))}
             </div>
           )}
+          <label className="flex items-center gap-2 text-[12px] text-slate-500">
+            Template
+            <select
+              value={templateFor[tab]}
+              onChange={(e) => setTemplateFor((p) => ({ ...p, [tab]: e.target.value }))}
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[12.5px] text-slate-700 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+              <option value="">Standard (built-in)</option>
+              {tabTemplates(tab).map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " ★" : ""}</option>)}
+            </select>
+            <Link href="/admin/email-templates" className="font-semibold text-indigo-600 hover:underline">Manage</Link>
+          </label>
           {loading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
           <p className="text-[12px] text-slate-500">{current.hint}</p>
         </div>
@@ -212,7 +239,7 @@ export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, dayLabel
                             <td colSpan={cols} className="bg-slate-50/80 px-4 py-3">
                               <div className="max-w-2xl rounded-xl border border-slate-200 bg-white p-4">
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">To {i.vendorEmail}</p>
-                                <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{i.body}</p>
+                                <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{mineToSend ? bodyOf(i) : i.body}</p>
                               </div>
                             </td>
                           </tr>

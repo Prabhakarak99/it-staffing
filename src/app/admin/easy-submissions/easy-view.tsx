@@ -11,6 +11,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { APP_TZ } from "@/lib/tz";
 import type { ConsultantOption, EasySubmissionRow, VendorOption } from "@/lib/easy/data";
+import { categoryLabel, defaultTemplate, fillFields, renderBody, signOff, type EmailTemplateDto, type TemplateVars } from "@/lib/email-templates/render";
 import { AccessDialog } from "./access-dialog";
 
 interface Requirement {
@@ -26,6 +27,9 @@ interface ConsultantState { loading: boolean; error?: string; consultants: Consu
 interface VendorState { loading: boolean; error?: string; vendors: VendorOption[]; hidden: number }
 
 type Notify = (message: string, type: "success" | "error") => void;
+
+/** The signed-in user: their name, signature and own templates for the vendor email */
+interface Sender { name: string; email: string; signature: string; templates: EmailTemplateDto[] }
 
 const resumeHref = (file: string) => `/api/resumes/${file}`;
 const consultantHref = (id: string) => `/admin/students?consultant=${id}`;
@@ -189,7 +193,7 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
   ai: { label: string; model: string } | null;
   /** Admin: turn the feature on / off per user */
   canManageAccess: boolean;
-  sender: { name: string; email: string };
+  sender: Sender;
 }) {
   const { toast, show, hide } = useToast();
   const [openSubs, setOpenSubs] = useState<Set<string>>(new Set());
@@ -318,7 +322,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
   sub: EasySubmissionRow;
   state: ConsultantState | undefined;
   aiReady: boolean;
-  sender: { name: string; email: string };
+  sender: Sender;
   notify: Notify;
   onUpdate: (consultantId: string, patch: Partial<ConsultantOption>) => void;
   onReload: () => void;
@@ -535,7 +539,7 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
   consultant: ConsultantOption;
   requirement: Requirement | undefined;
   state: VendorState | undefined;
-  sender: { name: string; email: string };
+  sender: Sender;
   notify: Notify;
   onSent: () => void;
 }) {
@@ -695,14 +699,14 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
   consultant: ConsultantOption;
   requirement: Requirement | undefined;
   vendors: VendorOption[];
-  sender: { name: string; email: string };
+  sender: Sender;
   onClose: () => void;
   onDone: (sent: number, failed: number) => void;
 }) {
   const client = sub.clientName || sub.implementationName;
-  const [subject, setSubject] = useState(`${sub.technology} - ${consultant.name}${client ? ` - ${client}` : ""}`);
-  const [body, setBody] = useState(
-    [
+  const builtIn = {
+    subject: `${sub.technology} - ${consultant.name}${client ? ` - ${client}` : ""}`,
+    body: [
       "Hi {firstName},",
       "",
       `Please find attached the resume of ${consultant.name} for the ${sub.technology} position${client ? ` with ${client}` : ""}.`,
@@ -714,12 +718,36 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
       "",
       "Please review and let me know a good time to connect.",
       "",
-      "Thanks,",
-      sender.name,
-      sender.email,
+      signOff(sender.signature, sender.name, sender.email),
       ...(requirement?.jobDescription ? ["", "--- Job Description ---", requirement.jobDescription.trim()] : []),
     ].join("\n"),
-  );
+  };
+  // Vendor fields ({firstName}, {vendorName}, {company}) stay in place: they're filled per vendor on send
+  const vars: TemplateVars = {
+    consultantName: consultant.name,
+    technology: sub.technology,
+    client: client ?? "",
+    visa: consultant.visaStatus ?? "",
+    location: consultant.location ?? "",
+    rate: requirement?.payRate ?? "",
+    jobDescription: requirement?.jobDescription?.trim() ?? "",
+    myName: sender.name,
+    myEmail: sender.email,
+    signature: signOff(sender.signature, sender.name, sender.email),
+  };
+  const apply = (t: EmailTemplateDto | null) =>
+    t ? { subject: fillFields(t.subject, vars).trim() || builtIn.subject, body: renderBody(t.body, vars) } : builtIn;
+
+  const initialTemplate = defaultTemplate(sender.templates, "submission");
+  const [templateId, setTemplateId] = useState(initialTemplate?.id ?? "");
+  const [subject, setSubject] = useState(() => apply(initialTemplate).subject);
+  const [body, setBody] = useState(() => apply(initialTemplate).body);
+  const pickTemplate = (id: string) => {
+    const next = apply(sender.templates.find((t) => t.id === id) ?? null);
+    setTemplateId(id);
+    setSubject(next.subject);
+    setBody(next.body);
+  };
   // The AI-updated resume when there is one, otherwise the original
   const useTailored = !!consultant.tailored;
   const [sending, setSending] = useState(false);
@@ -754,6 +782,26 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
           <button onClick={onClose} className="text-slate-300 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+          <div className="flex items-end gap-2">
+            <label className="block flex-1 space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Template</span>
+              <select
+                value={templateId}
+                onChange={(e) => pickTemplate(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="">Standard (built-in)</option>
+                {sender.templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.isDefault ? " ★" : ""}{t.category === "general" ? ` · ${categoryLabel(t.category)}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Link href="/admin/email-templates" target="_blank" className="mb-2 whitespace-nowrap text-[11.5px] font-semibold text-indigo-600 hover:underline">
+              Manage templates
+            </Link>
+          </div>
           <label className="block space-y-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Subject</span>
             <input value={subject} onChange={(e) => setSubject(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 px-3 text-[13px] focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" />

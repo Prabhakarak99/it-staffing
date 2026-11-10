@@ -23,16 +23,16 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(await listFollowUps(all ? null : session.userId));
 }
 
-/** POST { kind: "submission" | "interview", id } — sends the due follow-up from the recruiter's own mailbox */
+/** POST { kind: "submission" | "interview", id, templateId? } — sends the due follow-up from the recruiter's own mailbox */
 export async function POST(req: NextRequest) {
   const { session, denied } = await access();
   if (denied) return denied;
-  const { kind, id } = (await req.json().catch(() => ({}))) as { kind?: unknown; id?: unknown };
+  const { kind, id, templateId } = (await req.json().catch(() => ({}))) as { kind?: unknown; id?: unknown; templateId?: unknown };
   if ((kind !== "submission" && kind !== "interview") || typeof id !== "string") {
     return NextResponse.json({ error: "Choose a submission or interview" }, { status: 400 });
   }
   try {
-    return NextResponse.json(await sendFollowUp(session.userId, kind, id));
+    return NextResponse.json(await sendFollowUp(session.userId, kind, id, typeof templateId === "string" && templateId ? templateId : null));
   } catch (err) {
     if (err instanceof FollowUpError) return NextResponse.json({ error: err.message }, { status: 400 });
     console.error("[follow-ups]", err);

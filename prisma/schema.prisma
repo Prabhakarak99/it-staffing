@@ -53,6 +53,8 @@ model User {
   isActive               Boolean   @default(false)
   /// Admin switch for the Easy Submissions tab (on top of the role's screen access)
   easySubmissionsEnabled Boolean   @default(false)
+  /// Plain-text signature added to the user's emails (Easy Submissions, follow-ups)
+  emailSignature         String?
   activationToken        String?   @unique
   activationExpiry       DateTime?
   resetToken             String?   @unique // admin-sent password reset link
@@ -88,6 +90,7 @@ model User {
   tailoredResumes   TailoredResume[]
   easySends         EasySubmissionSend[]
   followUps         FollowUp[]
+  emailTemplates    EmailTemplate[]
 }
 
 model Student {
@@ -683,4 +686,23 @@ model FollowUp {
   @@index([submissionId, kind])
   @@index([interviewId])
   @@index([senderId, createdAt])
+}
+
+/// A user's own email template (only they see and use it)
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  /// submission | followup-submission | followup-interview | general
+  category  String   @default("general")
+  subject   String   @default("")
+  body      String
+  /// Pre-selected for its category
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
 }

@@ -19,9 +19,12 @@ export interface SendInput {
 
 const firstName = (name?: string | null) => name?.trim().split(/\s+/)[0] || "there";
 
-/** "{firstName}" and "{company}" in the subject or body are filled in per vendor */
+/** "{firstName}", "{vendorName}" and "{company}" in the subject or body are filled in per vendor */
 const personalize = (text: string, v: SendInput["vendors"][number]) =>
-  text.replace(/\{firstName\}/g, firstName(v.name)).replace(/\{company\}/g, v.company?.trim() || "your team");
+  text
+    .replace(/\{firstName\}/g, firstName(v.name))
+    .replace(/\{vendorName\}/g, v.name?.trim() || "there")
+    .replace(/\{company\}/g, v.company?.trim() || "your team");
 
 /**
  * Emails the consultant's resume to each vendor separately, from the sender's Gmail when connected
