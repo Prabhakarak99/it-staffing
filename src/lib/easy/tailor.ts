@@ -355,7 +355,7 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
     submissionId
       ? prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, technology: true, jobDescription: true, clientName: true } })
       : null,
-    prisma.student.findUnique({ where: { id: consultantId }, select: { firstName: true, lastName: true, resumeFile: true } }),
+    prisma.student.findUnique({ where: { id: consultantId }, select: { firstName: true, lastName: true, resumeFile: true, resumeFileName: true } }),
     getActiveAi(),
   ]);
   if (submissionId && !sub) throw new AiError("Submission not found");
@@ -419,8 +419,8 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
 
   const docx = await buildResumeDocx(content);
   const file = await saveResume(docx, "docx", "tailored");
-  const safe = name.replace(/[^\w ]+/g, "").replace(/\s+/g, "_") || "Consultant";
-  const tech = (jd.technology || jd.jobTitle || "Resume").replace(/[^\w ]+/g, "").replace(/\s+/g, "_").slice(0, 30);
+  // Same name as the consultant's uploaded resume (always saved as Word)
+  const base = (consultant.resumeFileName ?? "").replace(/\.[a-z0-9]{2,5}$/i, "").trim() || name || "Resume";
 
   return prisma.tailoredResume.create({
     data: {
@@ -434,7 +434,7 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
       jdFileName: jd.fileName ?? null,
       createdById: userId,
       file,
-      fileName: `${safe}_${tech}_Updated.docx`,
+      fileName: `${base}.docx`,
       atsBefore: before.score,
       atsAfter: after.score,
       keywords: {
