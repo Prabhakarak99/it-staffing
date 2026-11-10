@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { readResume } from "@/lib/files/resumes";
+import { extOf, readResume } from "@/lib/files/resumes";
+import { resumeName } from "@/lib/files/resume-name";
 import { countTerm } from "@/lib/easy/ats";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -14,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   const t = await prisma.tailoredResume.findUnique({
     where: { id },
-    select: { file: true, fileName: true, atsBefore: true, atsAfter: true, keywords: true },
+    select: { file: true, consultant: { select: { firstName: true, lastName: true } }, atsBefore: true, atsAfter: true, keywords: true },
   });
   if (!t) return NextResponse.json({ error: "Resume not found" }, { status: 404 });
 
@@ -43,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     {
       html,
       file: t.file,
-      fileName: t.fileName,
+      fileName: resumeName(t.consultant, extOf(t.file)),
       atsBefore: t.atsBefore,
       atsAfter: t.atsAfter,
       keywords,

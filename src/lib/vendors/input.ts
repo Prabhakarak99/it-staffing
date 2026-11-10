@@ -12,6 +12,7 @@ export interface VendorInput {
   clients: string | null;
   implementationPartners: string | null;
   notes: string | null;
+  jobDescription: string | null;
 }
 
 /** Validates a create/edit body. Returns the cleaned fields or an error message. */
@@ -25,6 +26,7 @@ export function parseVendorInput(body: Record<string, unknown>): VendorInput | s
     clients: optional(body.clients),
     implementationPartners: optional(body.implementationPartners),
     notes: optional(body.notes),
+    jobDescription: optional(body.jobDescription)?.slice(0, 20_000) ?? null,
   };
   if (!input.name) return "Name is required";
   if (!input.companyName) return "Company name is required";

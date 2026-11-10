@@ -168,6 +168,7 @@ model Student {
   tailoredResumes     TailoredResume[]
   easySends           EasySubmissionSend[]
   mailbox             ConsultantMailbox?
+  vendorResumeSends   VendorResumeSend[]
 }
 
 model Submission {
@@ -450,12 +451,16 @@ model RecruiterVendor {
   clients                String?
   implementationPartners String?
   notes                  String?
+  /// The vendor's current requirement (typed in, or shown from their latest requirement email)
+  jobDescription         String?
   lastEmailedAt          DateTime?
   emailCount             Int       @default(0)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner           User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tailoredResumes TailoredResume[]
+  resumeSends     VendorResumeSend[]
 
   @@unique([ownerId, email])
   @@index([ownerId])
@@ -634,12 +639,17 @@ model TailoredResume {
   model          String
   createdAt      DateTime @default(now())
 
-  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  consultant Student     @relation(fields: [consultantId], references: [id], onDelete: Cascade)
-  createdBy  User        @relation(fields: [createdById], references: [id])
+  /// Written for this vendor's JD (Vendor Management)
+  recruiterVendorId String?
+
+  submission      Submission?      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  consultant      Student          @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  recruiterVendor RecruiterVendor? @relation(fields: [recruiterVendorId], references: [id], onDelete: SetNull)
+  createdBy       User             @relation(fields: [createdById], references: [id])
 
   @@index([submissionId, consultantId])
   @@index([consultantId, createdAt])
+  @@index([recruiterVendorId, consultantId])
 }
 
 /// Every resume emailed to a vendor from Easy Submissions; also hides vendors already sent for that consultant
@@ -783,4 +793,23 @@ model ConsultantMailbox {
 
   consultant  Student @relation(fields: [consultantId], references: [id], onDelete: Cascade)
   connectedBy User    @relation(fields: [connectedById], references: [id])
+}
+
+/// A consultant's resume emailed to a vendor from Vendor Management
+model VendorResumeSend {
+  id               String   @id @default(cuid())
+  vendorId         String
+  consultantId     String
+  senderId         String
+  tailoredResumeId String?
+  subject          String
+  via              String
+  status           String
+  error            String?
+  createdAt        DateTime @default(now())
+
+  vendor     RecruiterVendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  consultant Student         @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, consultantId])
 }

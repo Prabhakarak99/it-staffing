@@ -4,6 +4,7 @@ import { sendMail } from "@/lib/gmail/compose";
 import { GmailNotConnectedError, isGmailConfigured } from "@/lib/gmail/oauth";
 import { syncEmailStats } from "@/lib/gmail/stats";
 import { RESUME_TYPES, extOf, readResume } from "@/lib/files/resumes";
+import { resumeName } from "@/lib/files/resume-name";
 
 export const MAX_VENDORS_PER_SEND = 50;
 
@@ -33,17 +34,18 @@ const personalize = (text: string, v: SendInput["vendors"][number]) =>
 export async function sendToVendors(senderId: string, input: SendInput) {
   const [sender, consultant, tailored] = await Promise.all([
     prisma.user.findUnique({ where: { id: senderId }, select: { firstName: true, lastName: true, email: true } }),
-    prisma.student.findUnique({ where: { id: input.consultantId }, select: { resumeFile: true, resumeFileName: true } }),
+    prisma.student.findUnique({ where: { id: input.consultantId }, select: { firstName: true, lastName: true, resumeFile: true, resumeFileName: true } }),
     input.useTailored
       ? prisma.tailoredResume.findFirst({ where: { submissionId: input.submissionId, consultantId: input.consultantId }, orderBy: { createdAt: "desc" } })
       : null,
   ]);
   if (!sender) throw new Error("Unauthorized");
 
-  const attachment = tailored
-    ? { file: tailored.file, name: tailored.fileName }
+  // Vendors always get "First_Last_Resume.<ext>", whatever the file was called
+  const attachment = tailored && consultant
+    ? { file: tailored.file, name: resumeName(consultant, extOf(tailored.file)) }
     : consultant?.resumeFile
-      ? { file: consultant.resumeFile, name: consultant.resumeFileName ?? "Resume" }
+      ? { file: consultant.resumeFile, name: resumeName(consultant, extOf(consultant.resumeFile)) }
       : null;
   if (!attachment) throw new Error("This consultant has no resume to attach. Upload one first.");
 

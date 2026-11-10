@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BookUser, Mail, Pencil, Phone, Plus, Search, Send, Trash2, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { BookUser, Mail, Minus, Pencil, Phone, Plus, Search, Send, Trash2, X } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +9,16 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { VendorList } from "@/lib/vendors/list";
 import { APP_TZ } from "@/lib/tz";
+import { VendorConsultants, type Sender } from "./vendor-consultants";
 
 type Vendor = VendorList["vendors"][number];
 
 type VendorForm = Pick<Vendor, "name" | "email" | "companyName"> & {
-  phone: string; technologies: string; clients: string; implementationPartners: string; notes: string;
+  phone: string; technologies: string; clients: string; implementationPartners: string; notes: string; jobDescription: string;
 };
 
 const EMPTY_FORM: VendorForm = {
-  name: "", email: "", phone: "", companyName: "", technologies: "", clients: "", implementationPartners: "", notes: "",
+  name: "", email: "", phone: "", companyName: "", technologies: "", clients: "", implementationPartners: "", notes: "", jobDescription: "",
 };
 
 const TEMPLATES = [
@@ -76,12 +77,16 @@ function TextArea({ label, ...props }: { label: string } & React.TextareaHTMLAtt
   );
 }
 
-export function VendorManagementView({ initial }: { initial: VendorList }) {
+export function VendorManagementView({ initial, aiReady, sender }: { initial: VendorList; aiReady: boolean; sender: Sender }) {
   const { toast, show, hide } = useToast();
   const [data, setData] = useState(initial);
   const { vendors, isAdmin } = data;
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Vendors whose matched consultants are open ("+")
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   // Add/edit popup: null = closed, "new" = add, otherwise the vendor being edited
   const [editing, setEditing] = useState<Vendor | "new" | null>(null);
@@ -106,7 +111,7 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
     const q = query.trim().toLowerCase();
     if (!q) return vendors;
     return vendors.filter((v) =>
-      [v.name, v.email, v.phone, v.companyName, v.technologies, v.clients, v.implementationPartners, v.ownerName]
+      [v.name, v.email, v.phone, v.companyName, v.technologies, v.clients, v.implementationPartners, v.ownerName, v.jd?.text]
         .some((f) => f?.toLowerCase().includes(q)),
     );
   }, [query, vendors]);
@@ -136,6 +141,7 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
       name: v.name, email: v.email, companyName: v.companyName, phone: v.phone ?? "",
       technologies: v.technologies ?? "", clients: v.clients ?? "",
       implementationPartners: v.implementationPartners ?? "", notes: v.notes ?? "",
+      jobDescription: v.jobDescription ?? "",
     });
     setEditing(v);
   };
@@ -270,10 +276,12 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
                     <th className="w-10 px-3 py-3">
                       <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-3.5 w-3.5 accent-indigo-500" />
                     </th>
+                    <th className="w-8 px-1 py-3" aria-label="Matched consultants" />
                     <th className={th}>Name</th>
                     <th className={th}>Company</th>
                     <th className={th}>Contact</th>
                     <th className={th}>Technologies</th>
+                    <th className={th}>Job Description</th>
                     <th className={th}>Clients</th>
                     <th className={th}>Impl. Partners</th>
                     <th className={th}>Last Emailed</th>
@@ -283,9 +291,24 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((v) => (
-                    <tr key={v.id} className={cn("align-top hover:bg-slate-50", selected.has(v.id) && "bg-indigo-50/50")}>
+                    <Fragment key={v.id}>
+                    <tr className={cn("align-top hover:bg-slate-50", selected.has(v.id) && "bg-indigo-50/50", expanded.has(v.id) && "bg-sky-50/40")}>
                       <td className="px-3 py-3">
                         <input type="checkbox" checked={selected.has(v.id)} onChange={() => toggleOne(v.id)} className="h-3.5 w-3.5 accent-indigo-500" />
+                      </td>
+                      <td className="px-1 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(v.id)}
+                          title={expanded.has(v.id) ? "Hide matched consultants" : "Matched consultants: update resume and send"}
+                          aria-expanded={expanded.has(v.id)}
+                          className={cn(
+                            "flex h-6 w-6 items-center justify-center rounded-md border transition",
+                            expanded.has(v.id) ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 text-slate-500 hover:border-indigo-400 hover:text-indigo-600",
+                          )}
+                        >
+                          {expanded.has(v.id) ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                        </button>
                       </td>
                       <td className="px-3 py-3 font-semibold text-slate-800">{v.name}</td>
                       <td className="px-3 py-3 text-slate-700">{v.companyName}</td>
@@ -303,6 +326,17 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
                             <span key={t} className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10.5px] font-medium text-indigo-700">{t}</span>
                           ))}
                         </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        {v.jd ? (
+                          // One line here; the whole JD on hover
+                          <div className="max-w-[260px]" title={v.jd.text}>
+                            <p className="truncate text-slate-700">{v.jd.title ? `${v.jd.title}: ` : ""}{v.jd.text.replace(/\s+/g, " ")}</p>
+                            {v.jd.source === "email" && <p className="text-[10.5px] text-slate-400">From their requirement email</p>}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="max-w-[180px] px-3 py-3 text-slate-600">{v.clients ?? "—"}</td>
                       <td className="max-w-[180px] px-3 py-3 text-slate-600">{v.implementationPartners ?? "—"}</td>
@@ -325,9 +359,23 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
                         </div>
                       </td>
                     </tr>
+                    {expanded.has(v.id) && (
+                      <tr>
+                        <td colSpan={isAdmin ? 12 : 11} className="bg-sky-50/40 px-4 py-3">
+                          <VendorConsultants
+                            vendor={{ id: v.id, name: v.name, companyName: v.companyName, email: v.email, clients: v.clients, jd: v.jd }}
+                            aiReady={aiReady}
+                            sender={sender}
+                            notify={show}
+                            onSent={() => void load()}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={isAdmin ? 10 : 9} className="px-5 py-10 text-center text-slate-400">No contacts match your search</td></tr>
+                    <tr><td colSpan={isAdmin ? 12 : 11} className="px-5 py-10 text-center text-slate-400">No contacts match your search</td></tr>
                   )}
                 </tbody>
               </table>
@@ -351,6 +399,13 @@ export function VendorManagementView({ initial }: { initial: VendorList }) {
               <Input label="Clients" placeholder="Comma-separated" value={form.clients} onChange={set("clients")} />
               <Input label="Implementation Partners" placeholder="Comma-separated" value={form.implementationPartners} onChange={set("implementationPartners")} />
             </div>
+            <TextArea
+              label="Job Description"
+              rows={5}
+              placeholder="Paste the vendor's current requirement. Left empty, the JD from their latest requirement email is used."
+              value={form.jobDescription}
+              onChange={set("jobDescription")}
+            />
             <TextArea label="Notes" rows={2} value={form.notes} onChange={set("notes")} />
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
               <Button type="button" variant="outline" onClick={closeEdit}>Cancel</Button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { RESUME_TYPES, extOf, isStoredName, readResume } from "@/lib/files/resumes";
+import { resumeName } from "@/lib/files/resume-name";
 
 type RouteContext = { params: Promise<{ file: string }> };
 
@@ -14,11 +15,13 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   if (!isStoredName(file)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const [student, tailored, jd] = await Promise.all([
-    prisma.student.findFirst({ where: { resumeFile: file }, select: { resumeFileName: true } }),
-    prisma.tailoredResume.findFirst({ where: { file }, select: { fileName: true } }),
+    prisma.student.findFirst({ where: { resumeFile: file }, select: { firstName: true, lastName: true } }),
+    prisma.tailoredResume.findFirst({ where: { file }, select: { consultant: { select: { firstName: true, lastName: true } } } }),
     prisma.tailoredResume.findFirst({ where: { jdFile: file }, select: { jdFileName: true } }),
   ]);
-  const downloadName = student?.resumeFileName ?? tailored?.fileName ?? jd?.jdFileName;
+  // Resumes always download as "First_Last_Resume.<ext>"; a JD keeps its own name
+  const person = student ?? tailored?.consultant;
+  const downloadName = person ? resumeName(person, extOf(file)) : jd?.jdFileName;
   if (!downloadName) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {

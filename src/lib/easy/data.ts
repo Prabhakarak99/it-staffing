@@ -3,6 +3,8 @@ import type { SessionPayload } from "@/lib/auth";
 import { isManager } from "@/lib/roles";
 import { addDays, todayKey } from "@/lib/attendance/dates";
 import { dayStart } from "@/lib/tz";
+import { extOf } from "@/lib/files/resumes";
+import { resumeName } from "@/lib/files/resume-name";
 
 export const EASY_SCREEN = { name: "Easy Submissions", path: "/admin/easy-submissions" };
 
@@ -166,9 +168,9 @@ export async function consultantsFor(submissionId: string): Promise<{ technology
         visaStatus: s.preMarketings[0]?.marketingVisaStatus ?? s.visaStatus,
         location: [s.city, s.state].filter(Boolean).join(", ") || null,
         recruiterName: fullName(s.preMarketings[0]?.recruiter),
-        resume: s.resumeFile ? { file: s.resumeFile, name: s.resumeFileName ?? "Resume" } : null,
+        resume: s.resumeFile ? { file: s.resumeFile, name: resumeName(s, extOf(s.resumeFile)) } : null,
         tailored: t
-          ? { id: t.id, file: t.file, name: t.fileName, atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString() }
+          ? { id: t.id, file: t.file, name: resumeName(s, extOf(t.file)), atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString() }
           : null,
         sentCount: s._count.easySends,
       };

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AiError, aiJson, getActiveAi } from "@/lib/ai/providers";
 import { resumeText, saveResume } from "@/lib/files/resumes";
 import { atsScore, countTerm, type KeywordPriority } from "./ats";
+import { resumeName } from "@/lib/files/resume-name";
 import { buildResumeDocx, resumeContentText, type TailoredResumeContent } from "./resume-docx";
 
 const MAX_RESUME_CHARS = 30_000;
@@ -343,6 +344,8 @@ export interface TailorInput {
   submissionId?: string | null;
   /** Resumes tab: a pasted or uploaded JD */
   jd?: JobDescriptionInput;
+  /** Vendor Management: written for this vendor's JD */
+  recruiterVendorId?: string | null;
 }
 
 /**
@@ -350,7 +353,7 @@ export interface TailorInput {
  * with the configured AI, saves it as Word, scores the original and the update against the JD's
  * key terms, and keeps the JD with it.
  */
-export async function tailorResume({ consultantId, userId, submissionId = null, jd: givenJd }: TailorInput) {
+export async function tailorResume({ consultantId, userId, submissionId = null, jd: givenJd, recruiterVendorId = null }: TailorInput) {
   const [sub, consultant, ai] = await Promise.all([
     submissionId
       ? prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, technology: true, jobDescription: true, clientName: true } })
@@ -419,12 +422,11 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
 
   const docx = await buildResumeDocx(content);
   const file = await saveResume(docx, "docx", "tailored");
-  // Same name as the consultant's uploaded resume (always saved as Word)
-  const base = (consultant.resumeFileName ?? "").replace(/\.[a-z0-9]{2,5}$/i, "").trim() || name || "Resume";
 
   return prisma.tailoredResume.create({
     data: {
       submissionId,
+      recruiterVendorId,
       consultantId,
       jobTitle: jd.jobTitle?.trim() || null,
       clientName: jd.clientName?.trim() || null,
@@ -434,7 +436,7 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
       jdFileName: jd.fileName ?? null,
       createdById: userId,
       file,
-      fileName: `${base}.docx`,
+      fileName: resumeName(name, "docx"),
       atsBefore: before.score,
       atsAfter: after.score,
       keywords: {

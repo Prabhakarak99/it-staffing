@@ -61,7 +61,7 @@ function ExpandButton({ open, onClick, label }: { open: boolean; onClick: () => 
   );
 }
 
-function AtsBadge({ before, after, missing }: { before: number; after: number; missing: string[] }) {
+export function AtsBadge({ before, after, missing }: { before: number; after: number; missing: string[] }) {
   const color = after >= 80 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : after >= 60 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-rose-50 text-rose-700 border-rose-200";
   return (
     <span
@@ -86,7 +86,7 @@ interface PreviewData {
 }
 
 /** The AI-updated resume in a scrollable popup, with the JD keywords and how often each appears */
-function ResumePreview({ id, consultant, onClose }: { id: string; consultant: string; onClose: () => void }) {
+export function ResumePreview({ id, consultant, onClose }: { id: string; consultant: string; onClose: () => void }) {
   const [data, setData] = useState<PreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
 

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { isManager } from "@/lib/roles";
 import { canViewScreen } from "@/lib/screen-access";
+import { extOf } from "@/lib/files/resumes";
+import { resumeName } from "@/lib/files/resume-name";
 
 export const RESUMES_SCREEN = { name: "Resumes", path: "/admin/resumes" };
 
@@ -49,7 +51,7 @@ export async function listResumeConsultants(session: SessionPayload) {
     status: s.projectStatus,
     recruiterName: fullName(s.preMarketings[0]?.recruiter),
     resume: s.resumeFile
-      ? { file: s.resumeFile, name: s.resumeFileName ?? "Resume", updatedAt: s.resumeUpdatedAt?.toISOString() ?? null }
+      ? { file: s.resumeFile, name: resumeName(s, extOf(s.resumeFile)), updatedAt: s.resumeUpdatedAt?.toISOString() ?? null }
       : null,
     aiCount: s._count.tailoredResumes,
   }));
@@ -63,6 +65,7 @@ export async function listAiResumes(consultantId: string) {
     where: { consultantId },
     include: {
       createdBy: { select: { firstName: true, lastName: true } },
+      consultant: { select: { firstName: true, lastName: true } },
       submission: { select: { submissionId: true, technology: true, clientName: true, jobDescription: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -77,7 +80,7 @@ export async function listAiResumes(consultantId: string) {
     jobDescription: t.jobDescription ?? t.submission?.jobDescription ?? null,
     jd: t.jdFile ? { file: t.jdFile, name: t.jdFileName ?? "Job description" } : null,
     submissionCode: t.submission?.submissionId ?? null,
-    resume: { file: t.file, name: t.fileName },
+    resume: { file: t.file, name: resumeName(t.consultant, extOf(t.file)) },
     atsBefore: t.atsBefore,
     atsAfter: t.atsAfter,
     model: t.model,
