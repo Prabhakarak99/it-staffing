@@ -1,4 +1,4 @@
-import { getAccessToken } from "./oauth";
+import { getAccessToken, type MailboxOwner } from "./oauth";
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -8,9 +8,12 @@ export class GmailApiError extends Error {
   }
 }
 
-/** Every call is made with the given user's own token, so one user can never reach another's mailbox. */
-export async function gmailFetch<T>(userId: string, path: string, init: RequestInit = {}): Promise<T> {
-  const token = await getAccessToken(userId);
+/**
+ * Every call is made with that mailbox's own token (a user's own Gmail, or a consultant's connected
+ * one), so one mailbox can never reach another.
+ */
+export async function gmailFetch<T>(owner: MailboxOwner, path: string, init: RequestInit = {}): Promise<T> {
+  const token = await getAccessToken(owner);
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...init.headers },
@@ -28,8 +31,8 @@ export async function gmailFetch<T>(userId: string, path: string, init: RequestI
 }
 
 /** Sends an RFC 822 message through the user's Gmail, so it lands in their Sent folder */
-export const sendRaw = (userId: string, raw: Buffer, threadId?: string) =>
-  gmailFetch<{ id: string; threadId: string }>(userId, "/messages/send", {
+export const sendRaw = (owner: MailboxOwner, raw: Buffer, threadId?: string) =>
+  gmailFetch<{ id: string; threadId: string }>(owner, "/messages/send", {
     method: "POST",
     body: JSON.stringify({ raw: raw.toString("base64url"), ...(threadId ? { threadId } : {}) }),
   });

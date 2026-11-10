@@ -8,6 +8,7 @@ import { AI_SETTINGS_SCREEN } from "@/lib/ai/admin";
 import { FOLLOWUPS_SCREEN } from "@/lib/followups/templates";
 import { RESUMES_SCREEN } from "@/lib/resumes/data";
 import { EMAIL_TEMPLATES_SCREEN } from "@/lib/email-templates/render";
+import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -20,6 +21,7 @@ const LATE_SCREENS = [
   { ...FOLLOWUPS_SCREEN, grantLike: "/admin/submissions" },
   { ...RESUMES_SCREEN, grantLike: "/admin/submissions" },
   { ...EMAIL_TEMPLATES_SCREEN, grantLike: "/admin/submissions" },
+  { ...CONSULTANT_MAIL_SCREEN, grantLike: "/admin/submissions" },
   { ...AI_SETTINGS_SCREEN, grantLike: "/admin/users" },
 ];
 

@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { AiError, aiJson, getActiveAi, type AiConfig } from "@/lib/ai/providers";
-import { isGmailConfigured, GmailNotConnectedError } from "@/lib/gmail/oauth";
+import { isGmailConfigured, GmailNotConnectedError, type MailboxOwner } from "@/lib/gmail/oauth";
 import { getFullMessage, listMessageIds, type FullMessage } from "@/lib/gmail/message";
 import { REQ_TECHNOLOGIES } from "./constants";
 
@@ -110,35 +110,51 @@ async function extract(ai: AiConfig, m: FullMessage) {
   return cleanExtracted(raw);
 }
 
+/** A recruiter's own inbox, or a consultant's connected Gmail (its requirements belong to their recruiter) */
+type Inbox = { kind: "user"; userId: string } | { kind: "consultant"; consultantId: string; recruiterId: string };
+
+/** Reads one recruiter's own inbox for new requirement emails */
+export const scanInbox = (userId: string, ai?: AiConfig | null) => scanMailbox({ kind: "user", userId }, ai);
+
 /**
- * Reads one recruiter's inbox for new requirement emails and stores them. Messages already checked are
- * skipped; the same requirement already stored from another inbox just records this recruiter too.
+ * Reads one inbox for new requirement emails and stores them. Messages already checked are skipped;
+ * the same requirement already stored from another inbox just records this recruiter too.
  * Returns how many new requirements were stored.
  */
-export async function scanInbox(userId: string, ai?: AiConfig | null): Promise<{ added: number; checked: number }> {
+async function scanMailbox(inbox: Inbox, ai?: AiConfig | null): Promise<{ added: number; checked: number }> {
   const cfg = ai === undefined ? await getActiveAi() : ai;
   if (!cfg) throw new AiError("No AI provider is set up. An admin can add one under Administration → AI Settings.");
-  const account = await prisma.gmailAccount.findUnique({ where: { userId }, select: { reqScanAt: true, email: true } });
-  if (!account) throw new GmailNotConnectedError("Connect your Gmail in Mailbox first");
+  const mailbox: MailboxOwner = inbox.kind === "user" ? inbox.userId : { consultantId: inbox.consultantId };
+  /** Who the requirements belong to */
+  const userId = inbox.kind === "user" ? inbox.userId : inbox.recruiterId;
+  /** Key for the checked-message markers: each inbox has its own */
+  const scanKey = inbox.kind === "user" ? inbox.userId : `c_${inbox.consultantId}`;
+  const account =
+    inbox.kind === "user"
+      ? await prisma.gmailAccount.findUnique({ where: { userId: inbox.userId }, select: { reqScanAt: true, email: true } })
+      : await prisma.consultantMailbox.findUnique({ where: { consultantId: inbox.consultantId }, select: { reqScanAt: true, email: true } });
+  if (!account) throw new GmailNotConnectedError(inbox.kind === "user" ? "Connect your Gmail in Mailbox first" : "This consultant's Gmail isn't connected");
 
   const startedAt = new Date();
   // Overlap the previous scan a little so nothing that arrived mid-scan is missed
   const since = account.reqScanAt ? new Date(account.reqScanAt.getTime() - 10 * 60_000) : null;
-  const ids = await listMessageIds(userId, searchFor(since), MAX_PER_SCAN * 3);
+  const ids = await listMessageIds(mailbox, searchFor(since), MAX_PER_SCAN * 3);
   const done = new Set(
-    (await prisma.emailScan.findMany({ where: { ownerId: userId, gmailMessageId: { in: ids } }, select: { gmailMessageId: true } })).map((s) => s.gmailMessageId),
+    (await prisma.emailScan.findMany({ where: { ownerId: scanKey, gmailMessageId: { in: ids } }, select: { gmailMessageId: true } })).map((s) => s.gmailMessageId),
   );
   const todo = ids.filter((id) => !done.has(id)).slice(0, MAX_PER_SCAN);
 
   // Colleagues' addresses: email between us is never a vendor requirement
   const team = new Set((await prisma.user.findMany({ select: { email: true } })).map((u) => u.email.toLowerCase()));
-  const gmailTeam = new Set((await prisma.gmailAccount.findMany({ select: { email: true } })).map((a) => a.email.toLowerCase()));
+  const gmailTeam = new Set(
+    [...(await prisma.gmailAccount.findMany({ select: { email: true } })), ...(await prisma.consultantMailbox.findMany({ select: { email: true } }))].map((a) => a.email.toLowerCase()),
+  );
 
   let added = 0;
   for (const id of todo) {
     let status = "skipped";
     try {
-      const m = await getFullMessage(userId, id);
+      const m = await getFullMessage(mailbox, id);
       if (!team.has(m.fromEmail) && !gmailTeam.has(m.fromEmail) && m.text.length >= 80) {
         const found = await extract(cfg, m);
         status = found.length ? "duplicate" : "skipped";
@@ -157,6 +173,7 @@ export async function scanInbox(userId: string, ai?: AiConfig | null): Promise<{
           await prisma.emailRequirement.create({
             data: {
               ownerId: userId,
+              consultantId: inbox.kind === "consultant" ? inbox.consultantId : null,
               gmailMessageId: m.id,
               threadId: m.threadId,
               receivedAt: m.receivedAt,
@@ -180,14 +197,17 @@ export async function scanInbox(userId: string, ai?: AiConfig | null): Promise<{
       if (err instanceof AiError) break;
     }
     await prisma.emailScan.upsert({
-      where: { ownerId_gmailMessageId: { ownerId: userId, gmailMessageId: id } },
-      create: { ownerId: userId, gmailMessageId: id, status },
+      where: { ownerId_gmailMessageId: { ownerId: scanKey, gmailMessageId: id } },
+      create: { ownerId: scanKey, gmailMessageId: id, status },
       update: { status },
     });
   }
 
   // Only move the watermark when everything found was handled, so a backlog is picked up next time
-  if (todo.length < MAX_PER_SCAN) await prisma.gmailAccount.update({ where: { userId }, data: { reqScanAt: startedAt } });
+  if (todo.length < MAX_PER_SCAN) {
+    if (inbox.kind === "user") await prisma.gmailAccount.update({ where: { userId: inbox.userId }, data: { reqScanAt: startedAt } });
+    else await prisma.consultantMailbox.update({ where: { consultantId: inbox.consultantId }, data: { reqScanAt: startedAt } });
+  }
   return { added, checked: todo.length };
 }
 
@@ -210,6 +230,21 @@ export async function processRequirementInboxes() {
         if (added) console.log(`[requirements] ${email}: ${added} new requirement(s)`);
       } catch (err) {
         console.error(`[requirements] ${email}:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    // Consultants' connected Gmail: requirements go to the consultant's recruiter
+    const boxes = await prisma.consultantMailbox.findMany({
+      where: { lastError: null, OR: [{ reqScanAt: null }, { reqScanAt: { lt: new Date(Date.now() - SCAN_EVERY_MS) } }] },
+      select: { consultantId: true, email: true, connectedById: true, consultant: { select: { preMarketings: { select: { recruiterId: true }, take: 1 } } } },
+    });
+    for (const b of boxes) {
+      const recruiterId = b.consultant.preMarketings[0]?.recruiterId ?? b.connectedById;
+      try {
+        const { added } = await scanMailbox({ kind: "consultant", consultantId: b.consultantId, recruiterId }, ai);
+        if (added) console.log(`[requirements] consultant mailbox ${b.email}: ${added} new requirement(s)`);
+      } catch (err) {
+        console.error(`[requirements] consultant mailbox ${b.email}:`, err instanceof Error ? err.message : err);
       }
     }
     // Forget checked-message markers after 30 days

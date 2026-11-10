@@ -74,24 +74,25 @@ model User {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  role              Role?                @relation(fields: [roleId], references: [id])
-  submissions       Submission[]
-  interviews        Interview[]
-  preMarketings     PreMarketing[]       @relation("PreMarketingRecruiter")
-  expenses          Expense[]            @relation("ExpenseSubmitter")
-  vendorContacts    RecruiterVendor[]
-  gmailAccount      GmailAccount?
-  emailStats        EmailDailyStat[]
-  leads             Lead[]               @relation("LeadCreator")
-  attendance        Attendance[]         @relation("AttendanceUser")
-  attendanceReviews Attendance[]         @relation("AttendanceReviewer")
-  leaveRequests     LeaveRequest[]       @relation("LeaveUser")
-  leaveReviews      LeaveRequest[]       @relation("LeaveReviewer")
-  tailoredResumes   TailoredResume[]
-  easySends         EasySubmissionSend[]
-  followUps         FollowUp[]
-  emailTemplates    EmailTemplate[]
-  emailRequirements EmailRequirement[]
+  role                         Role?                @relation(fields: [roleId], references: [id])
+  submissions                  Submission[]
+  interviews                   Interview[]
+  preMarketings                PreMarketing[]       @relation("PreMarketingRecruiter")
+  expenses                     Expense[]            @relation("ExpenseSubmitter")
+  vendorContacts               RecruiterVendor[]
+  gmailAccount                 GmailAccount?
+  emailStats                   EmailDailyStat[]
+  leads                        Lead[]               @relation("LeadCreator")
+  attendance                   Attendance[]         @relation("AttendanceUser")
+  attendanceReviews            Attendance[]         @relation("AttendanceReviewer")
+  leaveRequests                LeaveRequest[]       @relation("LeaveUser")
+  leaveReviews                 LeaveRequest[]       @relation("LeaveReviewer")
+  tailoredResumes              TailoredResume[]
+  easySends                    EasySubmissionSend[]
+  followUps                    FollowUp[]
+  emailTemplates               EmailTemplate[]
+  emailRequirements            EmailRequirement[]
+  consultantMailboxesConnected ConsultantMailbox[]
 }
 
 model Student {
@@ -166,6 +167,7 @@ model Student {
   autoJobApplications AutoJobApplication[]
   tailoredResumes     TailoredResume[]
   easySends           EasySubmissionSend[]
+  mailbox             ConsultantMailbox?
 }
 
 model Submission {
@@ -740,6 +742,9 @@ model EmailRequirement {
   vendorPhone    String?
   createdAt      DateTime @default(now())
 
+  /// Read from this consultant's mailbox (Consultant Email Configuration); null = the recruiter's own inbox
+  consultantId String?
+
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([receivedAt])
@@ -758,4 +763,24 @@ model EmailScan {
 
   @@unique([ownerId, gmailMessageId])
   @@index([createdAt])
+}
+
+/// A consultant's own Gmail (the one used to market them), connected by their recruiter with read and send access
+model ConsultantMailbox {
+  id                String    @id @default(cuid())
+  consultantId      String    @unique
+  email             String
+  /// AES-256-GCM encrypted; never sent to the browser
+  refreshTokenEnc   String
+  accessTokenEnc    String?
+  accessTokenExpiry DateTime?
+  connectedById     String
+  connectedAt       DateTime  @default(now())
+  /// Set when Google rejects the token (must reconnect)
+  lastError         String?
+  /// Last time it was read for vendor requirement emails
+  reqScanAt         DateTime?
+
+  consultant  Student @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  connectedBy User    @relation(fields: [connectedById], references: [id])
 }

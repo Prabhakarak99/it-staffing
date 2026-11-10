@@ -16,13 +16,15 @@ export default async function VendorRequirementsPage() {
   if (!session) redirect("/login");
   if (!(await canViewScreen(session, VENDOR_REQ_SCREEN.path))) redirect("/admin");
 
-  const [rows, ai, gmailReady, gmail, inboxes] = await Promise.all([
+  const [rows, ai, gmailReady, gmail, recruiterInboxes, consultantInboxes] = await Promise.all([
     listRequirements(session),
     getActiveAi(),
     isGmailConfigured(),
     prisma.gmailAccount.findUnique({ where: { userId: session.userId }, select: { email: true, lastError: true, reqScanAt: true } }),
     prisma.gmailAccount.count({ where: { lastError: null } }),
+    prisma.consultantMailbox.count({ where: { lastError: null } }),
   ]);
+  const inboxes = recruiterInboxes + consultantInboxes;
 
   return (
     <VendorRequirementsView

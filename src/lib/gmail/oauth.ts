@@ -152,8 +152,62 @@ export async function saveAccount(userId: string, email: string, tokens: TokenRe
   await prisma.gmailAccount.upsert({ where: { userId }, create: { userId, ...data }, update: data });
 }
 
-/** A valid access token for this user's mailbox, refreshing (and caching) it when it is about to expire. */
-export async function getAccessToken(userId: string): Promise<string> {
+/** Whose mailbox: a user's own Gmail (their id), or a consultant's connected Gmail */
+export type MailboxOwner = string | { consultantId: string };
+
+/** Saves a consultant's Gmail, connected by their recruiter (Consultant Email Configuration) */
+export async function saveConsultantMailbox(consultantId: string, connectedById: string, email: string, tokens: TokenResponse) {
+  if (!tokens.refresh_token) throw new Error("Google did not return a refresh token; please try connecting again");
+  const data = {
+    email,
+    refreshTokenEnc: encrypt(tokens.refresh_token),
+    accessTokenEnc: encrypt(tokens.access_token),
+    accessTokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
+    connectedById,
+    connectedAt: new Date(),
+    lastError: null,
+  };
+  await prisma.consultantMailbox.upsert({ where: { consultantId }, create: { consultantId, ...data }, update: data });
+}
+
+async function consultantAccessToken(consultantId: string): Promise<string> {
+  const box = await prisma.consultantMailbox.findUnique({ where: { consultantId } });
+  if (!box) throw new GmailNotConnectedError("This consultant's Gmail is not connected");
+  if (box.accessTokenEnc && box.accessTokenExpiry && box.accessTokenExpiry.getTime() > Date.now() + 60_000) {
+    return decrypt(box.accessTokenEnc);
+  }
+  try {
+    const tokens = await tokenRequest({ refresh_token: decrypt(box.refreshTokenEnc), grant_type: "refresh_token" });
+    await prisma.consultantMailbox.update({
+      where: { consultantId },
+      data: { accessTokenEnc: encrypt(tokens.access_token), accessTokenExpiry: new Date(Date.now() + tokens.expires_in * 1000), lastError: null },
+    });
+    return tokens.access_token;
+  } catch (err) {
+    if (err instanceof GmailAuthError && err.code === "invalid_grant") {
+      await prisma.consultantMailbox.update({ where: { consultantId }, data: { lastError: "Access expired. Please reconnect." } });
+      throw new GmailNotConnectedError("This consultant's Gmail access expired. Please reconnect it.");
+    }
+    throw err;
+  }
+}
+
+/** Revoke a consultant's Gmail at Google (best effort) and forget the tokens */
+export async function disconnectConsultant(consultantId: string) {
+  const box = await prisma.consultantMailbox.findUnique({ where: { consultantId } });
+  if (!box) return;
+  try {
+    await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decrypt(box.refreshTokenEnc))}`, { method: "POST" });
+  } catch {
+    // Already revoked or unreachable; deleting locally is what matters
+  }
+  await prisma.consultantMailbox.delete({ where: { consultantId } });
+}
+
+/** A valid access token for the mailbox, refreshing (and caching) it when it is about to expire. */
+export async function getAccessToken(owner: MailboxOwner): Promise<string> {
+  if (typeof owner !== "string") return consultantAccessToken(owner.consultantId);
+  const userId = owner;
   const account = await prisma.gmailAccount.findUnique({ where: { userId } });
   if (!account) throw new GmailNotConnectedError("Gmail is not connected");
 

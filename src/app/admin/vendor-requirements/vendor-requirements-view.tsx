@@ -203,7 +203,10 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                           {r.vendorPhone && <p className="flex items-center gap-1 text-[11.5px] text-slate-500"><Phone className="h-3 w-3" />{r.vendorPhone}</p>}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-700">{r.mine && !manager ? "Your inbox" : r.source.name}</p>
+                          <p className="font-medium text-slate-700">
+                            {r.source.consultant ? `${r.source.consultant}'s Gmail` : r.mine && !manager ? "Your inbox" : r.source.name}
+                          </p>
+                          {r.source.consultant && <p className="text-[11px] text-slate-500">Recruiter: {r.mine && !manager ? "you" : r.source.name}</p>}
                           {r.source.email && <p className="text-[11px] text-slate-400">{r.source.email}</p>}
                           {r.alsoReceivedBy.length > 0 && <p className="text-[11px] text-slate-400">Also: {r.alsoReceivedBy.join(", ")}</p>}
                         </td>

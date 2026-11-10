@@ -1,4 +1,5 @@
 import { gmailFetch } from "./api";
+import type { MailboxOwner } from "./oauth";
 
 interface Part {
   mimeType?: string;
@@ -21,13 +22,13 @@ export interface FullMessage {
 }
 
 /** Ids of messages matching a Gmail search, newest first */
-export async function listMessageIds(userId: string, q: string, max: number) {
+export async function listMessageIds(owner: MailboxOwner, q: string, max: number) {
   const ids: string[] = [];
   let pageToken: string | undefined;
   do {
     const params = new URLSearchParams({ q, maxResults: String(Math.min(100, max - ids.length)), fields: "messages/id,nextPageToken" });
     if (pageToken) params.set("pageToken", pageToken);
-    const page = await gmailFetch<{ messages?: { id: string }[]; nextPageToken?: string } | undefined>(userId, `/messages?${params}`);
+    const page = await gmailFetch<{ messages?: { id: string }[]; nextPageToken?: string } | undefined>(owner, `/messages?${params}`);
     ids.push(...(page?.messages ?? []).map((m) => m.id));
     pageToken = page?.nextPageToken;
   } while (pageToken && ids.length < max);
@@ -75,8 +76,8 @@ export function parseAddress(value: string) {
 }
 
 /** One message with its headers and its body as plain text */
-export async function getFullMessage(userId: string, id: string): Promise<FullMessage> {
-  const msg = await gmailFetch<{ id: string; threadId: string; internalDate?: string; payload?: Part }>(userId, `/messages/${id}?format=full`);
+export async function getFullMessage(owner: MailboxOwner, id: string): Promise<FullMessage> {
+  const msg = await gmailFetch<{ id: string; threadId: string; internalDate?: string; payload?: Part }>(owner, `/messages/${id}?format=full`);
   const headers = msg.payload?.headers ?? [];
   const header = (name: string) => headers.find((h) => h.name.toLowerCase() === name)?.value ?? "";
   const from = parseAddress(header("from"));

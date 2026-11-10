@@ -38,7 +38,7 @@ export interface RequirementRow {
   vendorPhone: string | null;
   fromEmail: string;
   /** Whose inbox it came from */
-  source: { id: string; name: string; email: string | null };
+  source: { id: string; name: string; email: string | null; /** Read from this consultant's Gmail (else the recruiter's own) */ consultant: string | null };
   alsoReceivedBy: string[];
   audience: { kind: Audience["kind"]; names: string[] };
   /** The viewer's own In-Market consultants on this technology */

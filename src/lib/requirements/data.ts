@@ -20,7 +20,7 @@ export async function listRequirements(
 ): Promise<RequirementRow[]> {
   const manager = isManager(session);
   const since = new Date(Date.now() - (opts.days ?? LIST_DAYS) * 86_400_000);
-  const [rows, consultants, users] = await Promise.all([
+  const [rows, consultants, users, boxes] = await Promise.all([
     prisma.emailRequirement.findMany({
       where: { receivedAt: { gte: since }, ...(opts.createdAfter ? { createdAt: { gt: opts.createdAfter } } : {}) },
       orderBy: { receivedAt: "desc" },
@@ -29,7 +29,9 @@ export async function listRequirements(
     }),
     marketedConsultants(),
     prisma.user.findMany({ select: { id: true, firstName: true, lastName: true } }),
+    prisma.consultantMailbox.findMany({ select: { consultantId: true, email: true, consultant: { select: { firstName: true, lastName: true } } } }),
   ]);
+  const boxOf = new Map(boxes.map((b) => [b.consultantId, { email: b.email, name: fullName(b.consultant) }]));
   const nameOf = new Map(users.map((u) => [u.id, fullName(u)]));
 
   const out: RequirementRow[] = [];
@@ -57,7 +59,9 @@ export async function listRequirements(
       vendorEmail: r.vendorEmail,
       vendorPhone: r.vendorPhone,
       fromEmail: r.fromEmail,
-      source: { id: r.owner.id, name: fullName(r.owner), email: r.owner.gmailAccount?.email ?? null },
+      source: r.consultantId
+        ? { id: r.owner.id, name: fullName(r.owner), email: boxOf.get(r.consultantId)?.email ?? null, consultant: boxOf.get(r.consultantId)?.name ?? "Consultant" }
+        : { id: r.owner.id, name: fullName(r.owner), email: r.owner.gmailAccount?.email ?? null, consultant: null },
       alsoReceivedBy: r.alsoReceivedBy.map((id) => nameOf.get(id) ?? "").filter(Boolean),
       audience: { kind: audience.kind, names: audience.kind === "everyone" ? [] : audience.userIds.map((id) => nameOf.get(id) ?? "").filter(Boolean) },
       myConsultants: consultantsOn(r.technology, consultants).filter((c) => c.recruiterId === session.userId).map((c) => c.name),
