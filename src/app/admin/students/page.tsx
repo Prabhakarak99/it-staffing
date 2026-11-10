@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { ConsultantsView } from "./consultants-view";
 
-export default async function StudentsPage() {
+export default async function StudentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const { consultant: initialId } = await searchParams;
   const [consultants, inMarketCount, onProjectCount, preMarketingCount] = await Promise.all([
     prisma.student.findMany({
       orderBy: { createdAt: "desc" },
@@ -47,6 +48,7 @@ export default async function StudentsPage() {
       inMarketCount={inMarketCount}
       onProjectCount={onProjectCount}
       preMarketingCount={preMarketingCount}
+      initialId={initialId && consultants.some((c) => c.id === initialId) ? initialId : null}
     />
   );
 }

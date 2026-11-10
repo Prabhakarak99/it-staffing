@@ -28,6 +28,7 @@ interface VendorState { loading: boolean; error?: string; vendors: VendorOption[
 type Notify = (message: string, type: "success" | "error") => void;
 
 const resumeHref = (file: string) => `/api/resumes/${file}`;
+const consultantHref = (id: string) => `/admin/students?consultant=${id}`;
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ });
 
 function ExpandButton({ open, onClick, label }: { open: boolean; onClick: () => void; label: string }) {
@@ -246,7 +247,9 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
                               {s.submissionId}
                             </Link>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-800">{s.consultantName}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-800">
+                            <Link href={consultantHref(s.consultantId)} target="_blank" className="hover:text-indigo-600 hover:underline" title="Open consultant profile">{s.consultantName}</Link>
+                          </td>
                           <td className="whitespace-nowrap px-4 py-2.5"><span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11.5px] font-semibold text-indigo-700">{s.technology}</span></td>
                           <td className="px-4 py-2.5 text-slate-700">
                             {s.clientName || "—"}
@@ -418,7 +421,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                   <tr className={cn("hover:bg-slate-50", open && "bg-sky-50/40")}>
                     <td className="px-3 py-2"><ExpandButton open={open} onClick={() => toggle(c.id)} label="Show vendors for this client" /></td>
                     <td className="px-3 py-2">
-                      <p className="font-semibold text-slate-800">{c.name}</p>
+                      <Link href={consultantHref(c.id)} target="_blank" className="font-semibold text-slate-800 hover:text-indigo-600 hover:underline" title="Open consultant profile">{c.name}</Link>
                       <div className="mt-0.5 flex flex-wrap gap-1">
                         {c.projectStatus && <span className="rounded bg-slate-100 px-1.5 text-[10px] text-slate-500">{c.projectStatus}</span>}
                         {c.sentCount > 0 && <span className="rounded bg-emerald-50 px-1.5 text-[10px] font-semibold text-emerald-700">Sent to {c.sentCount}</span>}
@@ -533,7 +536,7 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
         <p className="mr-auto text-[12.5px] font-bold text-slate-800">
           {state.vendors.length} vendor{state.vendors.length === 1 ? "" : "s"} for {where} · {primary.length} primary
           <span className="ml-2 text-[11px] font-normal text-slate-400">
-            for {consultant.name}{state.hidden ? ` · ${state.hidden} already submitted / sent, hidden` : ""}
+            for {consultant.name}{state.hidden ? ` · ${state.hidden} already have this requirement (same vendor company) or were already sent, hidden` : ""}
           </span>
         </p>
         <Button size="sm" disabled={selected.size === 0} onClick={() => setComposeFor(state.vendors.filter((v) => selected.has(v.email)))}>

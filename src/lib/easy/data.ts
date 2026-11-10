@@ -189,10 +189,26 @@ export interface VendorOption {
   primary: boolean;
 }
 
+const FREE_MAIL = new Set(["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com", "aol.com", "icloud.com", "msn.com", "protonmail.com", "ymail.com", "rediffmail.com"]);
+const COMPANY_NOISE = /\b(inc|llc|ltd|limited|corp|corporation|co|company|pvt|private|plc|technologies|technology|tech|solutions|systems|services|consulting|group|global|usa|us|the)\b/g;
+
+/** "VDart, Inc." / "vdart digital" → "vdart…"; null when nothing distinctive is left */
+export function companyKey(name: string | null | undefined) {
+  const k = (name ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(COMPANY_NOISE, " ").replace(/\s+/g, "");
+  return k.length >= 3 ? k : null;
+}
+
+/** Company email domain (free mail like gmail.com doesn't identify a company) */
+export function companyDomain(email: string | null | undefined) {
+  const d = email?.trim().toLowerCase().split("@")[1];
+  return d && !FREE_MAIL.has(d) ? d : null;
+}
+
 /**
  * Vendors we know for the submission's client / implementation partner, from every recruiter's vendor
- * book, the vendor contact list and past submissions. Vendors this consultant was already submitted to
- * for the same client (or already emailed from here for this requirement) are left out.
+ * book, the vendor contact list and past submissions. Every recruiter at the vendor company that already
+ * has this requirement (same company name or email domain) is left out, as are the companies this
+ * consultant was already submitted through for the same client and vendors already emailed from here.
  * Primary vendors are the ones whose last submission was on the same technology.
  */
 export async function vendorsFor(submissionId: string, consultantId: string) {
@@ -238,12 +254,22 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
         consultantId,
         OR: [{ id: sub.id }, ...(client ? [{ clientName: like(client) }] : []), ...(impl ? [{ implementationName: like(impl) }] : [])],
       },
-      select: { vendorRecruiterEmail: true },
+      select: { vendorRecruiterEmail: true, vendorCompany: true },
     }),
     prisma.easySubmissionSend.findMany({ where: { consultantId, submissionId: sub.id, status: "sent" }, select: { vendorEmail: true } }),
   ]);
 
   const excluded = new Set([...alreadySubmitted.map((s) => s.vendorRecruiterEmail), ...alreadySent.map((s) => s.vendorEmail)].map((e) => e.trim().toLowerCase()));
+  // Vendor companies that already have this requirement: the one on the submission, and any this
+  // consultant was submitted through for the same client
+  const takenSubs = [{ vendorRecruiterEmail: sub.vendorRecruiterEmail, vendorCompany: sub.vendorCompany }, ...alreadySubmitted];
+  const takenCompanies = new Set(takenSubs.map((s) => companyKey(s.vendorCompany)).filter((k): k is string => !!k));
+  const takenDomains = new Set(takenSubs.map((s) => companyDomain(s.vendorRecruiterEmail)).filter((d): d is string => !!d));
+  const sameCompany = (email: string, company: string | null) => {
+    const d = companyDomain(email);
+    const k = companyKey(company);
+    return (!!d && takenDomains.has(d)) || (!!k && takenCompanies.has(k));
+  };
   const byEmail = new Map<string, VendorOption>();
   const hidden = new Set<string>();
   const onTech = (t: string | null | undefined) => onTechnology(t, stem);
@@ -253,7 +279,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   const add = (email: string | null | undefined, name: string | null, company: string | null, phone: string | null, source: string, tech?: string | null) => {
     const key = email?.trim().toLowerCase();
     if (!key || !/\S+@\S+\.\S+/.test(key)) return;
-    if (excluded.has(key)) {
+    if (excluded.has(key) || sameCompany(key, company)) {
       hidden.add(key);
       return;
     }

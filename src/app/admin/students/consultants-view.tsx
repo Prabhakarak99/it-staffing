@@ -20,11 +20,13 @@ interface Props {
   inMarketCount: number;
   onProjectCount: number;
   preMarketingCount: number;
+  /** Open this consultant's profile on load (links from other screens) */
+  initialId?: string | null;
 }
 
-export function ConsultantsView({ consultants, inMarketCount, onProjectCount, preMarketingCount }: Props) {
+export function ConsultantsView({ consultants, inMarketCount, onProjectCount, preMarketingCount, initialId = null }: Props) {
   const [showAdd, setShowAdd] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialId);
   const total = consultants.length;
 
   return (
