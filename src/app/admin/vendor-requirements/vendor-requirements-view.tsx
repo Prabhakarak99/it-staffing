@@ -11,7 +11,8 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { APP_TZ, dayKeyOf } from "@/lib/tz";
 import { REQ_TECHNOLOGIES, type RequirementRow } from "@/lib/requirements/constants";
-import { VendorConsultants, type Sender } from "../vendor-management/vendor-consultants";
+import type { Sender } from "../vendor-management/vendor-consultants";
+import { SendResumeDialog } from "./send-resume-dialog";
 
 const PAGE = 100;
 const fmtWhen = (iso: string) =>
@@ -49,6 +50,8 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(PAGE);
   const [scanning, setScanning] = useState(false);
+  /** Requirement whose Send Resume popup is open */
+  const [sendFor, setSendFor] = useState<RequirementRow | null>(null);
   // "Now" for the date filters, moved forward on every refresh
   const [now, setNow] = useState(() => Date.now());
 
@@ -232,11 +235,11 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <Button
                             size="sm"
-                            variant={isOpen ? "outline" : "default"}
-                            onClick={(e) => { e.stopPropagation(); toggle(r.id); }}
-                            title="Your matched consultants: update the resume for this JD, then send it to the vendor"
+                            variant="default"
+                            onClick={(e) => { e.stopPropagation(); setSendFor(r); }}
+                            title="Pick your consultants: their resumes are updated for this JD and emailed to the vendor"
                           >
-                            <Send className="h-3.5 w-3.5" /> {isOpen ? "Close" : "Send Resume"}
+                            <Send className="h-3.5 w-3.5" /> Send Resume
                           </Button>
                         </td>
                       </tr>
@@ -248,24 +251,6 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                               {r.visa && <p className="text-[12px] text-slate-600"><b>Visa:</b> {r.visa}</p>}
                               <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{r.jobDescription}</p>
                               <p className="pt-1 text-[11px] text-slate-400">From {r.fromEmail} · received {fmtWhen(r.receivedAt)} CT</p>
-                            </div>
-                            <div className="mt-3">
-                              <VendorConsultants
-                                vendor={{
-                                  id: r.id,
-                                  apiBase: `/api/vendor-requirements/${r.id}`,
-                                  name: r.vendorName ?? "",
-                                  companyName: r.vendorCompany ?? "",
-                                  email: r.vendorEmail ?? r.fromEmail,
-                                  clients: r.clientName,
-                                  jd: { text: r.jobDescription, title: r.jobTitle },
-                                  requireUpdated: true,
-                                }}
-                                aiReady={aiReady}
-                                sender={sender}
-                                notify={show}
-                                onSent={() => {}}
-                              />
                             </div>
                           </td>
                         </tr>
@@ -283,6 +268,19 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
           )}
         </div>
       </div>
+      {sendFor && (
+        <SendResumeDialog
+          req={sendFor}
+          sender={sender}
+          aiReady={aiReady}
+          onClose={() => setSendFor(null)}
+          onDone={(sent) => {
+            setSendFor(null);
+            show(`Sent ${sent} resume${sent === 1 ? "" : "s"} to ${sendFor.vendorName ?? sendFor.vendorEmail ?? "the vendor"}. The requirement moves off your list.`, "success");
+            void reload();
+          }}
+        />
+      )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
     </>
   );
