@@ -41,7 +41,7 @@ export function SendResumeDialog({ req, sender, aiReady, onClose, onDone }: {
   const [running, setRunning] = useState(false);
   const [previewing, setPreviewing] = useState<{ id: string; name: string } | null>(null);
 
-  // The message is a template: {consultantName}, {visa}, {location} are filled in per consultant
+  // The message is a template: {consultantName} is filled in per consultant, {firstName} per vendor
   const builtIn = {
     subject: `${role} - {consultantName}${req.clientName ? ` - ${req.clientName}` : ""}`,
     body: [
@@ -49,10 +49,7 @@ export function SendResumeDialog({ req, sender, aiReady, onClose, onDone }: {
       "",
       `Please find attached the resume of {consultantName} for the ${role} position${req.clientName ? ` with ${req.clientName}` : ""}.`,
       "",
-      "Consultant: {consultantName}",
-      "Visa: {visa}",
-      "Location: {location}",
-      ...(req.rate ? [`Rate: ${req.rate}`] : []),
+      `{consultantName} has strong 10+ years of real-time experience in ${req.technology && req.technology !== "Others" ? req.technology : role} and matches the key requirements of this role.`,
       "",
       "Please review and let me know a good time to connect.",
       "",
@@ -232,8 +229,7 @@ export function SendResumeDialog({ req, sender, aiReady, onClose, onDone }: {
               <textarea value={body} onChange={(e) => setBody(e.target.value)} disabled={running} rows={10} className={cn(field, "resize-y p-3 font-[inherit] text-[12.5px] leading-relaxed")} />
             </label>
             <p className="text-[11px] text-slate-400">
-              <code className="rounded bg-slate-100 px-1">{"{consultantName}"}</code>, <code className="rounded bg-slate-100 px-1">{"{visa}"}</code>, <code className="rounded bg-slate-100 px-1">{"{location}"}</code> and
-              {" "}<code className="rounded bg-slate-100 px-1">{"{firstName}"}</code> are filled in for each email.
+              <code className="rounded bg-slate-100 px-1">{"{consultantName}"}</code> and <code className="rounded bg-slate-100 px-1">{"{firstName}"}</code> (the vendor) are filled in for each email.
             </p>
             {preview && sample && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">

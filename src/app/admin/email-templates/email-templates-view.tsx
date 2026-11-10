@@ -25,7 +25,7 @@ const CATEGORY_COLORS: Record<TemplateCategory, string> = {
 const STARTERS: Record<TemplateCategory, { subject: string; body: string }> = {
   submission: {
     subject: "{technology} - {consultantName} - {client}",
-    body: "Hi {firstName},\n\nPlease find attached the resume of {consultantName} for the {technology} position with {client}.\n\nConsultant: {consultantName}\nVisa: {visa}\nLocation: {location}\nRate: {rate}\n\nPlease review and let me know a good time to connect.\n\n{signature}",
+    body: "Hi {firstName},\n\nPlease find attached the resume of {consultantName} for the {technology} position with {client}.\n\n{consultantName} has strong 10+ years of real-time experience in {technology} and matches the key requirements of this role.\n\nPlease review and let me know a good time to connect.\n\n{signature}",
   },
   "followup-submission": {
     subject: "Follow-up: {consultantName} - {technology}",
