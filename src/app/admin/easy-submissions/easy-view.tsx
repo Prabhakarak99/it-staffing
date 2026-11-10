@@ -22,7 +22,7 @@ interface Requirement {
   payRate: string | null;
 }
 
-interface ConsultantState { loading: boolean; error?: string; consultants: ConsultantOption[]; requirement?: Requirement; technology?: string }
+interface ConsultantState { loading: boolean; error?: string; consultants: ConsultantOption[]; requirement?: Requirement; technology?: string | null }
 interface VendorState { loading: boolean; error?: string; vendors: VendorOption[]; hidden: number }
 
 type Notify = (message: string, type: "success" | "error") => void;
@@ -274,7 +274,9 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
       <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
         <Users2 className="h-4 w-4 text-indigo-600" />
         <p className="text-[12.5px] font-bold text-slate-800">
-          {state.consultants.length} more consultant{state.consultants.length === 1 ? "" : "s"} on {state.technology ?? sub.technology}
+          {state.technology
+            ? <>{state.consultants.length} more consultant{state.consultants.length === 1 ? "" : "s"} on {state.technology}</>
+            : <>No technology on {sub.consultantName}&apos;s profile</>}
         </p>
         <span className="text-[11px] text-slate-400">Same technology as {sub.consultantName}&apos;s profile · In-Market (or recently submitted), any recruiter</span>
         {!state.requirement?.jobDescription && (
@@ -295,7 +297,14 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
             {state.consultants.length === 0 && (
               <tr>
                 <td colSpan={cols.length + 1} className="px-4 py-8 text-center text-slate-400">
-                  No other In-Market consultants on {state.technology ?? sub.technology}.
+                  {state.technology ? (
+                    <>No other In-Market consultants on {state.technology}.</>
+                  ) : (
+                    <>
+                      {sub.consultantName}&apos;s profile has no technology, so there is nothing to match on. Set it under{" "}
+                      <Link href="/admin/students" className="font-semibold text-indigo-600 hover:underline">Consultants</Link>, then reopen this row.
+                    </>
+                  )}
                 </td>
               </tr>
             )}

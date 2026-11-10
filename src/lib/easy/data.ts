@@ -116,17 +116,19 @@ export interface ConsultantOption {
 }
 
 /**
- * Other In-Market consultants on the same technology as the submitted consultant's profile (the
- * submission's technology only when that profile has none). The submitted consultant is left out.
- * Each candidate's own profile technology decides; profiles without one fall back to their submissions.
+ * Other In-Market consultants whose profile technology matches the submitted consultant's profile
+ * technology. The submission's own technology is never used: when the submitted consultant's
+ * profile has no technology, the list is empty (`technology: null`) until the profile is filled in.
+ * The submitted consultant is left out.
  */
-export async function consultantsFor(submissionId: string): Promise<{ technology: string; consultants: ConsultantOption[] } | null> {
+export async function consultantsFor(submissionId: string): Promise<{ technology: string | null; consultants: ConsultantOption[] } | null> {
   const sub = await prisma.submission.findUnique({
     where: { id: submissionId },
     select: { id: true, consultantId: true, technology: true, consultant: { select: { technology: true } } },
   });
   if (!sub) return null;
-  const technology = sub.consultant.technology?.trim() || sub.technology.trim();
+  const technology = sub.consultant.technology?.trim() || null;
+  if (!technology) return { technology: null, consultants: [] };
   const stem = techStem(technology);
 
   const students = await prisma.student.findMany({
@@ -141,23 +143,13 @@ export async function consultantsFor(submissionId: string): Promise<{ technology
               { OR: [{ projectStatus: null }, { projectStatus: "" }], submissions: { some: { createdAt: { gte: new Date(Date.now() - RECENT_SUBMISSION_MS) } } } },
             ],
           }],
-          OR: [
-            techWhere("technology", stem),
-            { technology: { equals: technology, mode: "insensitive" } },
-            // Submission history only counts when the profile has no technology of its own
-            {
-              OR: [{ technology: null }, { technology: "" }],
-              submissions: { some: techWhere("technology", stem) },
-            },
-          ],
+          OR: [techWhere("technology", stem), { technology: { equals: technology, mode: "insensitive" } }],
         },
       ],
     },
     include: {
       preMarketings: { include: { recruiter: { select: { firstName: true, lastName: true } } }, take: 1 },
       tailoredResumes: { where: { submissionId }, orderBy: { createdAt: "desc" }, take: 1 },
-      // Technology from the latest submission, for profiles without one
-      submissions: { select: { technology: true }, orderBy: { createdAt: "desc" }, take: 1 },
       _count: { select: { easySends: { where: { submissionId, status: "sent" } } } },
     },
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
@@ -169,7 +161,7 @@ export async function consultantsFor(submissionId: string): Promise<{ technology
       return {
         id: s.id,
         name: `${s.firstName} ${s.lastName}`.trim(),
-        technology: s.technology?.trim() || s.submissions[0]?.technology || null,
+        technology: s.technology?.trim() || null,
         projectStatus: s.projectStatus,
         visaStatus: s.preMarketings[0]?.marketingVisaStatus ?? s.visaStatus,
         location: [s.city, s.state].filter(Boolean).join(", ") || null,
