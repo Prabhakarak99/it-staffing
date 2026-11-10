@@ -252,7 +252,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
     const started = await start.json().catch(() => ({}));
     if (!start.ok) { done(); return notify(started.error ?? "Could not start the update", "error"); }
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 120; i++) {
       await new Promise((r) => setTimeout(r, 3000));
       const res = await fetch(`/api/easy-submissions/${sub.id}/tailor?job=${started.jobId}`);
       const d = await res.json().catch(() => ({}));
