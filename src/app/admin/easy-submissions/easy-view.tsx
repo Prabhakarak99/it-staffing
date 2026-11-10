@@ -23,7 +23,15 @@ interface Requirement {
   payRate: string | null;
 }
 
-interface ConsultantState { loading: boolean; error?: string; consultants: ConsultantOption[]; requirement?: Requirement; technology?: string | null }
+interface ConsultantState {
+  loading: boolean;
+  error?: string;
+  consultants: ConsultantOption[];
+  requirement?: Requirement;
+  technology?: string | null;
+  /** Vendors in each consultant's share; 0 means there's nobody to send a resume to */
+  vendorCounts?: Record<string, number>;
+}
 /** This consultant's share when the requirement's vendors are split between its consultants */
 interface VendorSplit { consultants: number; total: number; primaryTotal: number; mine: number }
 interface VendorState { loading: boolean; error?: string; vendors: VendorOption[]; hidden: number; split?: VendorSplit | null }
@@ -208,7 +216,7 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load consultants");
-        setConsultants((c) => ({ ...c, [subId]: { loading: false, consultants: d.consultants, requirement: d.requirement, technology: d.technology } }));
+        setConsultants((c) => ({ ...c, [subId]: { loading: false, consultants: d.consultants, requirement: d.requirement, technology: d.technology, vendorCounts: d.vendorCounts } }));
       })
       .catch((err: Error) => setConsultants((c) => ({ ...c, [subId]: { loading: false, consultants: [], error: err.message } })));
   };
@@ -373,32 +381,69 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
     notify(`Resume uploaded for ${c.name}`, "success");
   };
 
-  /** Starts the AI update in the background, then polls every 3 s until it finishes */
-  const tailor = async (c: ConsultantOption) => {
+  /**
+   * Starts the AI update in the background, then polls every 3 s until it finishes. `quiet` skips the
+   * per-consultant message (Generate All shows one summary instead). Resolves true when it worked.
+   */
+  const tailor = async (c: ConsultantOption, quiet = false): Promise<boolean> => {
     setTailoring((s) => new Set(s).add(c.id));
     const done = () => setTailoring((s) => { const n = new Set(s); n.delete(c.id); return n; });
+    const fail = (message: string) => { done(); if (!quiet) notify(message, "error"); return false; };
     const start = await fetch(`/api/easy-submissions/${sub.id}/tailor`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ consultantId: c.id }),
-    });
-    const started = await start.json().catch(() => ({}));
-    if (!start.ok) { done(); return notify(started.error ?? "Could not start the update", "error"); }
+    }).catch(() => null);
+    const started = await start?.json().catch(() => ({}));
+    if (!start?.ok) return fail(started?.error ?? "Could not start the update");
 
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < 400; i++) {
       await new Promise((r) => setTimeout(r, 3000));
-      const res = await fetch(`/api/easy-submissions/${sub.id}/tailor?job=${started.jobId}`);
+      const res = await fetch(`/api/easy-submissions/${sub.id}/tailor?job=${started.jobId}`).catch(() => null);
+      if (!res) continue; // a network blip: keep checking
       const d = await res.json().catch(() => ({}));
-      if (!res.ok || d.status === "failed") { done(); return notify(d.error ?? "Could not update the resume", "error"); }
+      if (!res.ok || d.status === "failed") return fail(`${c.name}: ${d.error ?? "Could not update the resume"}`);
       if (d.status === "done") {
         done();
         onUpdate(c.id, { tailored: d.result });
-        return notify(`Resume updated for ${c.name}: ATS ${d.result.atsBefore}% → ${d.result.atsAfter}%`, "success");
+        if (!quiet) notify(`Resume updated for ${c.name}: ATS ${d.result.atsBefore}% → ${d.result.atsAfter}%`, "success");
+        return true;
       }
     }
-    done();
-    notify("The update is taking too long. Refresh the page in a minute to see it.", "error");
+    return fail("The update is taking too long. Refresh the page in a few minutes to see it.");
   };
+
+  /** Why a consultant's resume can't be generated, or null when it can */
+  const blockReason = (c: ConsultantOption) =>
+    !aiReady ? "No AI provider configured"
+      : !state.requirement?.jobDescription ? "Submission has no job description"
+      : state.vendorCounts?.[c.id] === 0 ? "No vendors for generating resume"
+      : !c.resume ? "Upload a resume first"
+      : null;
+  const eligible = state.consultants.filter((c) => !blockReason(c) && !tailoring.has(c.id));
+  const skipped = state.consultants.filter((c) => blockReason(c));
+
+  /** Generate All: every consultant who has vendors and a resume, all at the same time */
+  const generateAll = async () => {
+    const batch = eligible;
+    if (batch.length === 0) return;
+    notify(`Generating ${batch.length} resume${batch.length === 1 ? "" : "s"} at once. This takes a few minutes.`, "success");
+    const results = await Promise.all(batch.map((c) => tailor(c, true)));
+    const ok = results.filter(Boolean).length;
+    const failed = batch.filter((_, i) => !results[i]).map((c) => c.name);
+    notify(
+      failed.length
+        ? `${ok} of ${batch.length} resumes generated. Failed: ${failed.join(", ")}. Try those again from their row.`
+        : `All ${ok} resume${ok === 1 ? "" : "s"} generated`,
+      failed.length ? "error" : "success",
+    );
+  };
+  const generateAllTitle =
+    !aiReady ? "No AI provider configured"
+      : !state.requirement?.jobDescription ? "Submission has no job description"
+      : eligible.length === 0
+        ? (tailoring.size ? "Resumes are being generated" : "No vendors for generating resume")
+        : `Generate updated resumes for ${eligible.length} consultant${eligible.length === 1 ? "" : "s"} at the same time${skipped.length ? `. Skipped: ${skipped.map((c) => `${c.name} (${blockReason(c)})`).join(", ")}` : ""}`;
 
   const cols = ["Consultant", "Technology", "Visa / Location", "Resume", "Updated Resume (AI)", "Assigned Recruiter", ""];
 
@@ -414,8 +459,18 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
         </p>
         <span className="text-[11px] text-slate-400">Same technology as {sub.consultantName}&apos;s profile · In-Market (or recently submitted), any recruiter</span>
         {!state.requirement?.jobDescription && (
-          <span className="ml-auto flex items-center gap-1 text-[11.5px] font-medium text-amber-700">
+          <span className="flex items-center gap-1 text-[11.5px] font-medium text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" /> No job description on this submission, so AI updates are off
+          </span>
+        )}
+        {state.consultants.length > 0 && (
+          <span className="ml-auto inline-block" title={generateAllTitle}>
+            <Button size="sm" onClick={() => void generateAll()} disabled={eligible.length === 0}>
+              {tailoring.size > 0 ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {eligible.length > 0
+                ? `Generate All Resumes (${eligible.length})`
+                : tailoring.size > 0 ? `Generating ${tailoring.size}…` : "Generate All Resumes"}
+            </Button>
           </span>
         )}
       </div>
@@ -445,7 +500,8 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
             {state.consultants.map((c) => {
               const open = openConsultants.has(c.id);
               const busy = tailoring.has(c.id);
-              const canTailor = aiReady && !!c.resume && !!state.requirement?.jobDescription;
+              const blocked = blockReason(c);
+              const vendorCount = state.vendorCounts?.[c.id];
               return (
                 <Fragment key={c.id}>
                   <tr className={cn("hover:bg-slate-50", open && "bg-sky-50/40")}>
@@ -455,6 +511,11 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                       <div className="mt-0.5 flex flex-wrap gap-1">
                         {c.projectStatus && <span className="rounded bg-slate-100 px-1.5 text-[10px] text-slate-500">{c.projectStatus}</span>}
                         {c.sentCount > 0 && <span className="rounded bg-emerald-50 px-1.5 text-[10px] font-semibold text-emerald-700">Sent to {c.sentCount}</span>}
+                        {vendorCount !== undefined && (
+                          <span className={cn("rounded px-1.5 text-[10px] font-semibold", vendorCount ? "bg-sky-50 text-sky-700" : "bg-rose-50 text-rose-600")}>
+                            {vendorCount ? `${vendorCount} vendor${vendorCount === 1 ? "" : "s"}` : "No vendors"}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-slate-600">{c.technology ?? "—"}</td>
@@ -499,16 +560,13 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-slate-600">{c.recruiterName ?? "—"}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        variant={c.tailored ? "outline" : "default"}
-                        onClick={() => tailor(c)}
-                        disabled={!canTailor || busy}
-                        title={!aiReady ? "No AI provider configured" : !c.resume ? "Upload a resume first" : !state.requirement?.jobDescription ? "Submission has no job description" : "Rewrite the resume for this job with AI and score it"}
-                      >
-                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                        {busy ? "Updating… (2–4 min)" : c.tailored ? "Update Again" : "Update Resume"}
-                      </Button>
+                      {/* Wrapped so the reason shows on hover even while the button is disabled */}
+                      <span className="inline-block" title={blocked ?? "Rewrite the resume for this job with AI and score it"}>
+                        <Button size="sm" variant="outline" onClick={() => void tailor(c)} disabled={!!blocked || busy}>
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                          {busy ? "Generating… (2–4 min)" : c.tailored ? "Update Again" : "Generate Resume"}
+                        </Button>
+                      </span>
                     </td>
                   </tr>
                   {open && (

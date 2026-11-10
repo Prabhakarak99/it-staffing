@@ -17,6 +17,25 @@ export interface TailorJob {
 const jobs = ((globalThis as { __tailorJobs?: Map<string, TailorJob> }).__tailorJobs ??= new Map());
 const KEEP_MS = 30 * 60_000;
 
+/**
+ * At most this many resumes are written at the same time (each is 2–3 AI calls); the rest wait their
+ * turn, so "Generate All" for a big team doesn't hit the AI provider's rate limits.
+ */
+const MAX_PARALLEL = 4;
+const slots = ((globalThis as { __tailorSlots?: { running: number; waiting: (() => void)[] } }).__tailorSlots ??= { running: 0, waiting: [] });
+
+async function withSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (slots.running >= MAX_PARALLEL) await new Promise<void>((resolve) => slots.waiting.push(resolve));
+  else slots.running++;
+  try {
+    return await run();
+  } finally {
+    const next = slots.waiting.shift();
+    if (next) next(); // hand the slot straight to the next job
+    else slots.running--;
+  }
+}
+
 export function startTailorJob(input: TailorInput) {
   const { userId } = input;
   for (const [id, job] of jobs) if (Date.now() - job.startedAt > KEEP_MS) jobs.delete(id);
@@ -25,7 +44,7 @@ export function startTailorJob(input: TailorInput) {
   const job: TailorJob = { userId, status: "running", startedAt: Date.now() };
   jobs.set(id, job);
 
-  tailorResume(input)
+  withSlot(() => tailorResume(input))
     .then((t) => {
       const keywords = t.keywords as { missing?: string[] };
       job.status = "done";

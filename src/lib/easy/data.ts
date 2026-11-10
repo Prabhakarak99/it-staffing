@@ -224,6 +224,20 @@ function stableHash(text: string) {
  * Primary vendors are the ones whose last submission was on the same technology.
  */
 export async function vendorsFor(submissionId: string, consultantId: string) {
+  return (await vendorShares(submissionId, [consultantId]))?.get(consultantId) ?? null;
+}
+
+/** How many vendors each consultant on the requirement has in their share (for the Generate buttons) */
+export async function vendorCounts(submissionId: string, team: { id: string }[]) {
+  const shares = await vendorShares(submissionId, team.map((c) => c.id), team);
+  return Object.fromEntries([...(shares ?? new Map()).entries()].map(([id, r]) => [id, r.vendors.length])) as Record<string, number>;
+}
+
+/**
+ * The vendor pool for the requirement is built once; then each consultant gets their share of it,
+ * without the vendors they already went to. `team` is the requirement's consultant list when known.
+ */
+async function vendorShares(submissionId: string, consultantIds: string[], knownTeam?: { id: string }[]) {
   const sub = await prisma.submission.findUnique({ where: { id: submissionId } });
   if (!sub) return null;
 
@@ -263,15 +277,17 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
         }),
     prisma.submission.findMany({
       where: {
-        consultantId,
+        consultantId: { in: consultantIds },
         OR: [{ id: sub.id }, ...(client ? [{ clientName: like(client) }] : []), ...(impl ? [{ implementationName: like(impl) }] : [])],
       },
-      select: { vendorRecruiterEmail: true, vendorCompany: true },
+      select: { consultantId: true, vendorRecruiterEmail: true, vendorCompany: true },
     }),
-    prisma.easySubmissionSend.findMany({ where: { consultantId, submissionId: sub.id, status: "sent" }, select: { vendorEmail: true } }),
+    prisma.easySubmissionSend.findMany({
+      where: { consultantId: { in: consultantIds }, submissionId: sub.id, status: "sent" },
+      select: { consultantId: true, vendorEmail: true },
+    }),
   ]);
 
-  const excluded = new Set([...alreadySubmitted.map((s) => s.vendorRecruiterEmail), ...alreadySent.map((s) => s.vendorEmail)].map((e) => e.trim().toLowerCase()));
   /** Matches any recruiter at the vendor companies of these submissions (company name or email domain) */
   const companyMatcher = (subs: { vendorRecruiterEmail: string; vendorCompany: string }[]) => {
     const companies = new Set(subs.map((s) => companyKey(s.vendorCompany)).filter((k): k is string => !!k));
@@ -284,8 +300,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   };
   // The vendor company that already has this requirement is left out for everyone...
   const requirementVendor = companyMatcher([{ vendorRecruiterEmail: sub.vendorRecruiterEmail, vendorCompany: sub.vendorCompany }]);
-  // ...and the companies this consultant was already submitted through for the same client, for them only
-  const usedByConsultant = companyMatcher(alreadySubmitted);
+
   const byEmail = new Map<string, VendorOption>();
   const hidden = new Set<string>();
   const onTech = (t: string | null | undefined) => onTechnology(t, stem);
@@ -332,40 +347,57 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   // Split the pool between the consultants on this requirement, primary and secondary separately,
   // so each vendor gets one consultant instead of all of them
   const pool = [...byEmail.values()];
-  const team = (await consultantsFor(submissionId))?.consultants ?? [];
-  const seat = team.findIndex((c) => c.id === consultantId);
-  const split = seat >= 0 && team.length > 1;
-  const share = (list: VendorOption[]) =>
-    split
-      ? list
-          .map((v) => ({ v, h: stableHash(`${submissionId}|${v.email}`) }))
-          .sort((a, b) => a.h - b.h || a.v.email.localeCompare(b.v.email))
-          .filter((_, i) => i % team.length === seat)
-          .map((x) => x.v)
-      : list;
-  const mine = [...share(pool.filter((v) => v.primary)), ...share(pool.filter((v) => !v.primary))];
+  const team = knownTeam ?? (await consultantsFor(submissionId))?.consultants ?? [];
+  const primaryTotal = pool.filter((v) => v.primary).length;
+  const order = (list: VendorOption[]) =>
+    list
+      .map((v) => ({ v, h: stableHash(`${submissionId}|${v.email}`) }))
+      .sort((a, b) => a.h - b.h || a.v.email.localeCompare(b.v.email))
+      .map((x) => x.v);
+  const primaries = order(pool.filter((v) => v.primary));
+  const secondaries = order(pool.filter((v) => !v.primary));
 
-  // Then leave out the ones this consultant already went to
-  const vendors = mine
-    .filter((v) => {
-      const used = excluded.has(v.email) || usedByConsultant(v.email, v.company);
-      if (used) hidden.add(v.email);
-      return !used;
-    })
-    .sort(
-      (a, b) =>
-        Number(b.primary) - Number(a.primary) ||
-        (b.lastSubmittedAt ?? "").localeCompare(a.lastSubmittedAt ?? "") ||
-        (a.company ?? "").localeCompare(b.company ?? ""),
-    );
-  return {
-    vendors,
-    hidden: hidden.size,
-    client,
-    implementation: impl,
+  const result = new Map<string, {
+    vendors: VendorOption[];
+    hidden: number;
+    client: string | null;
+    implementation: string | null;
     /** This consultant's share of the vendors for the requirement */
-    split: split
-      ? { consultants: team.length, total: pool.length, primaryTotal: pool.filter((v) => v.primary).length, mine: mine.length }
-      : null,
-  };
+    split: { consultants: number; total: number; primaryTotal: number; mine: number } | null;
+  }>();
+  for (const consultantId of consultantIds) {
+    const seat = team.findIndex((c) => c.id === consultantId);
+    const split = seat >= 0 && team.length > 1;
+    const share = (list: VendorOption[]) => (split ? list.filter((_, i) => i % team.length === seat) : list);
+    const mine = [...share(primaries), ...share(secondaries)];
+
+    // Then leave out the ones this consultant already went to: same vendor, or for the same client the same company
+    const theirSubs = alreadySubmitted.filter((s) => s.consultantId === consultantId);
+    const excluded = new Set(
+      [...theirSubs.map((s) => s.vendorRecruiterEmail), ...alreadySent.filter((s) => s.consultantId === consultantId).map((s) => s.vendorEmail)]
+        .map((e) => e.trim().toLowerCase()),
+    );
+    const usedByConsultant = companyMatcher(theirSubs);
+    const hiddenHere = new Set(hidden);
+    const vendors = mine
+      .filter((v) => {
+        const used = excluded.has(v.email) || usedByConsultant(v.email, v.company);
+        if (used) hiddenHere.add(v.email);
+        return !used;
+      })
+      .sort(
+        (a, b) =>
+          Number(b.primary) - Number(a.primary) ||
+          (b.lastSubmittedAt ?? "").localeCompare(a.lastSubmittedAt ?? "") ||
+          (a.company ?? "").localeCompare(b.company ?? ""),
+      );
+    result.set(consultantId, {
+      vendors,
+      hidden: hiddenHere.size,
+      client,
+      implementation: impl,
+      split: split ? { consultants: team.length, total: pool.length, primaryTotal, mine: mine.length } : null,
+    });
+  }
+  return result;
 }

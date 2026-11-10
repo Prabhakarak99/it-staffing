@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { easyAccess } from "@/lib/easy/access";
-import { consultantsFor } from "@/lib/easy/data";
+import { consultantsFor, vendorCounts } from "@/lib/easy/data";
 import { getActiveAi } from "@/lib/ai/providers";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -21,6 +21,8 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     getActiveAi(),
   ]);
   if (!found || !sub) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+  // Each consultant's share of the vendors: no vendors, nothing to generate a resume for
+  const counts = found.consultants.length ? await vendorCounts(id, found.consultants) : {};
   // `technology` is what the list was matched on: the submitted consultant's profile technology
-  return NextResponse.json({ consultants: found.consultants, technology: found.technology, requirement: sub, aiReady: !!ai });
+  return NextResponse.json({ consultants: found.consultants, technology: found.technology, requirement: sub, aiReady: !!ai, vendorCounts: counts });
 }
