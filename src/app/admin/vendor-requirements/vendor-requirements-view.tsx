@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Building2, CircleSlash, Inbox, Loader2, Mail, Phone, RefreshCw, Search, Users2,
+  AlertTriangle, Building2, CircleSlash, Inbox, Loader2, Mail, Phone, RefreshCw, Search, Send, Users2,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { APP_TZ, dayKeyOf } from "@/lib/tz";
 import { REQ_TECHNOLOGIES, type RequirementRow } from "@/lib/requirements/constants";
+import { VendorConsultants, type Sender } from "../vendor-management/vendor-consultants";
 
 const PAGE = 100;
 const fmtWhen = (iso: string) =>
@@ -28,7 +29,7 @@ const SHOW = [
   { id: "match", label: "My consultants' technologies" },
 ] as const;
 
-export function VendorRequirementsView({ initialRows, days, manager, aiReady, inboxes, myInbox }: {
+export function VendorRequirementsView({ initialRows, days, manager, aiReady, inboxes, myInbox, sender }: {
   initialRows: RequirementRow[];
   days: number;
   manager: boolean;
@@ -36,6 +37,8 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
   /** Connected inboxes being read */
   inboxes: number;
   myInbox: { email: string; scannedAt: string | null } | null;
+  /** The signed-in user, their signature and templates, for sending resumes */
+  sender: Sender;
 }) {
   const { toast, show, hide } = useToast();
   const [rows, setRows] = useState(initialRows);
@@ -103,7 +106,9 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
         { label: `Last ${days} days`, value: rows.length, color: "text-violet-700" },
         { label: "Your technologies", value: new Set(rows.map((r) => r.technology).filter(Boolean)).size, color: "text-emerald-700" },
       ];
-  const cols = manager ? ["Received", "Requirement", "Type / Rate", "Vendor", "Source inbox", "Shared with"] : ["Received", "Requirement", "Type / Rate", "Vendor"];
+  const cols = manager
+    ? ["Received", "Requirement", "Type / Rate", "Vendor", "Source inbox", "Shared with", ""]
+    : ["Received", "Requirement", "Type / Rate", "Vendor", ""];
   const th = "whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300";
 
   return (
@@ -224,6 +229,16 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                         </td>
                         <td className="px-4 py-3"><AudienceBadge row={r} /></td>
                         </>)}
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          <Button
+                            size="sm"
+                            variant={isOpen ? "outline" : "default"}
+                            onClick={(e) => { e.stopPropagation(); toggle(r.id); }}
+                            title="Your matched consultants: update the resume for this JD, then send it to the vendor"
+                          >
+                            <Send className="h-3.5 w-3.5" /> {isOpen ? "Close" : "Send Resume"}
+                          </Button>
+                        </td>
                       </tr>
                       {isOpen && (
                         <tr>
@@ -233,6 +248,24 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                               {r.visa && <p className="text-[12px] text-slate-600"><b>Visa:</b> {r.visa}</p>}
                               <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{r.jobDescription}</p>
                               <p className="pt-1 text-[11px] text-slate-400">From {r.fromEmail} · received {fmtWhen(r.receivedAt)} CT</p>
+                            </div>
+                            <div className="mt-3">
+                              <VendorConsultants
+                                vendor={{
+                                  id: r.id,
+                                  apiBase: `/api/vendor-requirements/${r.id}`,
+                                  name: r.vendorName ?? "",
+                                  companyName: r.vendorCompany ?? "",
+                                  email: r.vendorEmail ?? r.fromEmail,
+                                  clients: r.clientName,
+                                  jd: { text: r.jobDescription, title: r.jobTitle },
+                                  requireUpdated: true,
+                                }}
+                                aiReady={aiReady}
+                                sender={sender}
+                                notify={show}
+                                onSent={() => {}}
+                              />
                             </div>
                           </td>
                         </tr>

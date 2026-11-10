@@ -11,13 +11,27 @@ import { defaultTemplate, fillFields, renderBody, signOff, type EmailTemplateDto
 import { AtsBadge, ResumePreview } from "../easy-submissions/easy-view";
 
 export interface Sender { name: string; email: string; signature: string; templates: EmailTemplateDto[] }
-interface VendorLite { id: string; name: string; companyName: string; email: string; clients: string | null; jd: { text: string; title: string | null } | null }
+/**
+ * Who the resume goes to. `apiBase` is "/api/vendor-management/<id>" or "/api/vendor-requirements/<id>":
+ * both serve /consultants, /tailor and /send.
+ */
+export interface VendorLite {
+  id: string;
+  apiBase: string;
+  name: string;
+  companyName: string;
+  email: string;
+  clients: string | null;
+  jd: { text: string; title: string | null } | null;
+  /** Send only the resume updated for this JD (Vendor Requirements) */
+  requireUpdated?: boolean;
+}
 type Notify = (message: string, type?: "success" | "error") => void;
 
 const resumeHref = (file: string) => `/api/resumes/${file}`;
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric" });
 
-/** The "+" panel under a vendor: matched consultants, AI resume for this vendor's JD, and send */
+/** Matched consultants for a vendor or a requirement: AI resume for its JD, and send it */
 export function VendorConsultants({ vendor, aiReady, sender, notify, onSent }: {
   vendor: VendorLite;
   aiReady: boolean;
@@ -31,14 +45,14 @@ export function VendorConsultants({ vendor, aiReady, sender, notify, onSent }: {
   const [composeFor, setComposeFor] = useState<VendorMatch | null>(null);
 
   const load = useCallback(() => {
-    fetch(`/api/vendor-management/${vendor.id}/consultants`, { cache: "no-store" })
+    fetch(`${vendor.apiBase}/consultants`, { cache: "no-store" })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load consultants");
         setState({ loading: false, consultants: d.consultants, technologies: d.technologies });
       })
       .catch((err: Error) => setState({ loading: false, error: err.message, consultants: [], technologies: [] }));
-  }, [vendor.id]);
+  }, [vendor.apiBase]);
   useEffect(load, [load]);
 
   const patch = (id: string, p: Partial<VendorMatch>) =>
@@ -48,14 +62,14 @@ export function VendorConsultants({ vendor, aiReady, sender, notify, onSent }: {
   const tailor = async (c: VendorMatch) => {
     setBusy((s) => new Set(s).add(c.id));
     const done = () => setBusy((s) => { const n = new Set(s); n.delete(c.id); return n; });
-    const start = await fetch(`/api/vendor-management/${vendor.id}/tailor`, {
+    const start = await fetch(`${vendor.apiBase}/tailor`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consultantId: c.id }),
     }).catch(() => null);
     const started = await start?.json().catch(() => ({}));
     if (!start?.ok) { done(); return notify(started?.error ?? "Could not start the update", "error"); }
     for (let i = 0; i < 400; i++) {
       await new Promise((r) => setTimeout(r, 3000));
-      const res = await fetch(`/api/vendor-management/${vendor.id}/tailor?job=${started.jobId}`).catch(() => null);
+      const res = await fetch(`${vendor.apiBase}/tailor?job=${started.jobId}`).catch(() => null);
       if (!res) continue;
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.status === "failed") { done(); return notify(`${c.name}: ${d.error ?? "Could not update the resume"}`, "error"); }
@@ -90,7 +104,7 @@ export function VendorConsultants({ vendor, aiReady, sender, notify, onSent }: {
           onClose={() => setComposeFor(null)}
           onSent={(attached) => {
             patch(composeFor.id, { sentCount: composeFor.sentCount + 1, lastSentAt: new Date().toISOString() });
-            notify(`Sent ${composeFor.name}'s resume (${attached}) to ${vendor.name}`, "success");
+            notify(`Sent ${composeFor.name}'s resume (${attached}) to ${vendor.name || vendor.email}`, "success");
             setComposeFor(null);
             onSent();
           }}
@@ -168,8 +182,15 @@ export function VendorConsultants({ vendor, aiReady, sender, notify, onSent }: {
                             {isBusy ? "Updating… (2–4 min)" : c.tailored ? "Update Again" : "Update Resume"}
                           </Button>
                         </span>
-                        <span className="inline-block" title={!c.resume && !c.tailored ? "No resume to attach" : `Email ${c.name}'s resume to ${vendor.name}`}>
-                          <Button size="sm" onClick={() => setComposeFor(c)} disabled={(!c.resume && !c.tailored) || isBusy}>
+                        <span
+                          className="inline-block"
+                          title={
+                            vendor.requireUpdated && !c.tailored ? "Update the resume for this job description first"
+                              : !c.resume && !c.tailored ? "No resume to attach"
+                              : `Email ${c.name}'s updated resume to ${vendor.name || vendor.email}`
+                          }
+                        >
+                          <Button size="sm" onClick={() => setComposeFor(c)} disabled={(vendor.requireUpdated ? !c.tailored : !c.resume && !c.tailored) || isBusy}>
                             <Send className="h-3.5 w-3.5" /> Send Email
                           </Button>
                         </span>
@@ -237,7 +258,7 @@ function ResumeEmailDialog({ vendor, consultant, sender, onClose, onSent }: {
   const send = async () => {
     setError("");
     setSending(true);
-    const res = await fetch(`/api/vendor-management/${vendor.id}/send`, {
+    const res = await fetch(`${vendor.apiBase}/send`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ consultantId: consultant.id, subject, body, useTailored }),
     });
@@ -257,7 +278,7 @@ function ResumeEmailDialog({ vendor, consultant, sender, onClose, onSent }: {
         <div className="flex items-center justify-between rounded-t-2xl bg-slate-800 px-5 py-3">
           <div>
             <h2 className="text-[14px] font-semibold text-white">Send {consultant.name}&apos;s resume</h2>
-            <p className="text-[11px] text-slate-400">To {vendor.name} &lt;{vendor.email}&gt; · {vendor.companyName}</p>
+            <p className="text-[11px] text-slate-400">To {vendor.name ? `${vendor.name} <${vendor.email}>` : vendor.email}{vendor.companyName ? ` · ${vendor.companyName}` : ""}</p>
           </div>
           <button onClick={onClose} className="text-slate-300 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
@@ -282,7 +303,7 @@ function ResumeEmailDialog({ vendor, consultant, sender, onClose, onSent }: {
           </label>
           <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
             <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Attached: <b>{attachName ?? "—"}</b></span>
-            {consultant.tailored && (
+            {consultant.tailored && !vendor.requireUpdated && (
               <label className="ml-auto flex items-center gap-1.5">
                 <input type="checkbox" checked={useTailored} onChange={(e) => setUseTailored(e.target.checked)} className="h-3.5 w-3.5 accent-indigo-600" />
                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Use the AI-updated resume

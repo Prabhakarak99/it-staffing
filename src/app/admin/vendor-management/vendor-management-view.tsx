@@ -363,7 +363,7 @@ export function VendorManagementView({ initial, aiReady, sender }: { initial: Ve
                       <tr>
                         <td colSpan={isAdmin ? 12 : 11} className="bg-sky-50/40 px-4 py-3">
                           <VendorConsultants
-                            vendor={{ id: v.id, name: v.name, companyName: v.companyName, email: v.email, clients: v.clients, jd: v.jd }}
+                            vendor={{ id: v.id, apiBase: `/api/vendor-management/${v.id}`, name: v.name, companyName: v.companyName, email: v.email, clients: v.clients, jd: v.jd }}
                             aiReady={aiReady}
                             sender={sender}
                             notify={show}

@@ -346,6 +346,8 @@ export interface TailorInput {
   jd?: JobDescriptionInput;
   /** Vendor Management: written for this vendor's JD */
   recruiterVendorId?: string | null;
+  /** Vendor Requirements: written for this requirement email's JD */
+  emailRequirementId?: string | null;
 }
 
 /**
@@ -353,7 +355,7 @@ export interface TailorInput {
  * with the configured AI, saves it as Word, scores the original and the update against the JD's
  * key terms, and keeps the JD with it.
  */
-export async function tailorResume({ consultantId, userId, submissionId = null, jd: givenJd, recruiterVendorId = null }: TailorInput) {
+export async function tailorResume({ consultantId, userId, submissionId = null, jd: givenJd, recruiterVendorId = null, emailRequirementId = null }: TailorInput) {
   const [sub, consultant, ai] = await Promise.all([
     submissionId
       ? prisma.submission.findUnique({ where: { id: submissionId }, select: { id: true, technology: true, jobDescription: true, clientName: true } })
@@ -427,6 +429,7 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
     data: {
       submissionId,
       recruiterVendorId,
+      emailRequirementId,
       consultantId,
       jobTitle: jd.jobTitle?.trim() || null,
       clientName: jd.clientName?.trim() || null,
