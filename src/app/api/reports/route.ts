@@ -31,9 +31,14 @@ export interface ReportRecruiter {
 const EXIT_STATUSES = ["Exit", "ProjectCompleted-Exit"];
 
 /** Employees who have left: deactivated, or their end date has passed */
-const exitedUser = (now: Date) => ({ OR: [{ isActive: false }, { endDate: { lte: now } }] });
+/**
+ * Employees still with us: active, and no end date or one in the future. Written as positive
+ * conditions on purpose: SQL's NOT(...) over an empty end date is "unknown", which drops the row.
+ */
+const activeUser = (now: Date) => ({ isActive: true, OR: [{ endDate: null }, { endDate: { gt: now } }] });
 /** Consultants who have left */
-const exitedConsultant = { projectStatus: { in: EXIT_STATUSES } };
+/** Consultants still with us: no status yet, or any status other than an exit */
+const activeConsultant = { OR: [{ projectStatus: null }, { projectStatus: { notIn: EXIT_STATUSES } }] };
 
 const fullName = (p: { firstName: string; lastName: string }) =>
   `${p.firstName} ${p.lastName}`.replace(/\s+/g, " ").trim();
@@ -67,7 +72,7 @@ export async function GET(req: NextRequest) {
 
   const person = { select: { id: true, firstName: true, lastName: true } };
   const now = new Date();
-  const active = { recruiter: { NOT: exitedUser(now) }, consultant: { NOT: exitedConsultant } };
+  const active = { recruiter: activeUser(now), consultant: activeConsultant };
   const entries: { recruiter: { id: string; firstName: string; lastName: string };
     consultant: { id: string; firstName: string; lastName: string }; technology: string }[] = [];
 
@@ -128,11 +133,11 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, firstName: true, lastName: true, technology: true,
         // Only an active recruiter counts as assigned
-        preMarketings: { where: { recruiter: { NOT: exitedUser(now) } }, select: { recruiter: person }, take: 1 },
+        preMarketings: { where: { recruiter: activeUser(now) }, select: { recruiter: person }, take: 1 },
         submissions: { select: { technology: true, submissionDate: true }, orderBy: { submissionDate: "desc" }, take: 1 },
       },
     }),
-    prisma.user.findMany({ where: { role: { name: "Recruiter" }, NOT: exitedUser(now) }, select: { id: true, firstName: true, lastName: true } }),
+    prisma.user.findMany({ where: { role: { name: "Recruiter" }, ...activeUser(now) }, select: { id: true, firstName: true, lastName: true } }),
   ]);
 
   const consultants: MarketConsultant[] = students.map((s) => {
