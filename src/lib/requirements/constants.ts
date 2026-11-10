@@ -12,10 +12,10 @@ export const REQ_TECHNOLOGIES = [
 export type Audience =
   /** The inbox owner has a consultant on this technology: only they see it */
   | { kind: "private"; userIds: string[] }
-  /** Sent to the recruiters who work consultants on this technology (and the inbox owner) */
+  /** Sent to the recruiters who work In-Market consultants on this technology */
   | { kind: "shared"; userIds: string[] }
-  /** Nobody works this technology: everyone sees it */
-  | { kind: "everyone" };
+  /** Nobody works this technology: only managers see it */
+  | { kind: "unassigned" };
 
 export interface RequirementRow {
   id: string;
@@ -37,8 +37,8 @@ export interface RequirementRow {
   vendorEmail: string | null;
   vendorPhone: string | null;
   fromEmail: string;
-  /** Whose inbox it came from */
-  source: { id: string; name: string; email: string | null; /** Read from this consultant's Gmail (else the recruiter's own) */ consultant: string | null };
+  /** Whose inbox it came from (managers only; recruiters never see where a requirement came from) */
+  source: { id: string; name: string; email: string | null; /** Read from this consultant's Gmail (else the recruiter's own) */ consultant: string | null } | null;
   alsoReceivedBy: string[];
   audience: { kind: Audience["kind"]; names: string[] };
   /** The viewer's own In-Market consultants on this technology */

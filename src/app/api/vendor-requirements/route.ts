@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       now,
       items: items.map((r) => ({
         id: r.id, jobTitle: r.jobTitle, technology: r.technology, clientName: r.clientName,
-        vendorCompany: r.vendorCompany, source: r.source.name, mine: r.mine,
+        vendorCompany: r.vendorCompany, source: r.source?.name ?? null, mine: r.mine,
       })),
     });
   }

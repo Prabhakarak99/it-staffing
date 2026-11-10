@@ -11,8 +11,9 @@ const MAX_ROWS = 3000;
 const fullName = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u.lastName}`.trim();
 
 /**
- * Requirements this user may see, newest first. Managers see everything; everyone else sees what the
- * distribution rules give them (src/lib/requirements/audience.ts). `createdAfter` is for the notifier.
+ * Requirements this user may see, newest first. Managers see everything, with where each came from;
+ * recruiters see only requirements on their consultants' technologies (src/lib/requirements/audience.ts)
+ * and never which inbox they came from. `createdAfter` is for the notifier.
  */
 export async function listRequirements(
   session: Pick<SessionPayload, "userId" | "allowedScreens" | "roleName">,
@@ -59,13 +60,19 @@ export async function listRequirements(
       vendorEmail: r.vendorEmail,
       vendorPhone: r.vendorPhone,
       fromEmail: r.fromEmail,
-      source: r.consultantId
-        ? { id: r.owner.id, name: fullName(r.owner), email: boxOf.get(r.consultantId)?.email ?? null, consultant: boxOf.get(r.consultantId)?.name ?? "Consultant" }
-        : { id: r.owner.id, name: fullName(r.owner), email: r.owner.gmailAccount?.email ?? null, consultant: null },
-      alsoReceivedBy: r.alsoReceivedBy.map((id) => nameOf.get(id) ?? "").filter(Boolean),
-      audience: { kind: audience.kind, names: audience.kind === "everyone" ? [] : audience.userIds.map((id) => nameOf.get(id) ?? "").filter(Boolean) },
+      // Where it came from and who else has it: managers only
+      source: !manager
+        ? null
+        : r.consultantId
+          ? { id: r.owner.id, name: fullName(r.owner), email: boxOf.get(r.consultantId)?.email ?? null, consultant: boxOf.get(r.consultantId)?.name ?? "Consultant" }
+          : { id: r.owner.id, name: fullName(r.owner), email: r.owner.gmailAccount?.email ?? null, consultant: null },
+      alsoReceivedBy: manager ? r.alsoReceivedBy.map((id) => nameOf.get(id) ?? "").filter(Boolean) : [],
+      audience: {
+        kind: audience.kind,
+        names: manager && audience.kind !== "unassigned" ? audience.userIds.map((id) => nameOf.get(id) ?? "").filter(Boolean) : [],
+      },
       myConsultants: consultantsOn(r.technology, consultants).filter((c) => c.recruiterId === session.userId).map((c) => c.name),
-      mine: receivers.includes(session.userId),
+      mine: manager && receivers.includes(session.userId),
     });
     if (opts.limit && out.length >= opts.limit) break;
   }

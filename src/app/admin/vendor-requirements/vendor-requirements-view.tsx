@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Building2, Globe2, Inbox, Loader2, Lock, Mail, Phone, RefreshCw, Search, Users2,
+  AlertTriangle, Building2, CircleSlash, Inbox, Loader2, Lock, Mail, Phone, RefreshCw, Search, Users2,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -82,24 +82,33 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
       if (showId === "inbox" && !r.mine) return false;
       if (showId === "match" && r.myConsultants.length === 0) return false;
       if (!q) return true;
-      return [r.jobTitle, r.technology, r.clientName, r.location, r.vendorName, r.vendorCompany, r.vendorEmail, r.subject, r.jobDescription, r.source.name]
+      return [r.jobTitle, r.technology, r.clientName, r.location, r.vendorName, r.vendorCompany, r.vendorEmail, r.subject, r.jobDescription, r.source?.name]
         .some((f) => f?.toLowerCase().includes(q));
     });
   }, [rows, query, tech, windowId, showId, today, now]);
 
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const stats = [
-    { label: "Today", value: rows.filter((r) => dayKeyOf(new Date(r.receivedAt)) === today).length, color: "text-sky-700" },
-    { label: `Last ${days} days`, value: rows.length, color: "text-indigo-700" },
-    { label: "From my inbox", value: rows.filter((r) => r.mine).length, color: "text-violet-700" },
-    { label: "Match my consultants", value: rows.filter((r) => r.myConsultants.length > 0).length, color: "text-emerald-700" },
-  ];
+  const inLast = (d: number) => rows.filter((r) => new Date(r.receivedAt).getTime() >= now - d * 86_400_000).length;
+  const stats = manager
+    ? [
+        { label: "Today", value: rows.filter((r) => dayKeyOf(new Date(r.receivedAt)) === today).length, color: "text-sky-700" },
+        { label: `Last ${days} days`, value: rows.length, color: "text-indigo-700" },
+        { label: "From my inbox", value: rows.filter((r) => r.mine).length, color: "text-violet-700" },
+        { label: "Nobody's technology", value: rows.filter((r) => r.audience.kind === "unassigned").length, color: "text-slate-500" },
+      ]
+    : [
+        { label: "Today", value: rows.filter((r) => dayKeyOf(new Date(r.receivedAt)) === today).length, color: "text-sky-700" },
+        { label: "Last 7 days", value: inLast(7), color: "text-indigo-700" },
+        { label: `Last ${days} days`, value: rows.length, color: "text-violet-700" },
+        { label: "Your technologies", value: new Set(rows.map((r) => r.technology).filter(Boolean)).size, color: "text-emerald-700" },
+      ];
+  const cols = manager ? ["Received", "Requirement", "Type / Rate", "Vendor", "Source inbox", "Shared with"] : ["Received", "Requirement", "Type / Rate", "Vendor"];
   const th = "whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300";
 
   return (
     <>
-      <Header title="Vendor Requirements" subtitle="Requirement emails from vendors, read from the team's connected inboxes" />
+      <Header title="Vendor Requirements" subtitle={manager ? "Requirement emails from vendors, read from the team's connected inboxes" : "Vendor requirements for your consultants' technologies"} />
       <div className="space-y-4 p-4 sm:p-6">
         {/* Status */}
         <div className={cn(
@@ -152,7 +161,7 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
             {REQ_TECHNOLOGIES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
           <Segmented options={WINDOWS} value={windowId} onChange={(v) => { setWindowId(v); setLimit(PAGE); }} />
-          <Segmented options={SHOW} value={showId} onChange={(v) => { setShowId(v); setLimit(PAGE); }} />
+          {manager && <Segmented options={SHOW} value={showId} onChange={(v) => { setShowId(v); setLimit(PAGE); }} />}
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -160,13 +169,15 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
             <table className="w-full text-[12.5px]">
               <thead className="bg-slate-800">
                 <tr>
-                  {["Received", "Requirement", "Type / Rate", "Vendor", "Source inbox", "Shared with"].map((h) => <th key={h} className={th}>{h}</th>)}
+                  {cols.map((h) => <th key={h} className={th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-14 text-center text-slate-400">
-                    {rows.length === 0 ? "No requirement emails yet. New ones show up here a few minutes after they arrive." : "No requirements match these filters."}
+                  <tr><td colSpan={cols.length} className="px-4 py-14 text-center text-slate-400">
+                    {rows.length === 0
+                      ? manager ? "No requirement emails yet. New ones show up here a few minutes after they arrive." : "No requirements for your consultants' technologies yet. New ones show up here as vendors send them."
+                      : "No requirements match these filters."}
                   </td></tr>
                 )}
                 {filtered.slice(0, limit).map((r) => {
@@ -202,6 +213,7 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                           )}
                           {r.vendorPhone && <p className="flex items-center gap-1 text-[11.5px] text-slate-500"><Phone className="h-3 w-3" />{r.vendorPhone}</p>}
                         </td>
+                        {r.source && (<>
                         <td className="px-4 py-3">
                           <p className="font-medium text-slate-700">
                             {r.source.consultant ? `${r.source.consultant}'s Gmail` : r.mine && !manager ? "Your inbox" : r.source.name}
@@ -211,10 +223,11 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
                           {r.alsoReceivedBy.length > 0 && <p className="text-[11px] text-slate-400">Also: {r.alsoReceivedBy.join(", ")}</p>}
                         </td>
                         <td className="px-4 py-3"><AudienceBadge row={r} /></td>
+                        </>)}
                       </tr>
                       {isOpen && (
                         <tr>
-                          <td colSpan={6} className="bg-slate-50/80 px-4 py-4">
+                          <td colSpan={cols.length} className="bg-slate-50/80 px-4 py-4">
                             <div className="max-w-4xl space-y-2 rounded-xl border border-slate-200 bg-white p-4">
                               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Subject: <span className="normal-case tracking-normal text-slate-600">{r.subject}</span></p>
                               {r.visa && <p className="text-[12px] text-slate-600"><b>Visa:</b> {r.visa}</p>}
@@ -247,7 +260,7 @@ function AudienceBadge({ row }: { row: RequirementRow }) {
   const map = {
     private: { icon: Lock, label: "Private", cls: "bg-amber-50 text-amber-700 border-amber-200", tip: `Only ${names.join(", ")}: they have a consultant on ${row.technology}` },
     shared: { icon: Users2, label: `${names.length} recruiter${names.length === 1 ? "" : "s"}`, cls: "bg-sky-50 text-sky-700 border-sky-200", tip: `Recruiters working ${row.technology} consultants: ${names.join(", ")}` },
-    everyone: { icon: Globe2, label: "Everyone", cls: "bg-slate-50 text-slate-600 border-slate-200", tip: `Nobody has a ${row.technology ?? ""} consultant in market, so everyone sees it` },
+    unassigned: { icon: CircleSlash, label: "No recruiter", cls: "bg-slate-50 text-slate-500 border-slate-200", tip: `Nobody has a ${row.technology ?? ""} consultant in market, so only managers see it` },
   }[kind];
   const Icon = map.icon;
   return (

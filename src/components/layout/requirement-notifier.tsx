@@ -11,7 +11,8 @@ interface NewRequirement {
   technology: string | null;
   clientName: string | null;
   vendorCompany: string | null;
-  source: string;
+  /** Managers only */
+  source: string | null;
   mine: boolean;
 }
 
@@ -67,7 +68,7 @@ export function RequirementNotifier() {
             <p className="text-[10.5px] font-semibold uppercase tracking-wide text-indigo-600">New vendor requirement</p>
             <p className="truncate text-[13px] font-semibold text-slate-800">{n.jobTitle ?? "New position"}{n.technology ? ` · ${n.technology}` : ""}</p>
             <p className="truncate text-[11.5px] text-slate-500">
-              {[n.clientName && `Client: ${n.clientName}`, n.vendorCompany, n.mine ? "your inbox" : `via ${n.source}`].filter(Boolean).join(" · ")}
+              {[n.clientName && `Client: ${n.clientName}`, n.vendorCompany, n.source && (n.mine ? "your inbox" : `via ${n.source}`)].filter(Boolean).join(" · ")}
             </p>
           </button>
           <button type="button" aria-label="Dismiss" onClick={() => setItems((cur) => cur.filter((c) => c.id !== n.id))} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
