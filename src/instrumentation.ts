@@ -5,6 +5,7 @@ export async function register() {
   const { processJobFeed } = await import("@/lib/jobfeed/worker");
   const { ensureScreens, grantScreensOnce } = await import("@/lib/screens");
   const { processEmailStats } = await import("@/lib/gmail/stats");
+  const { processRequirementInboxes } = await import("@/lib/requirements/scan");
 
   // Register screens added after the initial seed (e.g. Vendor Management) so User Roles can grant them.
   void ensureScreens().catch((err) => console.error("[screens] ensureScreens failed:", err));
@@ -31,4 +32,9 @@ export async function register() {
   setInterval(() => {
     void processEmailStats();
   }, 5 * 60_000);
+
+  // Vendor requirement emails: read each connected inbox for new requirements (each at most every 4 min).
+  setInterval(() => {
+    void processRequirementInboxes();
+  }, 60_000);
 }

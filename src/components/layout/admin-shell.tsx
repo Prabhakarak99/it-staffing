@@ -6,6 +6,8 @@ import { Sidebar } from "./sidebar";
 
 import { SIDEBAR_COOKIE } from "./sidebar-cookie";
 import { AttendancePrompt } from "./attendance-prompt";
+import { RequirementNotifier } from "./requirement-notifier";
+import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import type { AttendancePromptData } from "@/lib/attendance/prompt";
 import type { NotificationItem } from "@/lib/attendance/notifications";
 
@@ -52,6 +54,8 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, initia
       </div>
       </div>
       {blocked && <AttendancePrompt data={attendancePrompt} onDone={() => setPromptOpen(false)} />}
+      {/* New vendor requirement popups, for everyone who can open Vendor Requirements */}
+      {!blocked && (allowedPaths === null || allowedPaths.includes(VENDOR_REQ_SCREEN.path)) && <RequirementNotifier />}
     </div>
   );
 }

@@ -1,183 +1,268 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, Mail, Phone, Search, Users2, FileText, Plus } from "lucide-react";
+import {
+  AlertTriangle, Building2, Globe2, Inbox, Loader2, Lock, Mail, Phone, RefreshCw, Search, Users2,
+} from "lucide-react";
 import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
+import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { APP_TZ } from "@/lib/tz";
+import { APP_TZ, dayKeyOf } from "@/lib/tz";
+import { REQ_TECHNOLOGIES, type RequirementRow } from "@/lib/requirements/constants";
 
-export interface VendorSuggestion {
-  id: string;
-  consultantName: string;
-  recruiterName: string;
-  technology: string;
-  jobDescription: string | null;
-  implementationPartner: string;
-  clientName: string | null;
-  sourceVendor: string;
-  vendorCompany: string;
-  vendorContactName: string;
-  vendorContactEmail: string;
-  vendorContactPhone: string;
-  pastSubmissions: number;
-  lastUsed: string;
-}
+const PAGE = 100;
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" });
+const WINDOWS = [
+  { id: "today", label: "Today", days: 0 },
+  { id: "7", label: "7 days", days: 7 },
+  { id: "30", label: "30 days", days: 30 },
+] as const;
 
-export function VendorRequirementsView({ today, suggestions, sourceCount }: {
-  today: string; suggestions: VendorSuggestion[]; sourceCount: number;
+const SHOW = [
+  { id: "all", label: "All I can see" },
+  { id: "inbox", label: "From my inbox" },
+  { id: "match", label: "My consultants' technologies" },
+] as const;
+
+export function VendorRequirementsView({ initialRows, days, manager, aiReady, inboxes, myInbox }: {
+  initialRows: RequirementRow[];
+  days: number;
+  manager: boolean;
+  aiReady: boolean;
+  /** Connected inboxes being read */
+  inboxes: number;
+  myInbox: { email: string; scannedAt: string | null } | null;
 }) {
+  const { toast, show, hide } = useToast();
+  const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
+  const [tech, setTech] = useState("");
+  const [windowId, setWindowId] = useState<(typeof WINDOWS)[number]["id"]>("7");
+  const [showId, setShowId] = useState<(typeof SHOW)[number]["id"]>("all");
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [limit, setLimit] = useState(PAGE);
+  const [scanning, setScanning] = useState(false);
+  // "Now" for the date filters, moved forward on every refresh
+  const [now, setNow] = useState(() => Date.now());
 
+  const reload = useCallback(async () => {
+    const res = await fetch("/api/vendor-requirements", { cache: "no-store" });
+    if (res.ok) setRows(await res.json());
+    setNow(Date.now());
+  }, []);
+
+  // New ones arrive every few minutes from the inbox reader
+  useEffect(() => {
+    const t = setInterval(() => void reload(), 2 * 60_000);
+    return () => clearInterval(t);
+  }, [reload]);
+
+  const scanNow = async () => {
+    setScanning(true);
+    const res = await fetch("/api/vendor-requirements", { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setScanning(false);
+    if (!res.ok) return show(d.error ?? "Could not read your inbox", "error");
+    await reload();
+    show(d.added ? `${d.added} new requirement${d.added === 1 ? "" : "s"} found in your inbox` : `Checked ${d.checked} email${d.checked === 1 ? "" : "s"}: no new requirements`, "success");
+  };
+
+  const today = dayKeyOf(new Date(now));
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return suggestions;
-    return suggestions.filter((s) =>
-      [s.consultantName, s.technology, s.implementationPartner, s.clientName, s.vendorCompany, s.vendorContactName, s.vendorContactEmail, s.jobDescription]
-        .some((f) => f?.toLowerCase().includes(q)),
-    );
-  }, [query, suggestions]);
+    const w = WINDOWS.find((x) => x.id === windowId)!;
+    const cutoff = now - w.days * 86_400_000;
+    return rows.filter((r) => {
+      if (w.days === 0 ? dayKeyOf(new Date(r.receivedAt)) !== today : new Date(r.receivedAt).getTime() < cutoff) return false;
+      if (tech && r.technology !== tech) return false;
+      if (showId === "inbox" && !r.mine) return false;
+      if (showId === "match" && r.myConsultants.length === 0) return false;
+      if (!q) return true;
+      return [r.jobTitle, r.technology, r.clientName, r.location, r.vendorName, r.vendorCompany, r.vendorEmail, r.subject, r.jobDescription, r.source.name]
+        .some((f) => f?.toLowerCase().includes(q));
+    });
+  }, [rows, query, tech, windowId, showId, today, now]);
 
-  const partnerCount = new Set(suggestions.map((s) => s.implementationPartner.toLowerCase())).size;
-  const vendorCount = new Set(suggestions.map((s) => s.vendorCompany.toLowerCase())).size;
-  const th = "px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap";
+  const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  const stats = [
+    { label: "Today", value: rows.filter((r) => dayKeyOf(new Date(r.receivedAt)) === today).length, color: "text-sky-700" },
+    { label: `Last ${days} days`, value: rows.length, color: "text-indigo-700" },
+    { label: "From my inbox", value: rows.filter((r) => r.mine).length, color: "text-violet-700" },
+    { label: "Match my consultants", value: rows.filter((r) => r.myConsultants.length > 0).length, color: "text-emerald-700" },
+  ];
+  const th = "whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300";
 
   return (
     <>
-      <Header title="Vendor Requirements" subtitle="Other vendors that work with today's implementation partners" />
-      <div className="p-6 space-y-5">
+      <Header title="Vendor Requirements" subtitle="Requirement emails from vendors, read from the team's connected inboxes" />
+      <div className="space-y-4 p-4 sm:p-6">
+        {/* Status */}
+        <div className={cn(
+          "flex flex-wrap items-center gap-3 rounded-2xl border px-5 py-3 text-[12.5px]",
+          myInbox && aiReady ? "border-indigo-100 bg-indigo-50/60 text-slate-600" : "border-amber-200 bg-amber-50 text-amber-800",
+        )}>
+          {myInbox && aiReady ? <Inbox className="h-4 w-4 text-indigo-600" /> : <AlertTriangle className="h-4 w-4" />}
+          <p className="min-w-0 flex-1">
+            {!aiReady ? (
+              <>No AI provider is set up, so requirement emails can&apos;t be read yet. An admin can add one under Administration → AI Settings.</>
+            ) : myInbox ? (
+              <>
+                Reading <b>{myInbox.email}</b> and {Math.max(0, inboxes - 1)} other inbox{inboxes - 1 === 1 ? "" : "es"} every few minutes.
+                {myInbox.scannedAt && <> Your inbox was last checked {fmtWhen(myInbox.scannedAt)} CT.</>}
+              </>
+            ) : (
+              <>Your Gmail isn&apos;t connected, so requirements in your inbox aren&apos;t read. <Link href="/admin/mailbox" className="font-semibold underline">Connect Gmail in Mailbox</Link>. You still see requirements shared from {inboxes} connected inbox{inboxes === 1 ? "" : "es"}.</>
+            )}
+          </p>
+          {myInbox && aiReady && (
+            <Button size="sm" variant="outline" onClick={scanNow} disabled={scanning}>
+              {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {scanning ? "Reading inbox…" : "Check my inbox now"}
+            </Button>
+          )}
+        </div>
 
-        {/* ── Summary ── */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            { label: "Today's Submissions", value: sourceCount, color: "text-sky-700" },
-            { label: "Implementation Partners", value: partnerCount, color: "text-indigo-700" },
-            { label: "Suggested Vendors", value: vendorCount, color: "text-violet-700" },
-            { label: "Possible Submissions", value: suggestions.length, color: "text-emerald-700" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className={cn("text-[22px] font-bold tabular-nums leading-none", color)}>{value}</p>
-              <p className="mt-1 text-[11px] font-medium text-slate-500">{label}</p>
+          {stats.map(({ label, value, color }) => (
+            <div key={label} className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+              <p className={cn("mt-1 text-2xl font-bold tabular-nums", color)}>{value}</p>
             </div>
           ))}
         </div>
 
-        {/* ── Table ── */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
-              <Building2 className="h-4 w-4 text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-[13px] font-bold text-slate-900">Possible Submissions</p>
-              <p className="text-[11px] text-slate-400">
-                Vendors from past submissions with the same implementation partner, excluding vendors the consultant was already submitted to
-              </p>
-            </div>
-            <div className="relative ml-auto w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search consultant, partner, vendor…"
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-[12px] text-slate-700 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-              />
-            </div>
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setLimit(PAGE); }}
+              placeholder="Search title, skills, client, vendor, JD…"
+              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13px] shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
           </div>
+          <select value={tech} onChange={(e) => { setTech(e.target.value); setLimit(PAGE); }}
+            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[13px] shadow-sm focus:border-indigo-400 focus:outline-none">
+            <option value="">All technologies</option>
+            {REQ_TECHNOLOGIES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <Segmented options={WINDOWS} value={windowId} onChange={(v) => { setWindowId(v); setLimit(PAGE); }} />
+          <Segmented options={SHOW} value={showId} onChange={(v) => { setShowId(v); setLimit(PAGE); }} />
+        </div>
 
-          {suggestions.length === 0 ? (
-            <div className="px-5 py-14 text-center">
-              <Users2 className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-              <p className="text-[13px] font-semibold text-slate-500">
-                {sourceCount === 0 ? "No submissions with an implementation partner today" : "No other vendors found for today's implementation partners"}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Suggestions appear when a submission today names an implementation partner that other vendors have worked with before
-              </p>
-              <Link href="/admin/submissions" className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-4 py-2 text-[12px] font-bold text-white hover:bg-sky-600 transition-colors">
-                <Plus className="h-3.5 w-3.5" /> New Submission
-              </Link>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-800">
-                    <th className={th}>Date</th>
-                    <th className={th}>Consultant</th>
-                    <th className={th}>Technology</th>
-                    <th className={th}>Job Description</th>
-                    <th className={th}>Implementation Partner</th>
-                    <th className={th}>Vendor</th>
-                    <th className={th}>Vendor Contact</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.map((s) => (
-                    <tr key={s.id} className="align-top hover:bg-indigo-50/20 transition-colors">
-                      <td className="px-4 py-3 text-[12px] text-slate-600 whitespace-nowrap">{fmtDate(today)}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">{s.consultantName}</p>
-                        <p className="text-[10px] text-slate-400 whitespace-nowrap">Recruiter: {s.recruiterName}</p>
-                      </td>
-                      <td className="px-4 py-3 text-[12px] text-slate-700 whitespace-nowrap">{s.technology}</td>
-                      <td className="px-4 py-3 min-w-[240px] max-w-[360px]">
-                        {s.jobDescription ? (
-                          <details className="group">
-                            <summary className="cursor-pointer list-none text-[12px] text-slate-600">
-                              <span className="line-clamp-2 group-open:hidden">{s.jobDescription}</span>
-                              <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
-                                <FileText className="h-3 w-3" />
-                                <span className="group-open:hidden">Show full JD</span>
-                                <span className="hidden group-open:inline">Hide JD</span>
-                              </span>
-                            </summary>
-                            <p className="mt-1 whitespace-pre-wrap text-[12px] text-slate-600">{s.jobDescription}</p>
-                          </details>
-                        ) : (
-                          <span className="text-[12px] text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">{s.implementationPartner}</p>
-                        {s.clientName && <p className="text-[10px] text-slate-400 whitespace-nowrap">Client: {s.clientName}</p>}
-                        <p className="text-[10px] text-slate-400 whitespace-nowrap">Today via {s.sourceVendor}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">{s.vendorCompany}</p>
-                        <p className="text-[10px] text-slate-400 whitespace-nowrap">
-                          {s.pastSubmissions} past submission{s.pastSubmissions === 1 ? "" : "s"} · last {fmtDate(s.lastUsed)}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 space-y-0.5">
-                        <p className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">{s.vendorContactName}</p>
-                        {s.vendorContactEmail && (
-                          <a href={`mailto:${s.vendorContactEmail}`} className="flex items-center gap-1 text-[11px] text-indigo-600 hover:underline whitespace-nowrap">
-                            <Mail className="h-3 w-3" /> {s.vendorContactEmail}
-                          </a>
-                        )}
-                        {s.vendorContactPhone && (
-                          <a href={`tel:${s.vendorContactPhone}`} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700 whitespace-nowrap">
-                            <Phone className="h-3 w-3" /> {s.vendorContactPhone}
-                          </a>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-5 py-10 text-center text-[12px] text-slate-400">No matches for “{query}”</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12.5px]">
+              <thead className="bg-slate-800">
+                <tr>
+                  {["Received", "Requirement", "Type / Rate", "Vendor", "Source inbox", "Shared with"].map((h) => <th key={h} className={th}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-14 text-center text-slate-400">
+                    {rows.length === 0 ? "No requirement emails yet. New ones show up here a few minutes after they arrive." : "No requirements match these filters."}
+                  </td></tr>
+                )}
+                {filtered.slice(0, limit).map((r) => {
+                  const isOpen = open.has(r.id);
+                  return (
+                    <Fragment key={r.id}>
+                      <tr className={cn("cursor-pointer align-top hover:bg-slate-50", isOpen && "bg-indigo-50/40")} onClick={() => toggle(r.id)}>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">{fmtWhen(r.receivedAt)}</td>
+                        <td className="min-w-[260px] px-4 py-3">
+                          <p className="font-semibold text-slate-800">{r.jobTitle ?? r.subject}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {r.technology && <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700">{r.technology}</span>}
+                            {r.clientName && <span className="text-[11.5px] text-slate-600">Client: {r.clientName}</span>}
+                          </div>
+                          {(r.location || r.workMode) && <p className="mt-0.5 text-[11.5px] text-slate-500">{[r.location, r.workMode].filter(Boolean).join(" · ")}</p>}
+                          {r.myConsultants.length > 0 && (
+                            <p className="mt-1 text-[11px] font-medium text-emerald-700">Your consultants: {r.myConsultants.join(", ")}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {r.employmentType && <p className="font-medium">{r.employmentType}</p>}
+                          {r.rate && <p className="text-[11.5px]">{r.rate}</p>}
+                          {r.duration && <p className="text-[11.5px] text-slate-400">{r.duration}</p>}
+                          {!r.employmentType && !r.rate && !r.duration && <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="min-w-[200px] px-4 py-3">
+                          <p className="font-medium text-slate-800">{r.vendorName ?? "—"}</p>
+                          {r.vendorCompany && <p className="flex items-center gap-1 text-[11.5px] text-slate-600"><Building2 className="h-3 w-3" />{r.vendorCompany}</p>}
+                          {r.vendorEmail && (
+                            <a href={`mailto:${r.vendorEmail}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-[11.5px] text-indigo-600 hover:underline">
+                              <Mail className="h-3 w-3" />{r.vendorEmail}
+                            </a>
+                          )}
+                          {r.vendorPhone && <p className="flex items-center gap-1 text-[11.5px] text-slate-500"><Phone className="h-3 w-3" />{r.vendorPhone}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-700">{r.mine && !manager ? "Your inbox" : r.source.name}</p>
+                          {r.source.email && <p className="text-[11px] text-slate-400">{r.source.email}</p>}
+                          {r.alsoReceivedBy.length > 0 && <p className="text-[11px] text-slate-400">Also: {r.alsoReceivedBy.join(", ")}</p>}
+                        </td>
+                        <td className="px-4 py-3"><AudienceBadge row={r} /></td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={6} className="bg-slate-50/80 px-4 py-4">
+                            <div className="max-w-4xl space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Subject: <span className="normal-case tracking-normal text-slate-600">{r.subject}</span></p>
+                              {r.visa && <p className="text-[12px] text-slate-600"><b>Visa:</b> {r.visa}</p>}
+                              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{r.jobDescription}</p>
+                              <p className="pt-1 text-[11px] text-slate-400">From {r.fromEmail} · received {fmtWhen(r.receivedAt)} CT</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length > limit && (
+            <div className="border-t border-slate-100 px-4 py-3 text-center">
+              <Button size="sm" variant="outline" onClick={() => setLimit((l) => l + PAGE)}>Show more ({filtered.length - limit} left)</Button>
             </div>
           )}
         </div>
       </div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
     </>
+  );
+}
+
+function AudienceBadge({ row }: { row: RequirementRow }) {
+  const { kind, names } = row.audience;
+  const map = {
+    private: { icon: Lock, label: "Private", cls: "bg-amber-50 text-amber-700 border-amber-200", tip: `Only ${names.join(", ")}: they have a consultant on ${row.technology}` },
+    shared: { icon: Users2, label: `${names.length} recruiter${names.length === 1 ? "" : "s"}`, cls: "bg-sky-50 text-sky-700 border-sky-200", tip: `Recruiters working ${row.technology} consultants: ${names.join(", ")}` },
+    everyone: { icon: Globe2, label: "Everyone", cls: "bg-slate-50 text-slate-600 border-slate-200", tip: `Nobody has a ${row.technology ?? ""} consultant in market, so everyone sees it` },
+  }[kind];
+  const Icon = map.icon;
+  return (
+    <span title={map.tip} className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[11px] font-semibold", map.cls)}>
+      <Icon className="h-3 w-3" /> {map.label}
+    </span>
+  );
+}
+
+function Segmented<T extends string>({ options, value, onChange }: { options: readonly { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="flex gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+      {options.map((o) => (
+        <button key={o.id} type="button" onClick={() => onChange(o.id)}
+          className={cn("whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition", o.id === value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100")}>
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

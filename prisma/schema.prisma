@@ -91,6 +91,7 @@ model User {
   easySends         EasySubmissionSend[]
   followUps         FollowUp[]
   emailTemplates    EmailTemplate[]
+  emailRequirements EmailRequirement[]
 }
 
 model Student {
@@ -402,6 +403,8 @@ model GmailAccount {
   lastSyncAt        DateTime?
   /// Set when Google rejects the token (user must reconnect) or a sync fails
   lastError         String?
+  /// Last time the inbox was read for vendor requirement emails
+  reqScanAt         DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -705,4 +708,54 @@ model EmailTemplate {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, category])
+}
+
+/// A vendor requirement read from a recruiter's Gmail inbox (Vendor Requirements tab)
+model EmailRequirement {
+  id             String   @id @default(cuid())
+  /// Recruiter whose inbox it came from
+  ownerId        String
+  /// Other recruiters who got the same email (vendors often mail several of us)
+  alsoReceivedBy String[] @default([])
+  gmailMessageId String
+  threadId       String?
+  receivedAt     DateTime
+  subject        String
+  fromEmail      String
+  /// Same sender + subject: the same requirement mailed to several inboxes
+  fingerprint    String
+  jobTitle       String?
+  technology     String?
+  clientName     String?
+  location       String?
+  workMode       String?
+  employmentType String?
+  rate           String?
+  duration       String?
+  visa           String?
+  jobDescription String
+  vendorName     String?
+  vendorCompany  String?
+  vendorEmail    String?
+  vendorPhone    String?
+  createdAt      DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([receivedAt])
+  @@index([fingerprint])
+  @@index([createdAt])
+}
+
+/// Each inbox message checked for requirements, so none is read (or sent to the AI) twice
+model EmailScan {
+  id             String   @id @default(cuid())
+  ownerId        String
+  gmailMessageId String
+  /// requirement | duplicate | skipped | failed
+  status         String
+  createdAt      DateTime @default(now())
+
+  @@unique([ownerId, gmailMessageId])
+  @@index([createdAt])
 }
