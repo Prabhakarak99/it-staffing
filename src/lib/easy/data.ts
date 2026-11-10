@@ -204,11 +204,23 @@ export function companyDomain(email: string | null | undefined) {
   return d && !FREE_MAIL.has(d) ? d : null;
 }
 
+/** Stable number for a string (FNV-1a), so the vendor split doesn't change between page loads */
+function stableHash(text: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 /**
  * Vendors we know for the submission's client / implementation partner, from every recruiter's vendor
  * book, the vendor contact list and past submissions. Every recruiter at the vendor company that already
- * has this requirement (same company name or email domain) is left out, as are the companies this
- * consultant was already submitted through for the same client and vendors already emailed from here.
+ * has this requirement (same company name or email domain) is left out. The rest are split evenly
+ * between the consultants on this requirement (primary and secondary separately), so each vendor
+ * hears about one consultant; then the companies this consultant was already submitted through for
+ * the same client, and vendors already emailed from here, are left out of their share.
  * Primary vendors are the ones whose last submission was on the same technology.
  */
 export async function vendorsFor(submissionId: string, consultantId: string) {
@@ -260,16 +272,20 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   ]);
 
   const excluded = new Set([...alreadySubmitted.map((s) => s.vendorRecruiterEmail), ...alreadySent.map((s) => s.vendorEmail)].map((e) => e.trim().toLowerCase()));
-  // Vendor companies that already have this requirement: the one on the submission, and any this
-  // consultant was submitted through for the same client
-  const takenSubs = [{ vendorRecruiterEmail: sub.vendorRecruiterEmail, vendorCompany: sub.vendorCompany }, ...alreadySubmitted];
-  const takenCompanies = new Set(takenSubs.map((s) => companyKey(s.vendorCompany)).filter((k): k is string => !!k));
-  const takenDomains = new Set(takenSubs.map((s) => companyDomain(s.vendorRecruiterEmail)).filter((d): d is string => !!d));
-  const sameCompany = (email: string, company: string | null) => {
-    const d = companyDomain(email);
-    const k = companyKey(company);
-    return (!!d && takenDomains.has(d)) || (!!k && takenCompanies.has(k));
+  /** Matches any recruiter at the vendor companies of these submissions (company name or email domain) */
+  const companyMatcher = (subs: { vendorRecruiterEmail: string; vendorCompany: string }[]) => {
+    const companies = new Set(subs.map((s) => companyKey(s.vendorCompany)).filter((k): k is string => !!k));
+    const domains = new Set(subs.map((s) => companyDomain(s.vendorRecruiterEmail)).filter((d): d is string => !!d));
+    return (email: string, company: string | null) => {
+      const d = companyDomain(email);
+      const k = companyKey(company);
+      return (!!d && domains.has(d)) || (!!k && companies.has(k));
+    };
   };
+  // The vendor company that already has this requirement is left out for everyone...
+  const requirementVendor = companyMatcher([{ vendorRecruiterEmail: sub.vendorRecruiterEmail, vendorCompany: sub.vendorCompany }]);
+  // ...and the companies this consultant was already submitted through for the same client, for them only
+  const usedByConsultant = companyMatcher(alreadySubmitted);
   const byEmail = new Map<string, VendorOption>();
   const hidden = new Set<string>();
   const onTech = (t: string | null | undefined) => onTechnology(t, stem);
@@ -279,7 +295,7 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   const add = (email: string | null | undefined, name: string | null, company: string | null, phone: string | null, source: string, tech?: string | null) => {
     const key = email?.trim().toLowerCase();
     if (!key || !/\S+@\S+\.\S+/.test(key)) return;
-    if (excluded.has(key) || sameCompany(key, company)) {
+    if (requirementVendor(key, company)) {
       hidden.add(key);
       return;
     }
@@ -313,11 +329,43 @@ export async function vendorsFor(submissionId: string, consultantId: string) {
   }
   for (const v of byEmail.values()) v.primary = onTech(v.lastTechnology) || listedTech.has(v.email);
 
-  const vendors = [...byEmail.values()].sort(
-    (a, b) =>
-      Number(b.primary) - Number(a.primary) ||
-      (b.lastSubmittedAt ?? "").localeCompare(a.lastSubmittedAt ?? "") ||
-      (a.company ?? "").localeCompare(b.company ?? ""),
-  );
-  return { vendors, hidden: hidden.size, client, implementation: impl };
+  // Split the pool between the consultants on this requirement, primary and secondary separately,
+  // so each vendor gets one consultant instead of all of them
+  const pool = [...byEmail.values()];
+  const team = (await consultantsFor(submissionId))?.consultants ?? [];
+  const seat = team.findIndex((c) => c.id === consultantId);
+  const split = seat >= 0 && team.length > 1;
+  const share = (list: VendorOption[]) =>
+    split
+      ? list
+          .map((v) => ({ v, h: stableHash(`${submissionId}|${v.email}`) }))
+          .sort((a, b) => a.h - b.h || a.v.email.localeCompare(b.v.email))
+          .filter((_, i) => i % team.length === seat)
+          .map((x) => x.v)
+      : list;
+  const mine = [...share(pool.filter((v) => v.primary)), ...share(pool.filter((v) => !v.primary))];
+
+  // Then leave out the ones this consultant already went to
+  const vendors = mine
+    .filter((v) => {
+      const used = excluded.has(v.email) || usedByConsultant(v.email, v.company);
+      if (used) hidden.add(v.email);
+      return !used;
+    })
+    .sort(
+      (a, b) =>
+        Number(b.primary) - Number(a.primary) ||
+        (b.lastSubmittedAt ?? "").localeCompare(a.lastSubmittedAt ?? "") ||
+        (a.company ?? "").localeCompare(b.company ?? ""),
+    );
+  return {
+    vendors,
+    hidden: hidden.size,
+    client,
+    implementation: impl,
+    /** This consultant's share of the vendors for the requirement */
+    split: split
+      ? { consultants: team.length, total: pool.length, primaryTotal: pool.filter((v) => v.primary).length, mine: mine.length }
+      : null,
+  };
 }

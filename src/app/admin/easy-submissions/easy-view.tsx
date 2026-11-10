@@ -24,7 +24,9 @@ interface Requirement {
 }
 
 interface ConsultantState { loading: boolean; error?: string; consultants: ConsultantOption[]; requirement?: Requirement; technology?: string | null }
-interface VendorState { loading: boolean; error?: string; vendors: VendorOption[]; hidden: number }
+/** This consultant's share when the requirement's vendors are split between its consultants */
+interface VendorSplit { consultants: number; total: number; primaryTotal: number; mine: number }
+interface VendorState { loading: boolean; error?: string; vendors: VendorOption[]; hidden: number; split?: VendorSplit | null }
 
 type Notify = (message: string, type: "success" | "error") => void;
 
@@ -344,7 +346,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load vendors");
-        setVendors((v) => ({ ...v, [consultantId]: { loading: false, vendors: d.vendors, hidden: d.hidden } }));
+        setVendors((v) => ({ ...v, [consultantId]: { loading: false, vendors: d.vendors, hidden: d.hidden, split: d.split } }));
       })
       .catch((err: Error) => setVendors((v) => ({ ...v, [consultantId]: { loading: false, vendors: [], hidden: 0, error: err.message } })));
   };
@@ -566,6 +568,14 @@ function VendorPanel({ sub, consultant, requirement, state, sender, notify, onSe
           <span className="ml-2 text-[11px] font-normal text-slate-400">
             for {consultant.name}{state.hidden ? ` · ${state.hidden} already have this requirement (same vendor company) or were already sent, hidden` : ""}
           </span>
+          {state.split && (
+            <span
+              className="mt-0.5 block text-[11px] font-medium text-sky-700"
+              title="Each vendor is given to one consultant on this requirement, so no vendor gets every consultant. Primary and secondary vendors are split separately."
+            >
+              {consultant.name}&apos;s share: {state.split.mine} of {state.split.total} vendors ({state.split.primaryTotal} primary), split across {state.split.consultants} consultants
+            </span>
+          )}
         </p>
         <Button size="sm" disabled={selected.size === 0} onClick={() => setComposeFor(state.vendors.filter((v) => selected.has(v.email)))}>
           <Send className="h-3.5 w-3.5" /> Submit to selected ({selected.size})
