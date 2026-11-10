@@ -10,6 +10,15 @@ const MAX_ROWS = 3000;
 
 const fullName = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u.lastName}`.trim();
 
+const FULL_TIME = /full[\s-]?time|\bfte\b|permanent|direct[\s-]?hire/i;
+const CONTRACT = /\bc2c\b|corp[\s-]?to[\s-]?corp|\bw-?2\b|\b1099\b|contract|\bc2h\b|\btemp/i;
+
+/** Full-time-only positions aren't shown (we place contractors); "C2C / Full-time" still is. Kept in the DB. */
+export function isFullTimeOnly(r: { employmentType: string | null; jobTitle: string | null }) {
+  const text = [r.employmentType, r.jobTitle].filter(Boolean).join(" ");
+  return FULL_TIME.test(text) && !CONTRACT.test(text);
+}
+
 /**
  * Requirements this user may see, newest first. Managers see everything, with where each came from;
  * recruiters see only requirements on their consultants' technologies (src/lib/requirements/audience.ts)
@@ -37,6 +46,7 @@ export async function listRequirements(
 
   const out: RequirementRow[] = [];
   for (const r of rows) {
+    if (isFullTimeOnly(r)) continue;
     const receivers = [r.ownerId, ...r.alsoReceivedBy];
     const audience = audienceFor(r.technology, consultants);
     if (!manager && !canSee(audience, session.userId)) continue;
