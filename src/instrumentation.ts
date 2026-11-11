@@ -16,6 +16,9 @@ export async function register() {
   void import("@/lib/attendance/quotes")
     .then(({ ensureQuotes }) => ensureQuotes())
     .catch((err) => console.error("[attendance] ensureQuotes failed:", err));
+  void import("@/lib/requirements/backfill")
+    .then(({ backfillRequirementSubmissionsOnce }) => backfillRequirementSubmissionsOnce())
+    .catch((err) => console.error("[requirements] backfill failed:", err));
 
   // AutoJobs worker: match pending runs and dispatch queued emails every 30s.
   setInterval(() => {
