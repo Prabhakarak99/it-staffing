@@ -30,7 +30,7 @@ export async function listConsultantMailboxes(session: SessionPayload) {
     where: consultantScope(session),
     select: {
       id: true, firstName: true, lastName: true, email: true, technology: true, projectStatus: true,
-      preMarketings: { select: { marketingEmail: true, recruiter: { select: { firstName: true, lastName: true } } }, take: 1 },
+      preMarketings: { select: { marketingEmail: true, recruiter: { select: { firstName: true, lastName: true } } }, orderBy: { updatedAt: "desc" }, take: 1 },
       mailbox: {
         select: { email: true, connectedAt: true, lastError: true, reqScanAt: true, connectedBy: { select: { firstName: true, lastName: true } } },
       },

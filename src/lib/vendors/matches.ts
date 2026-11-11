@@ -45,7 +45,7 @@ export async function matchedConsultants(access: Ok, vendorId: string) {
         where: { ...consultantScope(access.session), projectStatus: { in: MARKETING_STATUSES }, technology: { not: null } },
         select: {
           id: true, firstName: true, lastName: true, technology: true, projectStatus: true, visaStatus: true, city: true, state: true, resumeFile: true,
-          preMarketings: { select: { marketingVisaStatus: true, recruiter: { select: { firstName: true, lastName: true } } }, take: 1 },
+          preMarketings: { select: { marketingVisaStatus: true, recruiter: { select: { firstName: true, lastName: true } } }, orderBy: { updatedAt: "desc" }, take: 1 },
           tailoredResumes: { where: { recruiterVendorId: vendorId }, orderBy: { createdAt: "desc" }, take: 1 },
           vendorResumeSends: { where: { vendorId, status: "sent" }, orderBy: { createdAt: "desc" }, select: { createdAt: true } },
         },

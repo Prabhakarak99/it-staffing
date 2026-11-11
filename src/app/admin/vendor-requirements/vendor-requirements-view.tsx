@@ -30,10 +30,12 @@ const SHOW = [
   { id: "match", label: "My consultants' technologies" },
 ] as const;
 
-export function VendorRequirementsView({ initialRows, days, manager, aiReady, inboxes, myInbox, sender }: {
+export function VendorRequirementsView({ initialRows, days, manager, myBook, aiReady, inboxes, myInbox, sender }: {
   initialRows: RequirementRow[];
   days: number;
   manager: boolean;
+  /** Recruiters: their In-Market consultants (Pre-Marketing), which decide the technologies they see */
+  myBook: { name: string; technology: string }[] | null;
   aiReady: boolean;
   /** Connected inboxes being read */
   inboxes: number;
@@ -118,6 +120,26 @@ export function VendorRequirementsView({ initialRows, days, manager, aiReady, in
     <>
       <Header title="Vendor Requirements" subtitle={manager ? "Requirement emails from vendors, read from the team's connected inboxes" : "Vendor requirements for your consultants' technologies"} />
       <div className="space-y-4 p-4 sm:p-6">
+        {myBook && (
+          myBook.length === 0 ? (
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-[12.5px] text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                <b>No In-Market consultants are assigned to you</b>, so no requirements are shown. Requirements appear for the technologies of the consultants you market:
+                in <b>Pre-Marketing</b> you must be the consultant&apos;s recruiter, and the consultant&apos;s status must be <b>In-Market</b> with a technology set. Ask your manager to assign them.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-500">
+              <span>Showing requirements for your consultants:</span>
+              {myBook.map((c) => (
+                <span key={c.name + c.technology} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px]">
+                  <b className="text-slate-700">{c.name}</b> · <span className="text-indigo-700">{c.technology}</span>
+                </span>
+              ))}
+            </div>
+          )
+        )}
         {/* Status */}
         <div className={cn(
           "flex flex-wrap items-center gap-3 rounded-2xl border px-5 py-3 text-[12.5px]",

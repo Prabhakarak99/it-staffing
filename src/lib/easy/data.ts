@@ -150,7 +150,7 @@ export async function consultantsFor(submissionId: string): Promise<{ technology
       ],
     },
     include: {
-      preMarketings: { include: { recruiter: { select: { firstName: true, lastName: true } } }, take: 1 },
+      preMarketings: { include: { recruiter: { select: { firstName: true, lastName: true } } }, orderBy: { updatedAt: "desc" }, take: 1 },
       tailoredResumes: { where: { submissionId }, orderBy: { createdAt: "desc" }, take: 1 },
       _count: { select: { easySends: { where: { submissionId, status: "sent" } } } },
     },

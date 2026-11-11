@@ -12,7 +12,7 @@ export interface MarketedConsultant {
 export async function marketedConsultants(): Promise<MarketedConsultant[]> {
   const rows = await prisma.student.findMany({
     where: { projectStatus: { in: MARKETING_STATUSES }, technology: { not: null }, preMarketings: { some: { recruiterId: { not: null } } } },
-    select: { firstName: true, lastName: true, technology: true, preMarketings: { select: { recruiterId: true }, take: 1 } },
+    select: { firstName: true, lastName: true, technology: true, preMarketings: { select: { recruiterId: true }, orderBy: { updatedAt: "desc" }, take: 1 } },
   });
   return rows
     .filter((r) => r.technology?.trim() && r.preMarketings[0]?.recruiterId)

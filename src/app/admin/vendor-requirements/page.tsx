@@ -8,6 +8,7 @@ import { isGmailConfigured } from "@/lib/gmail/oauth";
 import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import { LIST_DAYS, listRequirements } from "@/lib/requirements/data";
 import { myEmailSetup } from "@/lib/email-templates/data";
+import { marketedConsultants } from "@/lib/requirements/audience";
 import { VendorRequirementsView } from "./vendor-requirements-view";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export default async function VendorRequirementsPage() {
   if (!session) redirect("/login");
   if (!(await canViewScreen(session, VENDOR_REQ_SCREEN.path))) redirect("/admin");
 
-  const [rows, ai, gmailReady, gmail, recruiterInboxes, consultantInboxes, me, emailSetup] = await Promise.all([
+  const manager = isManager(session);
+  const [rows, ai, gmailReady, gmail, recruiterInboxes, consultantInboxes, me, emailSetup, marketed] = await Promise.all([
     listRequirements(session),
     getActiveAi(),
     isGmailConfigured(),
@@ -26,6 +28,7 @@ export default async function VendorRequirementsPage() {
     prisma.consultantMailbox.count({ where: { lastError: null } }),
     prisma.user.findUnique({ where: { id: session.userId }, select: { firstName: true, lastName: true, email: true } }),
     myEmailSetup(session.userId),
+    manager ? Promise.resolve([]) : marketedConsultants(),
   ]);
   const inboxes = recruiterInboxes + consultantInboxes;
 
@@ -33,7 +36,8 @@ export default async function VendorRequirementsPage() {
     <VendorRequirementsView
       initialRows={rows}
       days={LIST_DAYS}
-      manager={isManager(session)}
+      manager={manager}
+      myBook={manager ? null : marketed.filter((c) => c.recruiterId === session.userId).map((c) => ({ name: c.name, technology: c.technology }))}
       aiReady={!!ai}
       inboxes={inboxes}
       sender={{

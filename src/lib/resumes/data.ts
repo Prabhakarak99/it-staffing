@@ -39,7 +39,7 @@ export async function listResumeConsultants(session: SessionPayload) {
     select: {
       id: true, firstName: true, lastName: true, technology: true, projectStatus: true,
       resumeFile: true, resumeFileName: true, resumeUpdatedAt: true,
-      preMarketings: { select: { recruiter: { select: { firstName: true, lastName: true } } }, take: 1 },
+      preMarketings: { select: { recruiter: { select: { firstName: true, lastName: true } } }, orderBy: { updatedAt: "desc" }, take: 1 },
       _count: { select: { tailoredResumes: true } },
     },
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],

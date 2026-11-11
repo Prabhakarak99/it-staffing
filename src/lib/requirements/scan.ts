@@ -274,7 +274,7 @@ export async function processRequirementInboxes() {
         ...(googleReady ? {} : { authType: "app_password" }),
         OR: [{ reqScanAt: null }, { reqScanAt: { lt: new Date(Date.now() - SCAN_EVERY_MS) } }],
       },
-      select: { consultantId: true, email: true, connectedById: true, consultant: { select: { preMarketings: { select: { recruiterId: true }, take: 1 } } } },
+      select: { consultantId: true, email: true, connectedById: true, consultant: { select: { preMarketings: { select: { recruiterId: true }, orderBy: { updatedAt: "desc" }, take: 1 } } } },
     });
     for (const b of boxes) {
       const recruiterId = b.consultant.preMarketings[0]?.recruiterId ?? b.connectedById;
