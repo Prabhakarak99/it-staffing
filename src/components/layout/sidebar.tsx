@@ -6,7 +6,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   Activity, LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
-  ClipboardList, BookUser, Inbox, Zap, Bot, MailCheck, Mails, AtSign, FileText, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
+  ClipboardList, BookUser, Inbox, Zap, Bot, MailCheck, AtSign, FileText, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
 } from "lucide-react";
 
 interface NavItem {
@@ -48,7 +48,6 @@ const NAV: NavGroup[] = [
       { label: "Resumes",             href: "/admin/resumes",            match: "/admin/resumes",             icon: FileText },
       { label: "Interviews",          href: "/admin/interviews/list",    match: "/admin/interviews",          icon: Calendar },
       { label: "Follow-ups",          href: "/admin/follow-ups",         match: "/admin/follow-ups",          icon: MailCheck },
-      { label: "Email Templates",     href: "/admin/email-templates",    match: "/admin/email-templates",     icon: Mails },
       { label: "Consultant Emails",   href: "/admin/consultant-emails",  match: "/admin/consultant-emails",   icon: AtSign },
       { label: "Vendor Requirements", href: "/admin/vendor-requirements", match: "/admin/vendor-requirements", icon: ClipboardList },
       { label: "Vendor Management",   href: "/admin/vendor-management",  match: "/admin/vendor-management",  icon: BookUser },

@@ -218,7 +218,7 @@ export function SendResumeDialog({ req, sender, aiReady, onClose, onDone }: {
                   {sender.templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " ★" : ""}</option>)}
                 </select>
               </label>
-              <Link href="/admin/email-templates" target="_blank" className="mb-2 whitespace-nowrap text-[11.5px] font-semibold text-indigo-600 hover:underline">Manage templates</Link>
+              <Link href="/admin/mailbox?open=templates" target="_blank" className="mb-2 whitespace-nowrap text-[11.5px] font-semibold text-indigo-600 hover:underline">Manage templates</Link>
             </div>
             <label className="block space-y-1">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Subject</span>

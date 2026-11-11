@@ -7,7 +7,6 @@ import { EASY_SCREEN } from "@/lib/easy/data";
 import { AI_SETTINGS_SCREEN } from "@/lib/ai/admin";
 import { FOLLOWUPS_SCREEN } from "@/lib/followups/templates";
 import { RESUMES_SCREEN } from "@/lib/resumes/data";
-import { EMAIL_TEMPLATES_SCREEN } from "@/lib/email-templates/render";
 import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import { ACTIVITY_SCREEN } from "@/lib/activity/log";
@@ -22,14 +21,37 @@ const LATE_SCREENS = [
   { ...EASY_SCREEN, grantLike: "/admin/submissions" },
   { ...FOLLOWUPS_SCREEN, grantLike: "/admin/submissions" },
   { ...RESUMES_SCREEN, grantLike: "/admin/submissions" },
-  { ...EMAIL_TEMPLATES_SCREEN, grantLike: "/admin/submissions" },
   { ...CONSULTANT_MAIL_SCREEN, grantLike: "/admin/submissions" },
   { ...AI_SETTINGS_SCREEN, grantLike: "/admin/users" },
   // Sign-ins, IPs and tabs opened: admins only to start with
   { ...ACTIVITY_SCREEN, grantLike: "/admin/users" },
 ];
 
+/** Screens folded into another one: roles that could open them get the new home, then they're removed */
+const RETIRED_SCREENS = [
+  // Signature and templates are popups in Mailbox now
+  { path: "/admin/email-templates", movedTo: MAILBOX_SCREEN.path },
+];
+
+async function retireScreens() {
+  for (const { path, movedTo } of RETIRED_SCREENS) {
+    const old = await prisma.screen.findUnique({ where: { path }, select: { id: true } });
+    if (!old) continue;
+    const target = await prisma.screen.findUnique({ where: { path: movedTo }, select: { id: true } });
+    if (target) {
+      const roles = await prisma.roleScreen.findMany({ where: { screenId: old.id, canView: true }, select: { roleId: true } });
+      await prisma.roleScreen.createMany({
+        data: roles.map((r) => ({ roleId: r.roleId, screenId: target.id, canView: true })),
+        skipDuplicates: true,
+      });
+    }
+    await prisma.screen.delete({ where: { id: old.id } }); // role grants go with it (cascade)
+    console.log(`[screens] retired ${path} (moved to ${movedTo})`);
+  }
+}
+
 export async function ensureScreens() {
+  await retireScreens();
   for (const { name, path, grantLike } of LATE_SCREENS) {
     if (await prisma.screen.findUnique({ where: { path } })) continue;
     const screen = await prisma.screen.create({ data: { name, path } });

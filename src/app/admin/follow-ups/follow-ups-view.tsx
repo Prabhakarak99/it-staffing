@@ -156,7 +156,7 @@ export function FollowUpsView({ initialItems, userId, canSeeAll, gmail, template
               <option value="">Standard (built-in)</option>
               {tabTemplates(tab).map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " ★" : ""}</option>)}
             </select>
-            <Link href="/admin/email-templates" className="font-semibold text-indigo-600 hover:underline">Manage</Link>
+            <Link href="/admin/mailbox?open=templates" className="font-semibold text-indigo-600 hover:underline">Manage</Link>
           </label>
           {loading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
           <p className="text-[12px] text-slate-500">{current.hint}</p>

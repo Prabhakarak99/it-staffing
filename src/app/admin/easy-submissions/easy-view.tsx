@@ -863,7 +863,7 @@ function SendDialog({ sub, consultant, requirement, vendors, sender, onClose, on
                 ))}
               </select>
             </label>
-            <Link href="/admin/email-templates" target="_blank" className="mb-2 whitespace-nowrap text-[11.5px] font-semibold text-indigo-600 hover:underline">
+            <Link href="/admin/mailbox?open=templates" target="_blank" className="mb-2 whitespace-nowrap text-[11.5px] font-semibold text-indigo-600 hover:underline">
               Manage templates
             </Link>
           </div>

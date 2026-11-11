@@ -4,8 +4,6 @@
  * the same way.
  */
 
-export const EMAIL_TEMPLATES_SCREEN = { name: "Email Templates", path: "/admin/email-templates" };
-
 export const TEMPLATE_CATEGORIES = [
   { id: "submission", label: "Submission email", hint: "Easy Submissions: sending a consultant's resume to vendors" },
   { id: "followup-submission", label: "Submission follow-up", hint: "Follow-ups: a week after a submission" },

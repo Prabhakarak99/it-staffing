@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import type { EmailActivity } from "@/lib/gmail/activity";
 import type { GmailSetup } from "@/lib/gmail/setup";
 import { ComposeDialog } from "./compose-dialog";
+import { EmailSetupButtons } from "@/components/email-templates/email-setup";
+import type { EmailTemplateDto } from "@/lib/email-templates/render";
 import { GmailSetupPanel } from "./gmail-setup";
 import { APP_TZ } from "@/lib/tz";
 
@@ -19,12 +21,16 @@ const fmtTime = (iso: string | null) =>
 const fmtDay = (day: string) =>
   new Date(`${day}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-export function MailboxView({ configured: initialConfigured, setup, activity: initialActivity, banner }: {
+export function MailboxView({ configured: initialConfigured, setup, activity: initialActivity, banner, emailSetup, me, open }: {
   configured: boolean;
   /** Only for admins, who can enter the Google keys */
   setup: GmailSetup | null;
   activity: EmailActivity;
   banner: { type: "success" | "error"; text: string } | null;
+  /** The user's own signature and templates (popups from the buttons at the top) */
+  emailSetup: { signature: string; templates: EmailTemplateDto[] };
+  me: { name: string; email: string };
+  open: "signature" | "templates" | null;
 }) {
   const { toast, show, hide } = useToast();
   const [activity, setActivity] = useState(initialActivity);
@@ -67,13 +73,14 @@ export function MailboxView({ configured: initialConfigured, setup, activity: in
           </div>
         )}
 
-        {setup && configured && (
-          <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <EmailSetupButtons initial={emailSetup} me={me} notify={show} open={open} />
+          {setup && configured && (
             <Button size="sm" variant="outline" onClick={() => setShowSetup((v) => !v)}>
               <KeyRound className="h-3.5 w-3.5" /> {showSetup ? "Hide Gmail setup" : "Gmail setup"}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
 
         {setup && (!configured || showSetup) && (
           <GmailSetupPanel
