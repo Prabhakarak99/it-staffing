@@ -24,8 +24,8 @@ export function isFullTimeOnly(r: { employmentType: string | null; jobTitle: str
 /**
  * Requirements this user may see, newest first. Managers see everything, with where each came from;
  * recruiters see only requirements on their consultants' technologies (src/lib/requirements/audience.ts)
- * and never which inbox they came from. Once any recruiter has worked a requirement it is theirs: it
- * leaves every recruiter's list (see `workedBy`). Mail from our own company is never shown.
+ * and never which inbox they came from. Once anyone has submitted to the requirement's vendor it leaves
+ * everyone's list (see `workedBy`): it lives on Submissions / Easy Submissions from then on. Mail from our own company is never shown.
  * `createdAfter` is for the notifier.
  */
 export async function listRequirements(
@@ -55,9 +55,8 @@ export async function listRequirements(
     if (isFullTimeOnly(r)) continue;
     // Our own recruiters' mail picked up before internal mail was filtered out
     if (us.isOurs(r.fromEmail) || us.isOurs(r.vendorEmail, r.vendorCompany)) continue;
-    // Already submitted by a recruiter: private to them, and off everyone's list (managers still see it)
-    const doneBy = worked(r);
-    if (!manager && doneBy.length) continue;
+    // Already submitted to this vendor: it's on Submissions / Easy Submissions now, off everyone's list here
+    if (worked(r).length) continue;
     const receivers = [r.ownerId, ...r.alsoReceivedBy];
     const audience = audienceFor(r.technology, consultants);
     if (!manager && !canSee(audience, session.userId)) continue;
@@ -94,7 +93,6 @@ export async function listRequirements(
       },
       myConsultants: consultantsOn(r.technology, consultants).filter((c) => c.recruiterId === session.userId).map((c) => c.name),
       mine: manager && receivers.includes(session.userId),
-      workedBy: manager ? doneBy.map((id) => nameOf.get(id) ?? "").filter(Boolean) : [],
     });
     if (opts.limit && out.length >= opts.limit) break;
   }
