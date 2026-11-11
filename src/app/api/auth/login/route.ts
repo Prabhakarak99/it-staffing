@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth";
+import { logActivity } from "@/lib/activity/log";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,9 +30,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user) {
+      await logActivity({ kind: "login_failed", userId: candidates[0]?.id, email: typed }, req.headers);
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
     if (!Boolean(user.isActive)) {
+      await logActivity({ kind: "login_failed", userId: user.id, email: user.email }, req.headers);
       return NextResponse.json({ error: "Invalid credentials or account not active" }, { status: 401 });
     }
 
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest) {
       roleName: user.role?.name ?? null,
       allowedScreens,
     });
+    await logActivity({ kind: "login", userId: user.id, email: user.email }, req.headers);
 
     return NextResponse.json({ success: true });
   } catch (err) {

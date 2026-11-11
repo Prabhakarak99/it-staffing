@@ -844,3 +844,24 @@ model EmailRequirementSend {
 
   @@index([requirementId, consultantId])
 }
+
+/// Who did what in the app: sign-ins (and failed attempts), sign-outs and every tab opened, with the IP address.
+model ActivityLog {
+  id        String   @id @default(cuid())
+  /// Null for a failed sign-in with an unknown email
+  userId    String?
+  /// The email typed or signed in with
+  email     String
+  /// login | login_failed | logout | page
+  kind      String
+  /// For page views: the path and the tab's name
+  path      String?
+  tab       String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("activity_logs")
+}

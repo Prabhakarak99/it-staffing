@@ -10,6 +10,7 @@ import { RESUMES_SCREEN } from "@/lib/resumes/data";
 import { EMAIL_TEMPLATES_SCREEN } from "@/lib/email-templates/render";
 import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
+import { ACTIVITY_SCREEN } from "@/lib/activity/log";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -24,6 +25,8 @@ const LATE_SCREENS = [
   { ...EMAIL_TEMPLATES_SCREEN, grantLike: "/admin/submissions" },
   { ...CONSULTANT_MAIL_SCREEN, grantLike: "/admin/submissions" },
   { ...AI_SETTINGS_SCREEN, grantLike: "/admin/users" },
+  // Sign-ins, IPs and tabs opened: admins only to start with
+  { ...ACTIVITY_SCREEN, grantLike: "/admin/users" },
 ];
 
 export async function ensureScreens() {

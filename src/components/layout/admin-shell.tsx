@@ -7,6 +7,7 @@ import { Sidebar } from "./sidebar";
 import { SIDEBAR_COOKIE } from "./sidebar-cookie";
 import { AttendancePrompt } from "./attendance-prompt";
 import { RequirementNotifier } from "./requirement-notifier";
+import { ActivityTracker } from "./activity-tracker";
 import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import type { AttendancePromptData } from "@/lib/attendance/prompt";
 import type { NotificationItem } from "@/lib/attendance/notifications";
@@ -53,6 +54,7 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, initia
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
       </div>
       </div>
+      <ActivityTracker />
       {blocked && <AttendancePrompt data={attendancePrompt} onDone={() => setPromptOpen(false)} />}
       {/* New vendor requirement popups, for everyone who can open Vendor Requirements */}
       {!blocked && (allowedPaths === null || allowedPaths.includes(VENDOR_REQ_SCREEN.path)) && <RequirementNotifier />}
