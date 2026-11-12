@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth";
 import { isManager } from "@/lib/roles";
-import { MARKETING_STATUSES, companyDomain, onTechnology, techStem } from "@/lib/easy/data";
+import { MARKETING_STATUSES, onTechnology, techStem } from "@/lib/easy/data";
 import { consultantScope } from "@/lib/resumes/data";
 import { RESUME_TYPES, extOf, readResume } from "@/lib/files/resumes";
 import { resumeName } from "@/lib/files/resume-name";
@@ -11,7 +11,6 @@ import { GmailNotConnectedError, isGmailConfigured } from "@/lib/gmail/oauth";
 import { syncEmailStats } from "@/lib/gmail/stats";
 import type { VendorMatch } from "@/lib/vendors/matches";
 import { audienceFor, canSee, marketedConsultants } from "./audience";
-import { createSubmission } from "@/lib/submissions/record";
 
 export class RequirementError extends Error {}
 
@@ -103,7 +102,7 @@ export async function sendForRequirement(session: SessionPayload, id: string, in
   const [consultant, sender] = await Promise.all([
     prisma.student.findFirst({
       where: { id: input.consultantId, ...consultantScope(session) },
-      select: { firstName: true, lastName: true, technology: true, tailoredResumes: { where: { emailRequirementId: id }, orderBy: { createdAt: "desc" }, take: 1 } },
+      select: { firstName: true, lastName: true, tailoredResumes: { where: { emailRequirementId: id }, orderBy: { createdAt: "desc" }, take: 1 } },
     }),
     prisma.user.findUnique({ where: { id: session.userId }, select: { firstName: true, lastName: true, email: true } }),
   ]);
@@ -150,54 +149,5 @@ export async function sendForRequirement(session: SessionPayload, id: string, in
   if (error) throw new RequirementError(`Could not send: ${error}`);
   if (via === "gmail") void syncEmailStats(session.userId).catch(() => {});
 
-  // Sent = submitted: it goes on Submissions / Easy Submissions / Reports
-  try {
-    await submissionForSend({ req, consultantId: input.consultantId, consultantTechnology: consultant.technology, recruiterId: session.userId, to });
-  } catch (err) {
-    console.error(`[requirement-send] submission for ${to}:`, err instanceof Error ? err.message : err);
-  }
   return { attached: attachment.filename, to };
-}
-
-type Requirement = NonNullable<Awaited<ReturnType<typeof prisma.emailRequirement.findUnique>>>;
-
-/**
- * Records a resume sent for a requirement as a Submission, once per consultant and vendor (nothing is
- * made when that consultant was already submitted to that vendor since the requirement arrived).
- * Returns whether one was created.
- */
-export async function submissionForSend(p: {
-  req: Requirement;
-  consultantId: string;
-  consultantTechnology: string | null;
-  recruiterId: string;
-  to: string;
-  at?: Date;
-}) {
-  const { req, to } = p;
-  const already = await prisma.submission.findFirst({
-    where: {
-      consultantId: p.consultantId,
-      vendorRecruiterEmail: { equals: to, mode: "insensitive" },
-      submissionDate: { gte: new Date(req.receivedAt.getTime() - 86_400_000) },
-    },
-    select: { id: true },
-  });
-  if (already) return false;
-  const domain = companyDomain(to);
-  await createSubmission({
-    submissionDate: p.at,
-    recruiterId: p.recruiterId,
-    consultantId: p.consultantId,
-    technology: (req.technology && req.technology !== "Others" ? req.technology : p.consultantTechnology)?.trim() || "Others",
-    jobDescription: req.jobDescription.slice(0, 20_000) || null,
-    payRate: req.rate,
-    vendorCompany: req.vendorCompany?.trim() || (domain ? domain.split(".")[0] : "") || "Unknown",
-    vendorRecruiterName: req.vendorName?.trim() || to.split("@")[0],
-    vendorRecruiterEmail: to,
-    vendorRecruiterPhone: req.vendorPhone?.trim() || "",
-    clientName: req.clientName,
-    clientLocation: req.location,
-  });
-  return true;
 }

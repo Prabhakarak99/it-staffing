@@ -298,7 +298,7 @@ export function VendorRequirementsView({ initialRows, days, manager, myBook, aiR
           onClose={() => setSendFor(null)}
           onDone={(sent) => {
             setSendFor(null);
-            show(`Sent ${sent} resume${sent === 1 ? "" : "s"} to ${sendFor.vendorName ?? sendFor.vendorEmail ?? "the vendor"}. It is now in Submissions and Easy Submissions.`, "success");
+            show(`Sent ${sent} resume${sent === 1 ? "" : "s"} to ${sendFor.vendorName ?? sendFor.vendorEmail ?? "the vendor"}. The requirement moves off the list. Add it in Submissions as usual.`, "success");
             void reload();
           }}
         />
