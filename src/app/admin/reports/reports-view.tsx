@@ -275,6 +275,12 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/admin/reports/requirements"
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
+          >
+            Requirement Report
+          </a>
           <button
             type="button"
             onClick={() => setReloadTick((t) => t + 1)}
