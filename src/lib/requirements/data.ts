@@ -4,7 +4,7 @@ import type { SessionPayload } from "@/lib/auth";
 import { audienceFor, canSee, consultantsOn, marketedConsultants } from "./audience";
 import { onTechnology, techStem } from "@/lib/easy/data";
 import { ourCompany } from "./internal";
-import type { RequirementRow } from "./constants";
+import type { RequirementRow, RequirementTally } from "./constants";
 
 /** How far back the tab looks */
 export const LIST_DAYS = 30;
@@ -30,7 +30,7 @@ export function isFullTimeOnly(r: { employmentType: string | null; jobTitle: str
  */
 export async function listRequirements(
   session: Pick<SessionPayload, "userId" | "allowedScreens" | "roleName">,
-  opts: { createdAfter?: Date; days?: number; limit?: number } = {},
+  opts: { createdAfter?: Date; days?: number; limit?: number; tally?: RequirementTally } = {},
 ): Promise<RequirementRow[]> {
   const manager = isManager(session);
   const since = new Date(Date.now() - (opts.days ?? LIST_DAYS) * 86_400_000);
@@ -52,14 +52,17 @@ export async function listRequirements(
 
   const out: RequirementRow[] = [];
   for (const r of rows) {
-    if (isFullTimeOnly(r)) continue;
+    const t = opts.tally?.[r.consultantId ? "consultant" : "recruiter"];
+    if (t) t.stored++;
+    if (isFullTimeOnly(r)) { if (t) t.fullTime++; continue; }
     // Our own recruiters' mail picked up before internal mail was filtered out
-    if (us.isOurs(r.fromEmail) || us.isOurs(r.vendorEmail, r.vendorCompany)) continue;
+    if (us.isOurs(r.fromEmail) || us.isOurs(r.vendorEmail, r.vendorCompany)) { if (t) t.internal++; continue; }
     // Already submitted to this vendor: it's on Submissions / Easy Submissions now, off everyone's list here
-    if (worked(r).length) continue;
+    if (worked(r).length) { if (t) t.submitted++; continue; }
     const receivers = [r.ownerId, ...r.alsoReceivedBy];
     const audience = audienceFor(r.technology, consultants);
     if (!manager && !canSee(audience, session.userId)) continue;
+    if (t) t.shown++;
     out.push({
       id: r.id,
       receivedAt: r.receivedAt.toISOString(),

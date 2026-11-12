@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { APP_TZ, dayKeyOf } from "@/lib/tz";
-import { REQ_TECHNOLOGIES, type RequirementRow } from "@/lib/requirements/constants";
+import { REQ_TECHNOLOGIES, type RequirementRow, type RequirementTally } from "@/lib/requirements/constants";
 import type { Sender } from "../vendor-management/vendor-consultants";
 import { SendResumeDialog } from "./send-resume-dialog";
 
@@ -27,13 +27,16 @@ const WINDOWS = [
 const SHOW = [
   { id: "all", label: "All I can see" },
   { id: "inbox", label: "From my inbox" },
+  { id: "consultant", label: "Consultant inboxes" },
   { id: "match", label: "My consultants' technologies" },
 ] as const;
 
-export function VendorRequirementsView({ initialRows, days, manager, myBook, aiReady, inboxes, myInbox, sender }: {
+export function VendorRequirementsView({ initialRows, days, manager, tally, myBook, aiReady, inboxes, myInbox, sender }: {
   initialRows: RequirementRow[];
   days: number;
   manager: boolean;
+  /** Managers: what was read from each kind of inbox and why some isn't listed (as of page load) */
+  tally: RequirementTally | null;
   /** Recruiters: their In-Market consultants (Pre-Marketing), which decide the technologies they see */
   myBook: { name: string; technology: string }[] | null;
   aiReady: boolean;
@@ -88,9 +91,10 @@ export function VendorRequirementsView({ initialRows, days, manager, myBook, aiR
       if (w.days === 0 ? dayKeyOf(new Date(r.receivedAt)) !== today : new Date(r.receivedAt).getTime() < cutoff) return false;
       if (tech && r.technology !== tech) return false;
       if (showId === "inbox" && !r.mine) return false;
+      if (showId === "consultant" && !r.source?.consultant) return false;
       if (showId === "match" && r.myConsultants.length === 0) return false;
       if (!q) return true;
-      return [r.jobTitle, r.technology, r.clientName, r.location, r.vendorName, r.vendorCompany, r.vendorEmail, r.subject, r.jobDescription, r.source?.name]
+      return [r.jobTitle, r.technology, r.clientName, r.location, r.vendorName, r.vendorCompany, r.vendorEmail, r.subject, r.jobDescription, r.source?.name, r.source?.consultant, r.source?.email]
         .some((f) => f?.toLowerCase().includes(q));
     });
   }, [rows, query, tech, windowId, showId, today, now]);
@@ -139,6 +143,18 @@ export function VendorRequirementsView({ initialRows, days, manager, myBook, aiR
               ))}
             </div>
           )
+        )}
+        {tally && (
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[12px] text-slate-600 shadow-sm sm:grid-cols-2">
+            {([["Recruiter inboxes", tally.recruiter], ["Consultant inboxes", tally.consultant]] as const).map(([label, t]) => (
+              <p key={label}>
+                <b className="text-slate-800">{label}:</b> {t.stored} read in the last {days} days · <b className="text-emerald-700">{t.shown} listed</b>
+                {t.stored - t.shown > 0 && (
+                  <span className="text-slate-400"> · hidden: {t.submitted} already submitted to that vendor, {t.fullTime} full-time only, {t.internal} from our own company</span>
+                )}
+              </p>
+            ))}
+          </div>
         )}
         {/* Status */}
         <div className={cn(

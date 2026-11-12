@@ -5,7 +5,7 @@ import { isManager } from "@/lib/roles";
 import { canViewScreen } from "@/lib/screen-access";
 import { getActiveAi } from "@/lib/ai/providers";
 import { isGmailConfigured } from "@/lib/gmail/oauth";
-import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
+import { VENDOR_REQ_SCREEN, emptyTally } from "@/lib/requirements/constants";
 import { LIST_DAYS, listRequirements } from "@/lib/requirements/data";
 import { myEmailSetup } from "@/lib/email-templates/data";
 import { marketedConsultants } from "@/lib/requirements/audience";
@@ -19,8 +19,9 @@ export default async function VendorRequirementsPage() {
   if (!(await canViewScreen(session, VENDOR_REQ_SCREEN.path))) redirect("/admin");
 
   const manager = isManager(session);
+  const tally = emptyTally();
   const [rows, ai, gmailReady, gmail, recruiterInboxes, consultantInboxes, me, emailSetup, marketed] = await Promise.all([
-    listRequirements(session),
+    listRequirements(session, manager ? { tally } : {}),
     getActiveAi(),
     isGmailConfigured(),
     prisma.gmailAccount.findUnique({ where: { userId: session.userId }, select: { email: true, lastError: true, reqScanAt: true } }),
@@ -37,6 +38,7 @@ export default async function VendorRequirementsPage() {
       initialRows={rows}
       days={LIST_DAYS}
       manager={manager}
+      tally={manager ? tally : null}
       myBook={manager ? null : marketed.filter((c) => c.recruiterId === session.userId).map((c) => ({ name: c.name, technology: c.technology }))}
       aiReady={!!ai}
       inboxes={inboxes}

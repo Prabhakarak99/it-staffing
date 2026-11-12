@@ -15,6 +15,14 @@ export type Audience =
   /** Nobody works this technology: only managers see it */
   | { kind: "unassigned" };
 
+/** Managers: what the inbox reader stored (last 30 days) and why some of it isn't listed */
+export interface SourceTally { stored: number; shown: number; fullTime: number; internal: number; submitted: number }
+export interface RequirementTally { recruiter: SourceTally; consultant: SourceTally }
+export const emptyTally = (): RequirementTally => ({
+  recruiter: { stored: 0, shown: 0, fullTime: 0, internal: 0, submitted: 0 },
+  consultant: { stored: 0, shown: 0, fullTime: 0, internal: 0, submitted: 0 },
+});
+
 export interface RequirementRow {
   id: string;
   receivedAt: string;
