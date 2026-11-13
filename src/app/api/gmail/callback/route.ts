@@ -6,6 +6,7 @@ import { OAUTH_STATE_COOKIE, exchangeCode, fetchProfileEmail, saveAccount, saveC
 import { syncEmailStats } from "@/lib/gmail/stats";
 import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 import { consultantScope } from "@/lib/resumes/data";
+import { SHEET_STATE, createLeadSheet, saveSheetTokens } from "@/lib/leads/sheet";
 
 /**
  * GET /api/gmail/callback — Google redirects here after access is allowed (or denied): for the user's
@@ -27,6 +28,34 @@ export async function GET(req: NextRequest) {
 
   const session = await getSession();
   if (!session) return NextResponse.redirect(new URL("/login", appOrigin()));
+
+  // Leads > "Connect Google Sheet" comes back here too (one redirect URI at Google)
+  if (target === SHEET_STATE) {
+    const toLeads = (status: string, message?: string) => {
+      const url = new URL("/admin/leads", appOrigin());
+      url.searchParams.set("sheet", status);
+      if (message) url.searchParams.set("message", message);
+      const res = NextResponse.redirect(url);
+      res.cookies.delete({ name: OAUTH_STATE_COOKIE, path: "/api/gmail/callback" });
+      return res;
+    };
+    if (searchParams.get("error")) return toLeads("error", "Google access was not allowed, so no sheet was created.");
+    const cookie = req.cookies.get(OAUTH_STATE_COOKIE)?.value;
+    const sheetCode = searchParams.get("code");
+    if (!cookie || state !== cookie || stateUser !== session.userId || !sheetCode) {
+      return toLeads("error", "The connection request expired. Please try again.");
+    }
+    try {
+      await saveSheetTokens(session.userId, await exchangeCode(sheetCode));
+      const me = await prisma.user.findUnique({ where: { id: session.userId }, select: { firstName: true, lastName: true } });
+      await createLeadSheet(session.userId, me ? `${me.firstName} ${me.lastName}`.trim() : session.email);
+      return toLeads("connected");
+    } catch (err) {
+      console.error("[lead-sheet] connect failed:", err);
+      return toLeads("error", err instanceof Error ? err.message : "Could not connect Google Sheets.");
+    }
+  }
+
   if (searchParams.get("error")) return back({ gmail: "denied" });
 
   const expected = req.cookies.get(OAUTH_STATE_COOKIE)?.value;

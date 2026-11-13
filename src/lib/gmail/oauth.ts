@@ -49,17 +49,18 @@ export function redirectUri() {
   return `${appOrigin()}/api/gmail/callback`;
 }
 
-export async function authUrl(state: string, loginHint?: string) {
+/** `scope` other than Gmail asks for that alone (e.g. the Leads sheet), without carrying Gmail access along */
+export async function authUrl(state: string, loginHint?: string, scope = GMAIL_SCOPE) {
   const { clientId } = await requireClient();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri(),
     response_type: "code",
-    scope: GMAIL_SCOPE,
+    scope,
     access_type: "offline",
     // Always show consent so Google returns a refresh token, even on a reconnect
     prompt: "consent",
-    include_granted_scopes: "true",
+    include_granted_scopes: scope === GMAIL_SCOPE ? "true" : "false",
     state,
   });
   if (loginHint) params.set("login_hint", loginHint);
@@ -115,6 +116,11 @@ export async function verifyClient(clientId: string, clientSecret: string): Prom
 
 export function exchangeCode(code: string) {
   return tokenRequest({ code, grant_type: "authorization_code", redirect_uri: redirectUri() });
+}
+
+/** A new access token from a stored refresh token; throws GmailAuthError "invalid_grant" when access was revoked */
+export function refreshAccessToken(refreshToken: string) {
+  return tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" });
 }
 
 /** Google's mailbox address for a fresh access token */

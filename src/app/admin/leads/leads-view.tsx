@@ -2,16 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Upload, Users } from "lucide-react";
-import { LeadImportDialog } from "./lead-import";
+import { LeadImportDialog, type SheetNotice } from "./lead-import";
 import { SlideOver } from "@/components/ui/slide-over";
 import { LeadForm } from "./lead-form";
 import { LeadList } from "./lead-list";
 import { LeadDetail } from "./lead-detail";
 import type { LeadRow } from "@/lib/leads/fields";
 
-export function LeadsView({ leads: initialLeads, showOwner }: { leads: LeadRow[]; showOwner: boolean }) {
+export function LeadsView({ leads: initialLeads, showOwner, sheetNotice }: {
+  leads: LeadRow[];
+  showOwner: boolean;
+  /** Just back from Google after "Connect Google Sheet" */
+  sheetNotice: SheetNotice | null;
+}) {
   const [showAdd, setShowAdd] = useState(false);
-  const [showImport, setShowImport] = useState(false);
+  const [showImport, setShowImport] = useState(!!sheetNotice);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [leads, setLeads] = useState(initialLeads);
 
@@ -79,7 +84,7 @@ export function LeadsView({ leads: initialLeads, showOwner }: { leads: LeadRow[]
         )}
       </SlideOver>
 
-      {showImport && <LeadImportDialog onClose={() => setShowImport(false)} />}
+      {showImport && <LeadImportDialog notice={sheetNotice} onClose={() => setShowImport(false)} />}
 
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-4xl">
         <LeadForm

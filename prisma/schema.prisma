@@ -309,6 +309,20 @@ model Lead {
   @@index([createdById])
 }
 
+/// A user's Google Sheets connection for loading leads: their own sheet, created by the app in their Drive
+model LeadSheet {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  /// AES-256-GCM encrypted; never sent to the browser
+  refreshTokenEnc   String
+  accessTokenEnc    String?
+  accessTokenExpiry DateTime?
+  spreadsheetId     String?
+  createdAt         DateTime  @default(now())
+
+  @@map("lead_sheets")
+}
+
 /// One-time data changes that already ran (see src/lib/screens.ts)
 model AppMigration {
   id    String   @id

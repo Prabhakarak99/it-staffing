@@ -1,20 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, FileSpreadsheet, Link2, Loader2, RefreshCw, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Result { added: number; skipped: { row: number; reason: string }[] }
+export type SheetNotice = { ok: true } | { ok: false; message: string };
+interface SheetStatus { connected: boolean; url: string | null }
 
 /** Popup: download the sheet format, then upload a filled Excel / Google Sheets file */
-export function LeadImportDialog({ onClose }: { onClose: () => void }) {
+export function LeadImportDialog({ onClose, notice }: { onClose: () => void; notice?: SheetNotice | null }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [sheetUrl, setSheetUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetStatus | null>(null);
+  const [sheetBusy, setSheetBusy] = useState(false);
+  const [error, setError] = useState<string | null>(notice && !notice.ok ? notice.message : null);
   const [result, setResult] = useState<Result | null>(null);
 
   const upload = async () => {
@@ -36,6 +40,32 @@ export function LeadImportDialog({ onClose }: { onClose: () => void }) {
     if (d.added) router.refresh();
   };
 
+  useEffect(() => {
+    fetch("/api/leads/sheet", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d) => d && setSheet(d)).catch(() => {});
+    // Drop ?sheet=… so a reload doesn't reopen this popup
+    if (notice) router.replace("/admin/leads");
+  }, [notice, router]);
+
+  /** Load rows, make a new sheet, or disconnect */
+  const sheetCall = useCallback(async (method: "POST" | "DELETE", query = "") => {
+    setSheetBusy(true);
+    setError(null);
+    setResult(null);
+    const res = await fetch(`/api/leads/sheet${query}`, { method }).catch(() => null);
+    const d = res ? await res.json().catch(() => ({})) : {};
+    setSheetBusy(false);
+    if (!res?.ok) {
+      setError(d.error ?? "Could not reach Google Sheets");
+      if (d.code === "not_connected") setSheet({ connected: false, url: null });
+      if (d.code === "gone") setSheet({ connected: true, url: null });
+      return;
+    }
+    if ("added" in d) {
+      setResult(d);
+      if (d.added) router.refresh();
+    } else setSheet(d);
+  }, [router]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 sm:p-6" onClick={onClose}>
       <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -45,6 +75,46 @@ export function LeadImportDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="space-y-4 overflow-y-auto p-5 text-[12.5px] text-slate-700">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+            <p className="flex items-center gap-1.5 font-semibold text-slate-800"><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Google Sheet (no Excel needed)</p>
+            {!sheet ? (
+              <p className="mt-2 text-slate-500"><Loader2 className="inline h-3.5 w-3.5 animate-spin" /> Checking…</p>
+            ) : !sheet.connected ? (
+              <>
+                <p className="mt-1 text-slate-600">
+                  Connect your Google account once. A sheet with the right headings is created in your Google Drive, and you get a link to open it and a button to load its rows as leads.
+                  We can only see the sheet we create, nothing else in your Drive.
+                </p>
+                <a href="/api/leads/sheet/connect" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700">
+                  <Link2 className="h-3.5 w-3.5" /> Connect to Google Sheet
+                </a>
+              </>
+            ) : !sheet.url ? (
+              <>
+                <p className="mt-1 text-slate-600">Google is connected, but your Leads sheet is missing (it was deleted or could not be created).</p>
+                <Button className="mt-2" onClick={() => sheetCall("POST", "?create=1")} disabled={sheetBusy}>
+                  {sheetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />} Create my Google Sheet
+                </Button>
+              </>
+            ) : (
+              <>
+                {notice?.ok && <p className="mt-1 font-semibold text-emerald-700">Connected. Your Leads sheet is ready in your Google Drive.</p>}
+                <p className="mt-1 text-slate-600">Add one lead per row in your sheet, then click Load. Rows already loaded are skipped, so you can keep adding to the same sheet.</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <a href={sheet.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 font-semibold text-emerald-700 hover:bg-emerald-50">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open my Google Sheet
+                  </a>
+                  <Button onClick={() => sheetCall("POST")} disabled={sheetBusy}>
+                    {sheetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Load data from sheet
+                  </Button>
+                  <button type="button" onClick={() => sheetCall("DELETE")} disabled={sheetBusy} className="ml-auto text-[11.5px] font-medium text-slate-400 hover:text-rose-600 hover:underline">Disconnect</button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400">or upload a file</p>
+
           <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
             <p className="font-semibold text-slate-800">1. Get the format</p>
             <p className="mt-1 text-slate-600">Fill one lead per row under the headings. No column is mandatory.</p>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { MAX_IMPORT_BYTES, fetchGoogleSheet, leadKey, parseLeadSheet, type SkippedRow } from "@/lib/leads/import";
+import { MAX_IMPORT_BYTES, fetchGoogleSheet, parseLeadSheet } from "@/lib/leads/import";
+import { saveImportedLeads } from "@/lib/leads/save";
 
 export const maxDuration = 60;
 
@@ -29,26 +29,7 @@ export async function POST(req: NextRequest) {
     const parsed = await parseLeadSheet(name, bytes);
     if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-    const mine = await prisma.lead.findMany({
-      where: { createdById: session.userId },
-      select: { consultantName: true, email: true, phoneNumber: true },
-    });
-    const seen = new Set(mine.map(leadKey).filter(Boolean));
-    const skipped: SkippedRow[] = [...parsed.skipped];
-    const data = [];
-    for (const { row, lead } of parsed.leads) {
-      const key = leadKey(lead);
-      if (key && seen.has(key)) {
-        skipped.push({ row, reason: `Already in your leads${lead.email ? ` (${lead.email})` : ""}` });
-        continue;
-      }
-      if (key) seen.add(key);
-      data.push({ ...lead, createdById: session.userId });
-    }
-    if (data.length) await prisma.lead.createMany({ data });
-
-    skipped.sort((a, b) => a.row - b.row);
-    return NextResponse.json({ added: data.length, skipped });
+    return NextResponse.json(await saveImportedLeads(session.userId, parsed));
   } catch (err) {
     console.error("[leads] import failed:", err);
     return NextResponse.json({ error: "Could not import the file" }, { status: 500 });

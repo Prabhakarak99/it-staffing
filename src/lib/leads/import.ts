@@ -19,6 +19,9 @@ const COLUMNS = [
 ] as const;
 type Key = (typeof COLUMNS)[number]["key"];
 
+/** Column headings in sheet order */
+export const LEAD_SHEET_HEADERS: string[] = COLUMNS.map((c) => c.header);
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const HEADER_KEY = new Map<string, Key>(COLUMNS.flatMap((c) => [c.header, ...c.aliases].map((h) => [norm(h), c.key] as const)));
 const STATUS_BY_NORM = new Map<string, LeadStatus>(LEAD_STATUSES.map((s) => [norm(s), s]));
@@ -141,7 +144,11 @@ export interface SkippedRow { row: number; reason: string }
 /** Reads an uploaded sheet into leads; rows that can't be used come back in `skipped` with their sheet row number */
 export async function parseLeadSheet(name: string, bytes: Buffer): Promise<{ error: string } | { leads: { row: number; lead: ParsedLead }[]; skipped: SkippedRow[] }> {
   const grid = await readGrid(name, bytes);
-  if ("error" in grid) return grid;
+  return "error" in grid ? grid : parseLeadGrid(grid);
+}
+
+/** The same for rows already read (first row = headings) */
+export function parseLeadGrid(grid: (string | Date)[][]): { error: string } | { leads: { row: number; lead: ParsedLead }[]; skipped: SkippedRow[] } {
   if (grid.length === 0) return { error: "The file is empty" };
 
   const keys = grid[0].map((h) => HEADER_KEY.get(norm(String(h))));
@@ -186,6 +193,9 @@ export async function parseLeadSheet(name: string, bytes: Buffer): Promise<{ err
   return { leads, skipped };
 }
 
-/** Same person as an existing lead: by email, or by name + number when there is no email */
-export const leadKey = (l: { consultantName: string; email: string; phoneNumber: string | null }) =>
-  l.email.trim() ? `e:${l.email.trim().toLowerCase()}` : l.consultantName.trim() && l.phoneNumber ? `n:${norm(l.consultantName)}|${l.phoneNumber.replace(/\D/g, "")}` : null;
+/** Same person as an existing lead: by email, or by name + number when there is no email (null: nothing to compare) */
+export const leadKey = (l: { consultantName: string; email: string; phoneNumber: string | null }) => {
+  if (l.email.trim()) return `e:${l.email.trim().toLowerCase()}`;
+  const [name, phone] = [norm(l.consultantName), (l.phoneNumber ?? "").replace(/\D/g, "")];
+  return name || phone ? `n:${name}|${phone}` : null;
+};
