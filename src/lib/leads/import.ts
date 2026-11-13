@@ -63,6 +63,28 @@ export async function leadTemplate(): Promise<Buffer> {
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+/** The same headings as a plain CSV, which Google Sheets opens directly */
+export const leadTemplateCsv = () => `﻿${COLUMNS.map((c) => c.header).join(",")}\r\n`;
+
+/**
+ * Downloads a Google Sheet as CSV from its link. Only the sheet id (and tab id) are taken from the
+ * link, so the request can only ever go to Google. The sheet must be shared "Anyone with the link".
+ */
+export async function fetchGoogleSheet(link: string): Promise<{ error: string } | { bytes: Buffer }> {
+  const id = /docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(link)?.[1];
+  if (!id) return { error: "That is not a Google Sheets link. Copy the link from the browser's address bar while the sheet is open." };
+  const gid = /[#?&]gid=(\d+)/.exec(link)?.[1];
+  const res = await fetch(`https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? `&gid=${gid}` : ""}`, {
+    redirect: "follow", signal: AbortSignal.timeout(20_000),
+  }).catch(() => null);
+  if (!res) return { error: "Could not reach Google Sheets. Try again." };
+  if (!res.ok || !(res.headers.get("content-type") ?? "").includes("text/csv")) {
+    return { error: 'Google did not let us read the sheet. In the sheet click Share, set General access to "Anyone with the link" (Viewer), then try again.' };
+  }
+  const bytes = Buffer.from(await res.arrayBuffer());
+  return bytes.length > MAX_IMPORT_BYTES ? { error: "The sheet is larger than 5 MB" } : { bytes };
+}
+
 type Cell = string | Date;
 
 async function readGrid(name: string, bytes: Buffer): Promise<Cell[][] | { error: string }> {
