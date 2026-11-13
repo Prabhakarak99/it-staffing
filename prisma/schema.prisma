@@ -947,3 +947,24 @@ model AppreciationAward {
   @@index([userId])
   @@map("appreciation_awards")
 }
+
+/// Appreciation → Additional Bonus: an extra amount a Super Admin adds to an employee's appreciation account.
+model AppreciationBonus {
+  id             String   @id @default(cuid())
+  /// The employee who receives it
+  userId         String
+  /// placement | submissions | interviews | special-gift | other
+  reason         String
+  /// What "other" is
+  otherReason    String?
+  /// For a placement bonus: the consultant who was placed
+  consultantId   String?
+  consultantName String?
+  /// Rupees
+  amount         Float
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@map("appreciation_bonuses")
+}

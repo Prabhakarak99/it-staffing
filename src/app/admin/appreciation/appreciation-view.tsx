@@ -2,6 +2,8 @@ import { Award, CalendarCheck, Send } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { cn } from "@/lib/utils";
 import type { AppreciationBoard, Category } from "@/lib/appreciation/data";
+import { AdditionalBonusButton, DeleteBonusButton, type BonusOptions } from "./bonus-controls";
+import { APP_TZ } from "@/lib/tz";
 
 const rupees = (n: number) => `₹${(Math.round(n * 100) / 100).toLocaleString("en-IN")}`;
 const fmtMonth = (month: string) =>
@@ -12,14 +14,18 @@ const CATEGORY: Record<Category, { label: string; unit: string; icon: React.Comp
   interviews: { label: "Most interviews", unit: "interviews", icon: CalendarCheck, cls: "bg-violet-50 text-violet-700" },
 };
 
-export function AppreciationView({ board, prize, myId, hasAccount }: {
+const fmtWhen = (iso: string) => new Date(iso).toLocaleDateString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", year: "numeric" });
+
+export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions }: {
   board: AppreciationBoard;
   prize: number;
   myId: string;
   /** Super Admin has no account of their own to win into */
   hasAccount: boolean;
+  /** Super Admin only: who and which consultants the Additional Bonus popup offers */
+  bonusOptions: BonusOptions | null;
 }) {
-  const { awards, accounts, myTotal, current } = board;
+  const { awards, bonuses, accounts, myTotal, current } = board;
   const months = [...new Set(awards.map((a) => a.month))];
   const th = "whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300";
 
@@ -27,6 +33,9 @@ export function AppreciationView({ board, prize, myId, hasAccount }: {
     <>
       <Header title="Appreciation" subtitle={`${rupees(prize)} each month for the most submissions and for the most interviews`} />
       <div className="space-y-5 p-4 sm:p-6">
+        {bonusOptions && (
+          <div className="flex justify-end"><AdditionalBonusButton options={bonusOptions} /></div>
+        )}
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-3 text-[12.5px] text-slate-700">
           <Award className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <p>
@@ -43,12 +52,12 @@ export function AppreciationView({ board, prize, myId, hasAccount }: {
             </div>
           )}
           <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Awards given</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-800">{awards.length}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Awards and bonuses given</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-800">{awards.length + bonuses.length}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total given</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-indigo-700">{rupees(awards.reduce((n, a) => n + a.amount, 0))}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-indigo-700">{rupees(accounts.reduce((n, a) => n + a.total, 0))}</p>
           </div>
         </div>
 
@@ -119,6 +128,35 @@ export function AppreciationView({ board, prize, myId, hasAccount }: {
           </div>
         </section>
 
+        {/* Additional bonuses */}
+        {(bonuses.length > 0 || bonusOptions) && (
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <p className="border-b border-slate-100 px-5 py-3 text-[14px] font-bold text-slate-800">Additional bonuses</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12.5px]">
+                <thead className="bg-slate-800">
+                  <tr>{["Date", "Employee", "Reason", "Amount", "Added by", ...(bonusOptions ? [""] : [])].map((h, i) => <th key={i} className={th}>{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {bonuses.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No additional bonuses yet. Use the Additional Bonus button to add one.</td></tr>
+                  )}
+                  {bonuses.map((b) => (
+                    <tr key={b.id} className={cn("hover:bg-slate-50", b.userId === myId && "bg-indigo-50/40")}>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{fmtWhen(b.at)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-800">{b.name}{b.userId === myId ? " (you)" : ""}</td>
+                      <td className="px-4 py-2.5 text-slate-700">{b.reason}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 font-bold tabular-nums text-emerald-700">{rupees(b.amount)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{b.addedBy}</td>
+                      {bonusOptions && <td className="px-4 py-2.5 text-right"><DeleteBonusButton id={b.id} label={b.name} /></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         {/* Accounts */}
         {accounts.length > 0 && (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -126,13 +164,14 @@ export function AppreciationView({ board, prize, myId, hasAccount }: {
             <div className="overflow-x-auto">
               <table className="w-full text-[12.5px]">
                 <thead className="bg-slate-800">
-                  <tr>{["Name", "Awards won", "Total"].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
+                  <tr>{["Name", "Monthly awards won", "Additional bonus", "Total"].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {accounts.map((a) => (
                     <tr key={a.userId} className={cn("hover:bg-slate-50", a.userId === myId && "bg-indigo-50/40")}>
                       <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-800">{a.name}{a.userId === myId ? " (you)" : ""}</td>
                       <td className="px-4 py-2.5 tabular-nums text-slate-600">{a.wins}</td>
+                      <td className={cn("px-4 py-2.5 tabular-nums", a.bonus ? "text-slate-700" : "text-slate-300")}>{rupees(a.bonus)}</td>
                       <td className="px-4 py-2.5 font-bold tabular-nums text-emerald-700">{rupees(a.total)}</td>
                     </tr>
                   ))}
@@ -141,6 +180,7 @@ export function AppreciationView({ board, prize, myId, hasAccount }: {
                   <tr>
                     <td className="px-4 py-2.5 font-bold text-slate-900">Total</td>
                     <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{accounts.reduce((n, a) => n + a.wins, 0)}</td>
+                    <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{rupees(accounts.reduce((n, a) => n + a.bonus, 0))}</td>
                     <td className="px-4 py-2.5 font-bold tabular-nums text-emerald-700">{rupees(accounts.reduce((n, a) => n + a.total, 0))}</td>
                   </tr>
                 </tfoot>
