@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth";
-import { canApprove } from "./access";
+import { canApprove, reviewableBy } from "./access";
 import { dateToKey } from "./dates";
 
 export interface NotificationItem {
@@ -20,7 +20,7 @@ const RECENT_MS = 3 * 86_400_000;
 export async function getNotifications(session: SessionPayload): Promise<{ items: NotificationItem[]; pendingCount: number }> {
   const since = new Date(Date.now() - RECENT_MS);
   const approver = canApprove(session);
-  const others = { userId: { not: session.userId } };
+  const others = reviewableBy(session);
 
   const [pendingAtt, pendingLeave, pendingAttCount, pendingLeaveCount, myAtt, myLeave] = await Promise.all([
     approver

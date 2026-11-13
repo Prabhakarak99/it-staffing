@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canApprove } from "@/lib/attendance/access";
+import { canApprove, reviewableBy } from "@/lib/attendance/access";
 
-/** POST /api/attendance/review { ids: string[], action: "approve" | "reject", note? } — approvers only, never their own */
+/** POST /api/attendance/review { ids: string[], action: "approve" | "reject", note? } — approvers only, never their own; a POC's only by a Super Admin */
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   if (action !== "approve" && action !== "reject") return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
   const { count } = await prisma.attendance.updateMany({
-    where: { id: { in: ids.map(String) }, status: "pending", userId: { not: session.userId } },
+    where: { id: { in: ids.map(String) }, status: "pending", ...reviewableBy(session) },
     data: {
       status: action === "approve" ? "approved" : "rejected",
       reviewedById: session.userId,

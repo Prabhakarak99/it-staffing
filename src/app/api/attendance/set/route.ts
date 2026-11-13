@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canEditAttendance } from "@/lib/attendance/access";
+import { canEditAttendance, isPocRole, isSuperAdmin } from "@/lib/attendance/access";
 import { isDayKey, keyToDate, todayKey } from "@/lib/attendance/dates";
 
 /**
@@ -22,8 +22,11 @@ export async function POST(req: NextRequest) {
   const onLeave = await prisma.leaveRequest.findFirst({ where: { userId, status: { in: ["pending", "approved"] }, days: { has: day } }, select: { id: true } });
   if (onLeave) return NextResponse.json({ error: "This day is covered by a leave request; approve, reject or cancel that instead" }, { status: 409 });
 
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: { select: { name: true } } } });
   if (!user) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+  if (isPocRole(user.role?.name) && !isSuperAdmin(session)) {
+    return NextResponse.json({ error: "A POC's attendance can only be changed by a Super Admin" }, { status: 403 });
+  }
 
   const review = {
     status: status === "present" ? "approved" : "rejected",

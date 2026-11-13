@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canViewScreen } from "@/lib/screen-access";
-import { ATTENDANCE_SCREEN, canApprove, canEditAttendance, marksAttendance } from "@/lib/attendance/access";
+import { ATTENDANCE_SCREEN, canApprove, canEditAttendance, marksAttendance, reviewableBy } from "@/lib/attendance/access";
 import { dateToKey, isMonthKey, monthOf, todayKey } from "@/lib/attendance/dates";
 import { getLeaveBalance } from "@/lib/attendance/leave";
 import { buildMonth } from "@/lib/attendance/month";
@@ -70,13 +70,13 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   if (approver && tab === "approvals") {
     const [attendance, leaveRequests] = await Promise.all([
       prisma.attendance.findMany({
-        where: { status: "pending", userId: { not: session.userId } },
+        where: { status: "pending", ...reviewableBy(session) },
         include: { user: { select: { firstName: true, lastName: true, email: true } }, quote: { select: { text: true } } },
         orderBy: [{ day: "desc" }, { markedAt: "asc" }],
         take: 300,
       }),
       prisma.leaveRequest.findMany({
-        where: { status: "pending", userId: { not: session.userId } },
+        where: { status: "pending", ...reviewableBy(session) },
         include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
         orderBy: { createdAt: "asc" },
       }),
