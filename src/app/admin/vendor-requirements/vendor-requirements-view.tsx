@@ -31,8 +31,13 @@ const SHOW = [
   { id: "match", label: "My consultants' technologies" },
 ] as const;
 
-export function VendorRequirementsView({ initialRows, days, manager, tally, myBook, aiReady, inboxes, myInbox, sender }: {
+const KNOWN_TECH = new Set(REQ_TECHNOLOGIES.filter((t) => t !== "Others"));
+
+export function VendorRequirementsView({ initialRows, initialTech, initialWindow, days, manager, tally, myBook, aiReady, inboxes, myInbox, sender }: {
   initialRows: RequirementRow[];
+  /** Filters already chosen by a link from the Requirement Report */
+  initialTech: string;
+  initialWindow: (typeof WINDOWS)[number]["id"];
   days: number;
   manager: boolean;
   /** Managers: what was read from each kind of inbox and why some isn't listed (as of page load) */
@@ -49,8 +54,8 @@ export function VendorRequirementsView({ initialRows, days, manager, tally, myBo
   const { toast, show, hide } = useToast();
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
-  const [tech, setTech] = useState("");
-  const [windowId, setWindowId] = useState<(typeof WINDOWS)[number]["id"]>("7");
+  const [tech, setTech] = useState(initialTech);
+  const [windowId, setWindowId] = useState<(typeof WINDOWS)[number]["id"]>(initialWindow);
   const [showId, setShowId] = useState<(typeof SHOW)[number]["id"]>("all");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(PAGE);
@@ -89,7 +94,8 @@ export function VendorRequirementsView({ initialRows, days, manager, tally, myBo
     const cutoff = now - w.days * 86_400_000;
     return rows.filter((r) => {
       if (w.days === 0 ? dayKeyOf(new Date(r.receivedAt)) !== today : new Date(r.receivedAt).getTime() < cutoff) return false;
-      if (tech && r.technology !== tech) return false;
+      // "Others" also covers requirements with no technology or one outside the list, as the report counts them
+      if (tech && (tech === "Others" ? !!r.technology && KNOWN_TECH.has(r.technology) : r.technology !== tech)) return false;
       if (showId === "inbox" && !r.mine) return false;
       if (showId === "consultant" && !r.source?.consultant) return false;
       if (showId === "match" && r.myConsultants.length === 0) return false;

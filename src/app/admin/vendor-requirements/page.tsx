@@ -5,7 +5,7 @@ import { isManager } from "@/lib/roles";
 import { canViewScreen } from "@/lib/screen-access";
 import { getActiveAi } from "@/lib/ai/providers";
 import { isGmailConfigured } from "@/lib/gmail/oauth";
-import { VENDOR_REQ_SCREEN, emptyTally } from "@/lib/requirements/constants";
+import { REQ_TECHNOLOGIES, VENDOR_REQ_SCREEN, emptyTally } from "@/lib/requirements/constants";
 import { LIST_DAYS, listRequirements } from "@/lib/requirements/data";
 import { myEmailSetup } from "@/lib/email-templates/data";
 import { marketedConsultants } from "@/lib/requirements/audience";
@@ -13,7 +13,11 @@ import { VendorRequirementsView } from "./vendor-requirements-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorRequirementsPage() {
+export default async function VendorRequirementsPage({ searchParams }: { searchParams: Promise<{ tech?: string; days?: string }> }) {
+  // The Requirement Report links here with a technology (and how far back) already chosen
+  const sp = await searchParams;
+  const initialTech = REQ_TECHNOLOGIES.find((t) => t.toLowerCase() === (sp.tech ?? "").trim().toLowerCase()) ?? "";
+  const initialWindow = sp.days === "today" || sp.days === "30" ? sp.days : "7";
   const session = await getSession();
   if (!session) redirect("/login");
   if (!(await canViewScreen(session, VENDOR_REQ_SCREEN.path))) redirect("/admin");
@@ -36,6 +40,8 @@ export default async function VendorRequirementsPage() {
   return (
     <VendorRequirementsView
       initialRows={rows}
+      initialTech={initialTech}
+      initialWindow={initialWindow}
       days={LIST_DAYS}
       manager={manager}
       tally={manager ? tally : null}

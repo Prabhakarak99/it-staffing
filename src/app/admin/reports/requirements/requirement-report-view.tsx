@@ -27,6 +27,9 @@ export function RequirementReportView({ from, to, today, maxDays, report }: {
   const go = (f: string, t: string) => router.push(`/admin/reports/requirements?from=${f}&to=${t}`);
   const { days, rows, totals, answered } = report;
   const span = days.length;
+  // Vendor Requirements can show today, the last 7 days or the last 30: pick the shortest that covers this report
+  const back = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+  const listDays = back <= 0 ? "today" : back < 7 ? "7" : "30";
 
   const exportCsv = () => {
     const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
@@ -118,7 +121,12 @@ export function RequirementReportView({ from, to, today, maxDays, report }: {
               )}
               {rows.map((r) => (
                 <tr key={r.technology} className="hover:bg-slate-50">
-                  <td className="sticky left-0 whitespace-nowrap bg-white px-3 py-2 font-semibold text-slate-800">{r.technology}</td>
+                  <td className="sticky left-0 whitespace-nowrap bg-white px-3 py-2 font-semibold">
+                    <Link href={`/admin/vendor-requirements?tech=${encodeURIComponent(r.technology)}&days=${listDays}`}
+                      title={`Open ${r.technology} requirements in Vendor Requirements`} className="text-indigo-700 hover:underline">
+                      {r.technology}
+                    </Link>
+                  </td>
                   {days.map((d, i) => <DayCell key={d} received={r.received[i]} sent={r.sent[i]} trend={trend(r.received, i)} />)}
                   <td className="border-l border-slate-100 px-3 py-2 text-right font-bold tabular-nums text-indigo-700">{r.totalReceived}</td>
                   <td className={cn("px-3 py-2 text-right font-bold tabular-nums", r.totalSent ? "text-emerald-700" : "text-slate-300")}>{r.totalSent}</td>
@@ -139,7 +147,7 @@ export function RequirementReportView({ from, to, today, maxDays, report }: {
         </div>
       </div>
       <p className="text-[11.5px] text-slate-400">
-        Each day shows requirements received, with resumes sent that day underneath in green. ▲ ▼ compare with the day before.
+        Click a technology to open its requirements in Vendor Requirements. Each day shows requirements received, with resumes sent that day underneath in green. ▲ ▼ compare with the day before.
         Counts every requirement the inbox reader stored (recruiter and consultant inboxes), including full-time and already-submitted ones that the Vendor Requirements list hides; our own company&apos;s mail is left out.
       </p>
     </div>
