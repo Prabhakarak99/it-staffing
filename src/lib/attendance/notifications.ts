@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth";
-import { canApprove, reviewableBy } from "./access";
+import { canApprove, isSuperAdmin, reviewableBy } from "./access";
 import { dateToKey } from "./dates";
 
 export interface NotificationItem {
   id: string;
-  kind: "attendance" | "leave";
+  kind: "attendance" | "leave" | "placement";
   /** "pending" = waiting for this approver; otherwise the decision on the user's own request */
   state: "pending" | "approved" | "rejected";
   title: string;
@@ -21,6 +21,18 @@ export async function getNotifications(session: SessionPayload): Promise<{ items
   const since = new Date(Date.now() - RECENT_MS);
   const approver = canApprove(session);
   const others = reviewableBy(session);
+
+  // Incentive placements: a Super Admin approves them; the recruiter hears the decision
+  const superAdmin = isSuperAdmin(session);
+  const [pendingPlacements, pendingPlacementCount, myPlacements] = await Promise.all([
+    superAdmin ? prisma.incentivePlacement.findMany({ where: { status: "pending" }, orderBy: { updatedAt: "desc" }, take: 8 }) : [],
+    superAdmin ? prisma.incentivePlacement.count({ where: { status: "pending" } }) : 0,
+    prisma.incentivePlacement.findMany({
+      where: { recruiterId: session.userId, status: { in: ["approved", "rejected"] }, reviewedAt: { gte: since }, reviewedById: { not: session.userId } },
+      orderBy: { reviewedAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
   const [pendingAtt, pendingLeave, pendingAttCount, pendingLeaveCount, myAtt, myLeave] = await Promise.all([
     approver
@@ -45,7 +57,9 @@ export async function getNotifications(session: SessionPayload): Promise<{ items
     })),
     ...myAtt.map((a) => ({ id: a.id, kind: "attendance" as const, state: a.status as "approved" | "rejected", title: `Attendance ${a.status}`, detail: `For ${fmt(a.day)}${a.reviewNote ? ` · ${a.reviewNote}` : ""}`, at: a.reviewedAt!.toISOString() })),
     ...myLeave.map((l) => ({ id: l.id, kind: "leave" as const, state: l.status as "approved" | "rejected", title: `Leave ${l.status}`, detail: `${fmt(l.startDate)} · ${l.totalDays} day${l.totalDays === 1 ? "" : "s"}${l.reviewNote ? ` · ${l.reviewNote}` : ""}`, at: l.reviewedAt!.toISOString() })),
+    ...pendingPlacements.map((p) => ({ id: p.id, kind: "placement" as const, state: "pending" as const, title: `Placement to approve: ${p.consultantName}`, detail: `${p.submissionCode}${p.clientName ? ` · ${p.clientName}` : ""}`, at: p.updatedAt.toISOString() })),
+    ...myPlacements.map((p) => ({ id: p.id, kind: "placement" as const, state: p.status as "approved" | "rejected", title: `Placement ${p.status}: ${p.consultantName}`, detail: `${p.submissionCode}${p.reviewNote ? ` · ${p.reviewNote}` : ""}`, at: p.reviewedAt!.toISOString() })),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
-  return { items, pendingCount: pendingAttCount + pendingLeaveCount };
+  return { items, pendingCount: pendingAttCount + pendingLeaveCount + pendingPlacementCount };
 }

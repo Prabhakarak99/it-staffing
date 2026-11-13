@@ -121,7 +121,7 @@ export function TopNav({ userEmail, userName, roleName, onToggleSidebar, notific
                   notifications.items.map((n) => (
                     <Link
                       key={`${n.kind}-${n.id}-${n.state}`}
-                      href={n.state === "pending" ? "/admin/attendance?tab=approvals" : "/admin/attendance"}
+                      href={n.kind === "placement" ? "/admin/incentives" : n.state === "pending" ? "/admin/attendance?tab=approvals" : "/admin/attendance"}
                       onClick={() => setBellOpen(false)}
                       className="flex gap-2.5 border-b border-slate-50 px-4 py-2.5 hover:bg-slate-50"
                     >

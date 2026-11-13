@@ -12,6 +12,7 @@ import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import { ACTIVITY_SCREEN } from "@/lib/activity/log";
 import { PROFIT_SCREEN } from "@/lib/profit-sharing/data";
 import { INCENTIVES_SCREEN } from "@/lib/incentives/data";
+import { APPRECIATION_SCREEN } from "@/lib/appreciation/data";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -88,6 +89,8 @@ const SCREEN_GRANTS: { id: string; name: string; path: string; recruiters?: bool
   { id: "profit-sharing-for-poc-and-ceo", ...PROFIT_SCREEN, roleNameHas: ["poc", "ceo"] },
   // Recruiters' own placements and incentive; never POC roles (also enforced in src/lib/incentives/data.ts)
   { id: "incentives-for-recruiters-not-poc", ...INCENTIVES_SCREEN, recruiters: true, roleNameNot: ["poc"] },
+  // Monthly top-recruiter awards: the whole recruiting team sees the winners
+  { id: "appreciation-for-recruiting-roles", ...APPRECIATION_SCREEN, recruiters: true },
 ];
 
 export async function grantScreensOnce() {

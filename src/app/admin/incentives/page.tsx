@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { todayKey } from "@/lib/attendance/dates";
-import { canOpenIncentives, incentiveBoard, listPlacements, seesAllIncentives } from "@/lib/incentives/data";
+import { canOpenIncentives, incentiveBoard, listPlacements, pendingPlacementCount, seesAllIncentives } from "@/lib/incentives/data";
+import { isSuperAdmin } from "@/lib/attendance/access";
 import { IncentivesView } from "./incentives-view";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export default async function IncentivesPage({ searchParams }: { searchParams: P
       tab={tab}
       today={today}
       all={seesAllIncentives(session)}
+      superAdmin={isSuperAdmin(session)}
+      pending={tab === "calculations" ? await pendingPlacementCount(session) : 0}
       placements={tab === "placements" ? await listPlacements(session) : []}
       board={tab === "calculations" ? await incentiveBoard(session, today) : []}
     />

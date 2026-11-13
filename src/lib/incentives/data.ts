@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { canViewScreen } from "@/lib/screen-access";
 import { canManageUsers } from "@/lib/user-safe";
 import { dateToKey } from "@/lib/attendance/dates";
-import { isPocRole } from "@/lib/attendance/access";
+import { isPocRole, isSuperAdmin } from "@/lib/attendance/access";
 import type { ConfirmationRow } from "@/lib/profit-sharing/data";
 import { incentiveFor, type Incentive } from "./calc";
 
@@ -26,14 +26,24 @@ export async function incentiveSession() {
   return { session, all: seesAllIncentives(session) };
 }
 
+/** Placements waiting for a Super Admin, among the ones this user may see */
+export const pendingPlacementCount = (session: SessionPayload) =>
+  prisma.incentivePlacement.count({ where: { status: "pending", ...(seesAllIncentives(session) ? {} : { recruiterId: session.userId }) } });
+
+/** A new or changed placement: approved straight away when a Super Admin enters it, else waiting for one */
+export const reviewFor = (session: SessionPayload) =>
+  isSuperAdmin(session)
+    ? { status: "approved", reviewedById: session.userId, reviewedAt: new Date(), reviewNote: null }
+    : { status: "pending", reviewedById: null, reviewedAt: null, reviewNote: null };
+
 export const placementFor = async (submissionRefId: string) =>
   (await prisma.incentivePlacement.findUnique({ where: { submissionRefId }, select: { id: true } }))?.id ?? null;
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`.replace(/\s+/g, " ").trim();
 
-async function placements(session: SessionPayload) {
+async function placements(session: SessionPayload, approvedOnly = false) {
   const rows = await prisma.incentivePlacement.findMany({
-    where: seesAllIncentives(session) ? {} : { recruiterId: session.userId },
+    where: { ...(seesAllIncentives(session) ? {} : { recruiterId: session.userId }), ...(approvedOnly ? { status: "approved" } : {}) },
     orderBy: [{ confirmationDate: "desc" }, { createdAt: "desc" }],
   });
   const users = await prisma.user.findMany({
@@ -57,6 +67,8 @@ export async function listPlacements(session: SessionPayload): Promise<Confirmat
     rate: r.rate,
     billRate: r.billRate,
     recruiterName: nameOf.get(r.recruiterId) ?? "",
+    status: r.status,
+    reviewNote: r.reviewNote,
     confirmationDate: dateToKey(r.confirmationDate),
     startDate: r.startDate ? dateToKey(r.startDate) : null,
     endDate: r.endDate ? dateToKey(r.endDate) : null,
@@ -75,9 +87,9 @@ export interface IncentiveRow extends Incentive {
   endDate: string | null;
 }
 
-/** The Calculations board as of `today` (Central date) */
+/** The Calculations board as of `today` (Central date): approved placements only */
 export async function incentiveBoard(session: SessionPayload, today: string): Promise<IncentiveRow[]> {
-  const { rows, nameOf } = await placements(session);
+  const { rows, nameOf } = await placements(session, true);
   return rows
     .map((r) => {
       const startDate = r.startDate ? dateToKey(r.startDate) : null;

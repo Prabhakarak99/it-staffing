@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, PenLine, Save, Search, Trash2, X } from "lucide-react";
+import { Check, Loader2, PenLine, Save, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ConfirmationRow, SubmissionLookup } from "@/lib/profit-sharing/data";
@@ -32,7 +32,13 @@ interface Draft {
  * Records entered by submission id (Profit Sharing → Confirmations, Incentives → Placements): type the
  * id, the submission's details load, add the dates, save. The list below can be searched and edited.
  */
-export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today, withBillRate, showRecruiter, notify }: {
+const STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: "Waiting for approval", cls: "bg-amber-50 text-amber-700" },
+  approved: { label: "Approved", cls: "bg-emerald-50 text-emerald-700" },
+  rejected: { label: "Rejected", cls: "bg-rose-50 text-rose-700" },
+};
+
+export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today, withBillRate, showRecruiter, withApproval, canReview, notify }: {
   noun: "confirmation" | "placement";
   /** Collection endpoint: GET list, POST create, /:id PATCH and DELETE (each returns the new list) */
   apiBase: string;
@@ -43,6 +49,9 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
   withBillRate?: boolean;
   /** Show whose placement each row is */
   showRecruiter?: boolean;
+  /** Records need a Super Admin's approval: show the status, and Approve / Reject when `canReview` */
+  withApproval?: boolean;
+  canReview?: boolean;
   notify: (message: string, type?: "success" | "error") => void;
 }) {
   const [rows, setRows] = useState(initialRows);
@@ -113,7 +122,12 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
     setSaving(false);
     if (!res.ok) return notify(d.error ?? `Could not save the ${noun}`, "error");
     setRows(d);
-    notify(draft.id ? `${Noun} updated` : `${Noun} saved for ${draft.lookup.consultantName}`, "success");
+    notify(
+      withApproval && !canReview
+        ? `${Noun} ${draft.id ? "updated" : "saved"} and sent to the Super Admin for approval`
+        : draft.id ? `${Noun} updated` : `${Noun} saved for ${draft.lookup.consultantName}`,
+      "success",
+    );
     setDraft(null);
     setCode("");
   };
@@ -128,6 +142,21 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
     notify(`${Noun} deleted`, "success");
   };
 
+  const review = async (row: ConfirmationRow, action: "approve" | "reject") => {
+    let note: string | null = null;
+    if (action === "reject") {
+      note = window.prompt(`Reject the ${noun} for ${row.consultantName}? Add a reason (optional):`, "");
+      if (note === null) return;
+    }
+    const res = await fetch(`${apiBase}/${row.id}/review`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return notify(d.error ?? "Could not save the decision", "error");
+    setRows(d);
+    notify(`${Noun} for ${row.consultantName} ${action === "approve" ? "approved" : "rejected"}`, "success");
+  };
+
+  const waiting = withApproval ? rows.filter((r) => r.status === "pending").length : 0;
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
@@ -140,7 +169,7 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
   const th = "whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300";
   const headers = [
     "Submission ID", "Interview ID", "Consultant", ...(showRecruiter ? ["Recruiter"] : []), "Client", "Implementation", "Vendor",
-    "Rate", ...(withBillRate ? ["Bill rate"] : []), "Confirmation date", "Start date", "End date", "",
+    "Rate", ...(withBillRate ? ["Bill rate"] : []), "Confirmation date", "Start date", "End date", ...(withApproval ? ["Status"] : []), "",
   ];
 
   return (
@@ -229,6 +258,9 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
                   <input type="date" value={draft.endDate} min={draft.startDate || undefined} onChange={(e) => set("endDate", e.target.value)} className={inputCls} />
                 </label>
               </div>
+              {withApproval && !canReview && (
+                <p className="text-[11.5px] font-medium text-amber-700">After you save, this goes to the Super Admin for approval. It starts earning incentive only once approved; changing it later sends it for approval again.</p>
+              )}
               {withBillRate && (
                 <p className="text-[11.5px] text-slate-400">The incentive is worked out from the bill rate and the start date, so both are needed for the Calculations page. Leave the end date empty while the project is running.</p>
               )}
@@ -246,6 +278,7 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3">
           <h2 className="text-[14px] font-bold text-slate-800">{Noun}s</h2>
           <span className="rounded-full bg-slate-100 px-2 text-[11px] font-bold text-slate-600">{rows.length}</span>
+          {waiting > 0 && <span className="rounded-full bg-amber-100 px-2 text-[11px] font-bold text-amber-700">{waiting} waiting for approval</span>}
           <div className="relative ml-auto w-full max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search consultant, client, vendor…" className={cn(inputCls, "pl-9")} />
@@ -278,7 +311,21 @@ export function SubmissionRecords({ noun, apiBase, lookupUrl, initialRows, today
                   <td className="whitespace-nowrap px-4 py-2.5 text-slate-700">{fmtDay(r.confirmationDate)}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{fmtDay(r.startDate)}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{fmtDay(r.endDate)}</td>
+                  {withApproval && (
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      <span title={r.reviewNote ?? undefined} className={cn("rounded-md px-1.5 py-0.5 text-[11px] font-semibold", (STATUS[r.status ?? "pending"] ?? STATUS.pending).cls)}>
+                        {(STATUS[r.status ?? "pending"] ?? STATUS.pending).label}
+                      </span>
+                      {r.status === "rejected" && r.reviewNote && <p className="mt-0.5 max-w-[180px] truncate text-[11px] text-slate-400">{r.reviewNote}</p>}
+                    </td>
+                  )}
                   <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    {withApproval && canReview && r.status !== "approved" && (
+                      <button type="button" title="Approve" aria-label="Approve" onClick={() => void review(r, "approve")} className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50"><Check className="h-3.5 w-3.5" /></button>
+                    )}
+                    {withApproval && canReview && r.status !== "rejected" && (
+                      <button type="button" title="Reject" aria-label="Reject" onClick={() => void review(r, "reject")} className="rounded-md p-1.5 text-rose-500 hover:bg-rose-50"><X className="h-3.5 w-3.5" /></button>
+                    )}
                     <button type="button" title="Edit" aria-label="Edit" onClick={() => void edit(r)} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"><PenLine className="h-3.5 w-3.5" /></button>
                     <button type="button" title="Delete" aria-label="Delete" onClick={() => void remove(r)} className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
                   </td>

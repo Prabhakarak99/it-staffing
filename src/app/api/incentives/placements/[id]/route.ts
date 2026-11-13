@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { SessionPayload } from "@/lib/auth";
 import { parseConfirmation } from "@/lib/profit-sharing/data";
-import { incentiveSession, listPlacements, parseBillRate } from "@/lib/incentives/data";
+import { incentiveSession, listPlacements, parseBillRate, reviewFor } from "@/lib/incentives/data";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** The placement, when this user may change it (recruiters: only their own) */
-async function mine(a: { session: { userId: string }; all: boolean }, id: string) {
+async function mine(a: { session: SessionPayload; all: boolean }, id: string) {
   const row = await prisma.incentivePlacement.findUnique({ where: { id } });
   return row && (a.all || row.recruiterId === a.session.userId) ? row : null;
 }
@@ -31,7 +32,8 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     interview = { interviewRefId: found?.id ?? null, interviewCode: found?.interviewId ?? null };
   }
 
-  await prisma.incentivePlacement.update({ where: { id: existing.id }, data: { ...parsed.data, billRate: rate.billRate, ...interview } });
+  // A change by anyone but a Super Admin goes back for approval
+  await prisma.incentivePlacement.update({ where: { id: existing.id }, data: { ...parsed.data, billRate: rate.billRate, ...interview, ...reviewFor(a.session) } });
   return NextResponse.json(await listPlacements(a.session));
 }
 

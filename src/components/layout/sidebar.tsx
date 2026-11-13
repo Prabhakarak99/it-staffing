@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  Activity, LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
+  Activity, Award, LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
   ClipboardList, BookUser, Inbox, Zap, Bot, MailCheck, AtSign, FileText, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, PiggyBank, Trophy, ChevronDown,
 } from "lucide-react";
 
@@ -73,6 +73,7 @@ const NAV: NavGroup[] = [
       { label: "Expenses",     href: "/admin/expenses",     match: "/admin/expenses",     icon: DollarSign },
       { label: "Profit Sharing", href: "/admin/profit-sharing", match: "/admin/profit-sharing", icon: PiggyBank },
       { label: "Incentives",   href: "/admin/incentives",   match: "/admin/incentives",   icon: Trophy },
+      { label: "Appreciation", href: "/admin/appreciation", match: "/admin/appreciation", icon: Award },
     ],
   },
 ];

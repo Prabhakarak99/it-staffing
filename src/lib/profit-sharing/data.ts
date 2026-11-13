@@ -89,6 +89,9 @@ export interface ConfirmationRow {
   /** Incentive placements only */
   billRate?: number | null;
   recruiterName?: string | null;
+  /** pending | approved | rejected (a Super Admin approves) */
+  status?: string;
+  reviewNote?: string | null;
 }
 
 export async function listConfirmations(): Promise<ConfirmationRow[]> {

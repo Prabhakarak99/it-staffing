@@ -20,6 +20,14 @@ export async function register() {
     .then(({ undoRequirementSubmissionsOnce }) => undoRequirementSubmissionsOnce())
     .catch((err) => console.error("[requirements] undo automatic submissions failed:", err));
 
+  // Appreciation: on the 1st, last month's top recruiters get their award (checked hourly; settled once)
+  const settleAppreciation = () =>
+    void import("@/lib/appreciation/data")
+      .then(({ ensureAppreciationAwards }) => ensureAppreciationAwards())
+      .catch((err) => console.error("[appreciation] failed:", err));
+  settleAppreciation();
+  setInterval(settleAppreciation, 60 * 60_000);
+
   // AutoJobs worker: match pending runs and dispatch queued emails every 30s.
   setInterval(() => {
     void processAutoJobs();

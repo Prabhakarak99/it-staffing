@@ -29,11 +29,15 @@ const STATE: Record<IncentiveState, { label: string; cls: string }> = {
   "no-rate": { label: "Bill rate missing", cls: "bg-rose-50 text-rose-700" },
 };
 
-export function IncentivesView({ tab, today, all, placements, board }: {
+export function IncentivesView({ tab, today, all, superAdmin, pending, placements, board }: {
   tab: Tab;
   today: string;
   /** Sees every recruiter's placements (Super Admin, Admin / Manager / CEO roles) */
   all: boolean;
+  /** Approves placements */
+  superAdmin: boolean;
+  /** Placements waiting for approval (this user's own, or everyone's) */
+  pending: number;
   placements: ConfirmationRow[];
   board: IncentiveRow[];
 }) {
@@ -55,9 +59,16 @@ export function IncentivesView({ tab, today, all, placements, board }: {
 
         {tab === "placements" ? (
           <SubmissionRecords noun="placement" apiBase="/api/incentives/placements" lookupUrl="/api/incentives/lookup"
-            initialRows={placements} today={today} withBillRate showRecruiter={all} notify={show} />
+            initialRows={placements} today={today} withBillRate showRecruiter={all} withApproval canReview={superAdmin} notify={show} />
         ) : (
-          <Board rows={board} today={today} all={all} />
+          <>
+            {pending > 0 && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12.5px] font-medium text-amber-800">
+                {pending} placement{pending === 1 ? " is" : "s are"} waiting for the Super Admin&apos;s approval and {pending === 1 ? "is" : "are"} not counted here yet.
+              </p>
+            )}
+            <Board rows={board} today={today} all={all} />
+          </>
         )}
       </div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hide} />}
@@ -102,7 +113,7 @@ function Board({ rows, today, all }: { rows: IncentiveRow[]; today: string; all:
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.length === 0 && (
-                <tr><td colSpan={headers.length} className="px-4 py-12 text-center text-slate-400">No placements yet. Add one on the Placements tab and it appears here.</td></tr>
+                <tr><td colSpan={headers.length} className="px-4 py-12 text-center text-slate-400">No approved placements yet. Add one on the Placements tab; it appears here once the Super Admin approves it.</td></tr>
               )}
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50">

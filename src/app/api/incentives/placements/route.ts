@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseConfirmation } from "@/lib/profit-sharing/data";
-import { incentiveSession, listPlacements, parseBillRate } from "@/lib/incentives/data";
+import { incentiveSession, listPlacements, parseBillRate, reviewFor } from "@/lib/incentives/data";
 
 export async function GET() {
   const a = await incentiveSession();
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       consultantId: submission.consultantId,
       consultantName: `${submission.consultant.firstName} ${submission.consultant.lastName}`.replace(/\s+/g, " ").trim(),
       createdById: a.session.userId,
+      ...reviewFor(a.session),
     },
   });
   return NextResponse.json(await listPlacements(a.session), { status: 201 });
