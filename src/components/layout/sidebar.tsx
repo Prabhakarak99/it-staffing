@@ -6,7 +6,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   Activity, LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
-  ClipboardList, BookUser, Inbox, Zap, Bot, MailCheck, AtSign, FileText, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, ChevronDown,
+  ClipboardList, BookUser, Inbox, Zap, Bot, MailCheck, AtSign, FileText, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, PiggyBank, ChevronDown,
 } from "lucide-react";
 
 interface NavItem {
@@ -71,6 +71,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Tech Support", href: "/admin/tech-support", match: "/admin/tech-support", icon: Wrench },
       { label: "Expenses",     href: "/admin/expenses",     match: "/admin/expenses",     icon: DollarSign },
+      { label: "Profit Sharing", href: "/admin/profit-sharing", match: "/admin/profit-sharing", icon: PiggyBank },
     ],
   },
 ];

@@ -10,6 +10,7 @@ import { RESUMES_SCREEN } from "@/lib/resumes/data";
 import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import { ACTIVITY_SCREEN } from "@/lib/activity/log";
+import { PROFIT_SCREEN } from "@/lib/profit-sharing/data";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -72,18 +73,21 @@ export async function ensureScreens() {
 /**
  * One-time grants. Each runs once (recorded in AppMigration), so later changes in User Roles stick.
  * `recruiters` limits it to recruiting roles: a name with "recruit", or a role that can open Submissions.
+ * `roleNameHas` limits it to roles whose name contains one of the words.
  */
-const SCREEN_GRANTS: { id: string; name: string; path: string; recruiters?: boolean }[] = [
+const SCREEN_GRANTS: { id: string; name: string; path: string; recruiters?: boolean; roleNameHas?: string[] }[] = [
   // Every role can add leads; each person sees only their own (src/lib/leads/access.ts)
   { id: "leads-open-to-all-roles", ...LEADS_SCREEN },
   // Everyone marks attendance and requests leave; approvals are by role name (src/lib/roles.ts)
   { id: "attendance-open-to-all-roles", ...ATTENDANCE_SCREEN },
   // Requirement emails are shared between recruiters (who sees which is decided per requirement)
   { id: "vendor-requirements-open-to-recruiters", ...VENDOR_REQ_SCREEN, recruiters: true },
+  // Confirmations and the profit share calculator: POC and CEO roles (Super Admin sees every screen)
+  { id: "profit-sharing-for-poc-and-ceo", ...PROFIT_SCREEN, roleNameHas: ["poc", "ceo"] },
 ];
 
 export async function grantScreensOnce() {
-  for (const { id, name, path, recruiters } of SCREEN_GRANTS) {
+  for (const { id, name, path, recruiters, roleNameHas } of SCREEN_GRANTS) {
     if (await prisma.appMigration.findUnique({ where: { id } })) continue;
     const screen = await prisma.screen.upsert({ where: { path }, create: { name, path }, update: {} });
     const roles = await prisma.role.findMany({
@@ -94,7 +98,9 @@ export async function grantScreensOnce() {
               { roleScreens: { some: { canView: true, screen: { path: "/admin/submissions" } } } },
             ],
           }
-        : {},
+        : roleNameHas
+          ? { OR: roleNameHas.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })) }
+          : {},
       select: { id: true },
     });
     await prisma.$transaction([
@@ -107,6 +113,6 @@ export async function grantScreensOnce() {
       ),
       prisma.appMigration.create({ data: { id } }),
     ]);
-    console.log(`[screens] granted "${name}" to ${recruiters ? "recruiting" : "all"} ${roles.length} role(s)`);
+    console.log(`[screens] granted "${name}" to ${recruiters ? "recruiting" : roleNameHas ? roleNameHas.join("/") : "all"} ${roles.length} role(s)`);
   }
 }
