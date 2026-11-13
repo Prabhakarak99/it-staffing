@@ -25,15 +25,24 @@ export interface SubmissionLookup {
   implementationName: string | null;
   vendorCompany: string | null;
   rate: string | null;
+  recruiterId: string;
   recruiterName: string;
+  /** First number in the submission's rate text, as a starting bill rate */
+  rateNumber: number | null;
   /** Newest first */
   interviews: { id: string; code: string; level: string; status: string; date: string }[];
-  /** Set when this submission already has a confirmation */
+  /** Set when this submission already has a record on this page */
   existingId: string | null;
 }
 
+const confirmationFor = async (submissionRefId: string) =>
+  (await prisma.confirmation.findUnique({ where: { submissionRefId }, select: { id: true } }))?.id ?? null;
+
 /** A submission by its "Sub-NNN" id (capitals and a missing "Sub-" don't matter), with its interviews */
-export async function lookupSubmission(input: string): Promise<SubmissionLookup | null> {
+export async function lookupSubmission(
+  input: string,
+  existingFor: (submissionRefId: string) => Promise<string | null> = confirmationFor,
+): Promise<SubmissionLookup | null> {
   const typed = input.trim();
   if (!typed) return null;
   const codes = /^\d+$/.test(typed) ? [`Sub-${typed.padStart(3, "0")}`, `Sub-${typed}`] : [typed];
@@ -46,7 +55,7 @@ export async function lookupSubmission(input: string): Promise<SubmissionLookup 
     },
   });
   if (!s) return null;
-  const existing = await prisma.confirmation.findUnique({ where: { submissionRefId: s.id }, select: { id: true } });
+  const rateNumber = Number(s.payRate?.match(/\d+(?:\.\d+)?/)?.[0]);
   return {
     submissionRefId: s.id,
     submissionCode: s.submissionId,
@@ -56,9 +65,11 @@ export async function lookupSubmission(input: string): Promise<SubmissionLookup 
     implementationName: s.implementationName,
     vendorCompany: s.vendorCompany,
     rate: s.payRate,
+    recruiterId: s.recruiterId,
     recruiterName: fullName(s.recruiter),
+    rateNumber: Number.isFinite(rateNumber) && rateNumber > 0 ? rateNumber : null,
     interviews: s.interviews.map((i) => ({ id: i.id, code: i.interviewId, level: i.interviewLevel, status: i.interviewStatus, date: i.interviewStartDate.toISOString() })),
-    existingId: existing?.id ?? null,
+    existingId: await existingFor(s.id),
   };
 }
 
@@ -75,6 +86,9 @@ export interface ConfirmationRow {
   startDate: string | null;
   endDate: string | null;
   createdBy: string;
+  /** Incentive placements only */
+  billRate?: number | null;
+  recruiterName?: string | null;
 }
 
 export async function listConfirmations(): Promise<ConfirmationRow[]> {

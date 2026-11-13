@@ -11,6 +11,7 @@ import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 import { VENDOR_REQ_SCREEN } from "@/lib/requirements/constants";
 import { ACTIVITY_SCREEN } from "@/lib/activity/log";
 import { PROFIT_SCREEN } from "@/lib/profit-sharing/data";
+import { INCENTIVES_SCREEN } from "@/lib/incentives/data";
 
 /**
  * Screens added after the initial seed. Created once at startup; on creation every role that can
@@ -73,9 +74,10 @@ export async function ensureScreens() {
 /**
  * One-time grants. Each runs once (recorded in AppMigration), so later changes in User Roles stick.
  * `recruiters` limits it to recruiting roles: a name with "recruit", or a role that can open Submissions.
- * `roleNameHas` limits it to roles whose name contains one of the words.
+ * `roleNameHas` limits it to roles whose name contains one of the words; `roleNameNot` leaves out
+ * roles whose name contains one.
  */
-const SCREEN_GRANTS: { id: string; name: string; path: string; recruiters?: boolean; roleNameHas?: string[] }[] = [
+const SCREEN_GRANTS: { id: string; name: string; path: string; recruiters?: boolean; roleNameHas?: string[]; roleNameNot?: string[] }[] = [
   // Every role can add leads; each person sees only their own (src/lib/leads/access.ts)
   { id: "leads-open-to-all-roles", ...LEADS_SCREEN },
   // Everyone marks attendance and requests leave; approvals are by role name (src/lib/roles.ts)
@@ -84,13 +86,15 @@ const SCREEN_GRANTS: { id: string; name: string; path: string; recruiters?: bool
   { id: "vendor-requirements-open-to-recruiters", ...VENDOR_REQ_SCREEN, recruiters: true },
   // Confirmations and the profit share calculator: POC and CEO roles (Super Admin sees every screen)
   { id: "profit-sharing-for-poc-and-ceo", ...PROFIT_SCREEN, roleNameHas: ["poc", "ceo"] },
+  // Recruiters' own placements and incentive; never POC roles (also enforced in src/lib/incentives/data.ts)
+  { id: "incentives-for-recruiters-not-poc", ...INCENTIVES_SCREEN, recruiters: true, roleNameNot: ["poc"] },
 ];
 
 export async function grantScreensOnce() {
-  for (const { id, name, path, recruiters, roleNameHas } of SCREEN_GRANTS) {
+  for (const { id, name, path, recruiters, roleNameHas, roleNameNot } of SCREEN_GRANTS) {
     if (await prisma.appMigration.findUnique({ where: { id } })) continue;
     const screen = await prisma.screen.upsert({ where: { path }, create: { name, path }, update: {} });
-    const roles = await prisma.role.findMany({
+    const found = await prisma.role.findMany({
       where: recruiters
         ? {
             OR: [
@@ -101,8 +105,9 @@ export async function grantScreensOnce() {
         : roleNameHas
           ? { OR: roleNameHas.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })) }
           : {},
-      select: { id: true },
+      select: { id: true, name: true },
     });
+    const roles = found.filter((r) => !roleNameNot?.some((w) => r.name.toLowerCase().includes(w)));
     await prisma.$transaction([
       ...roles.map((r) =>
         prisma.roleScreen.upsert({

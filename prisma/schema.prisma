@@ -892,3 +892,32 @@ model Confirmation {
   @@index([confirmationDate])
   @@map("confirmations")
 }
+
+/// Incentives → Placements: a recruiter's placement, entered by submission id (details copied from the
+/// submission when saved). The Calculations page works the monthly incentive out from these.
+model IncentivePlacement {
+  id                 String    @id @default(cuid())
+  submissionRefId    String    @unique
+  submissionCode     String
+  interviewRefId     String?
+  interviewCode      String?
+  /// The submission's recruiter: whose incentive this is
+  recruiterId        String
+  consultantId       String
+  consultantName     String
+  clientName         String?
+  implementationName String?
+  vendorCompany      String?
+  rate               String?
+  /// Bill rate in $ per hour; the monthly incentive is worked out from it
+  billRate           Float?
+  confirmationDate   DateTime  @db.Date
+  startDate          DateTime? @db.Date
+  endDate            DateTime? @db.Date
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([recruiterId])
+  @@map("incentive_placements")
+}
