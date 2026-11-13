@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Users } from "lucide-react";
+import { Plus, Upload, Users } from "lucide-react";
+import { LeadImportDialog } from "./lead-import";
 import { SlideOver } from "@/components/ui/slide-over";
 import { LeadForm } from "./lead-form";
 import { LeadList } from "./lead-list";
@@ -10,6 +11,7 @@ import type { LeadRow } from "@/lib/leads/fields";
 
 export function LeadsView({ leads: initialLeads, showOwner }: { leads: LeadRow[]; showOwner: boolean }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [leads, setLeads] = useState(initialLeads);
 
@@ -45,13 +47,22 @@ export function LeadsView({ leads: initialLeads, showOwner }: { leads: LeadRow[]
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-bold text-sky-700 shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl"
-          >
-            <Plus className="h-4 w-4" />
-            Add New Lead
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 rounded-xl border border-white/40 bg-white/10 px-4 py-2.5 text-[13px] font-bold text-white transition-all hover:bg-white/20"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Excel / Sheet
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-bold text-sky-700 shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl"
+            >
+              <Plus className="h-4 w-4" />
+              Add New Lead
+            </button>
+          </div>
         </div>
       </div>
 
@@ -67,6 +78,8 @@ export function LeadsView({ leads: initialLeads, showOwner }: { leads: LeadRow[]
           />
         )}
       </SlideOver>
+
+      {showImport && <LeadImportDialog onClose={() => setShowImport(false)} />}
 
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-4xl">
         <LeadForm

@@ -14,7 +14,7 @@ import {
   type SortDir,
 } from "@/components/ui/table-column-filters";
 import { ArrowRightCircle, Trash2, Users } from "lucide-react";
-import { LEAD_STATUSES, STATUS_STYLES, fmtOptDate, isLeadStatus, type LeadRow } from "@/lib/leads/fields";
+import { LEAD_STATUSES, STATUS_STYLES, fmtOptDate, isLeadStatus, leadLabel, type LeadRow } from "@/lib/leads/fields";
 
 type FilterKey =
   | "consultantName" | "phoneNumber" | "email" | "visaStatus" | "university"
@@ -157,7 +157,7 @@ export function LeadList({
           body: JSON.stringify({ status }),
         });
         if (!res.ok) throw new Error();
-        show(`${lead.consultantName} marked ${status}`, "success");
+        show(`${leadLabel(lead)} marked ${status}`, "success");
       } catch {
         onLeadsChange?.((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: previous } : l)));
         show("Failed to update status", "error");
@@ -246,7 +246,7 @@ export function LeadList({
                       onClick={() => onSelect?.(lead.id)}
                       className="text-sm font-semibold text-slate-900 text-left transition-colors hover:text-sky-600 hover:underline"
                     >
-                      <HighlightText text={lead.consultantName} query={searchQuery} />
+                      {lead.consultantName ? <HighlightText text={lead.consultantName} query={searchQuery} /> : <span className="font-medium italic text-slate-400">No name</span>}
                     </button>
                     {showOwner && (
                       <p className="mt-0.5 text-[11px] text-slate-400">Added by {lead.createdByName ?? "—"}</p>
@@ -289,7 +289,7 @@ export function LeadList({
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => convertLead(lead.id, lead.consultantName)}
+                        onClick={() => convertLead(lead.id, leadLabel(lead))}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
                         title="Convert to consultant"
                       >
@@ -298,7 +298,7 @@ export function LeadList({
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteLead(lead.id, lead.consultantName)}
+                        onClick={() => deleteLead(lead.id, leadLabel(lead))}
                         className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500"
                         title="Delete lead"
                       >

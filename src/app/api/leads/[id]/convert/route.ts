@@ -23,6 +23,10 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     const lead = await prisma.lead.findFirst({ where: { id, ...leadScope(session) } });
     if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
+    if (!lead.consultantName.trim() || !lead.email.trim()) {
+      return NextResponse.json({ error: "Add the lead's full name and email before moving them to Consultants" }, { status: 400 });
+    }
+
     const emailTaken = await prisma.student.findUnique({ where: { email: lead.email } });
     if (emailTaken) {
       return NextResponse.json({ error: "A consultant with this email already exists" }, { status: 409 });

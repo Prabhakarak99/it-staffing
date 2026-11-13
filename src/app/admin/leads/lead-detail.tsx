@@ -9,7 +9,7 @@ import {
   SlideFormSections, SlideFormShell,
 } from "@/components/forms/compact-slide-form";
 import { LeadForm, leadToForm } from "./lead-form";
-import { STATUS_STYLES, fmtOptDate, isLeadStatus, type LeadRow } from "@/lib/leads/fields";
+import { STATUS_STYLES, fmtOptDate, isLeadStatus, leadLabel, type LeadRow } from "@/lib/leads/fields";
 import { cn } from "@/lib/utils";
 import { APP_TZ } from "@/lib/tz";
 
@@ -112,8 +112,8 @@ export function LeadDetail({
     <SlideFormShell>
       <SlideFormHeader
         icon={Users}
-        title={lead.consultantName}
-        subtitle={`${lead.email} · Created ${fmtDate(lead.createdAt)}`}
+        title={leadLabel(lead)}
+        subtitle={`${lead.email ? `${lead.email} · ` : ""}Created ${fmtDate(lead.createdAt)}`}
         tone="sky"
         actions={
           <Button size="sm" variant="secondary" className="bg-white/15 text-white border-white/20 hover:bg-white/25" onClick={() => setEditing(true)}>

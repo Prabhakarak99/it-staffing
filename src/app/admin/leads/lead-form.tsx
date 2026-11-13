@@ -90,7 +90,6 @@ export function LeadForm({
   onCancel?: () => void;
 } = {}) {
   const [form, setForm] = useState<FormState>(() => ({ ...EMPTY, ...(initialData ?? {}) }));
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { toast, show, hide } = useToast();
@@ -98,15 +97,6 @@ export function LeadForm({
   const set = (key: keyof FormState) => (value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const submit = () => {
-    const nextErrors: Partial<Record<keyof FormState, string>> = {};
-    if (!form.consultantName.trim()) nextErrors.consultantName = "Full name is required";
-    if (!form.email.trim()) nextErrors.email = "Email is required";
-    if (Object.keys(nextErrors).length) {
-      setErrors(nextErrors);
-      return;
-    }
-
-    setErrors({});
     startTransition(async () => {
       try {
         const res = await fetch(leadId ? `/api/leads/${leadId}` : "/api/leads", {
@@ -116,7 +106,7 @@ export function LeadForm({
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? `Failed to ${leadId ? "update" : "save"} lead`);
-        show(`Lead ${leadId ? "updated" : "saved"} for ${data.consultantName ?? form.consultantName}`, "success");
+        show(`Lead ${leadId ? "updated" : "saved"}${data.consultantName ? ` for ${data.consultantName}` : ""}`, "success");
         if (!leadId) setForm(EMPTY);
         onSuccess?.(data);
         router.refresh();
@@ -139,11 +129,10 @@ export function LeadForm({
         <SlideFormSection icon={Users} title="Contact Details" color="blue">
           <Input
             compact
-            label="Full Name *"
+            label="Full Name"
             value={form.consultantName}
             onChange={(e) => set("consultantName")(e.target.value)}
             placeholder="Enter full name"
-            error={errors.consultantName}
           />
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -156,12 +145,11 @@ export function LeadForm({
             />
             <Input
               compact
-              label="Email ID *"
+              label="Email ID"
               type="email"
               value={form.email}
               onChange={(e) => set("email")(e.target.value)}
               placeholder="Enter email"
-              error={errors.email}
             />
           </div>
         </SlideFormSection>

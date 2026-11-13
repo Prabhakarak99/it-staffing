@@ -1,6 +1,6 @@
 // Lead field options and input parsing. No server imports: the lead form uses the option lists too.
 
-export const LEAD_STATUSES = ["Interested", "Joined", "Premarketing", "Marketing", "Placement", "Not Interested"] as const;
+export const LEAD_STATUSES = ["Interested", "Not Responded", "Call Back", "Joined", "Premarketing", "Marketing", "Placement", "Not Interested"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export const LEAD_VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
@@ -17,6 +17,8 @@ export const US_STATES = [
 
 export const STATUS_STYLES: Record<LeadStatus, string> = {
   Interested: "bg-sky-50 text-sky-700 border-sky-200",
+  "Not Responded": "bg-rose-50 text-rose-700 border-rose-200",
+  "Call Back": "bg-orange-50 text-orange-700 border-orange-200",
   Joined: "bg-indigo-50 text-indigo-700 border-indigo-200",
   Premarketing: "bg-violet-50 text-violet-700 border-violet-200",
   Marketing: "bg-amber-50 text-amber-700 border-amber-200",
@@ -50,10 +52,9 @@ const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : nul
 
 /** Validates a create/update body. Returns the Prisma data or an error message. */
 export function parseLeadInput(body: Record<string, unknown>) {
-  const consultantName = text(body.consultantName);
-  const email = text(body.email);
-  if (!consultantName) return { error: "Full name is required" } as const;
-  if (!email) return { error: "Email is required" } as const;
+  // No field is mandatory; name and email are stored as "" when left empty
+  const consultantName = text(body.consultantName) ?? "";
+  const email = text(body.email) ?? "";
 
   const status = body.status ?? "Interested";
   if (!isLeadStatus(status)) return { error: "Invalid status" } as const;
@@ -65,6 +66,9 @@ export function parseLeadInput(body: Record<string, unknown>) {
     optStartDate = new Date(`${rawDate}T00:00:00.000Z`);
     if (Number.isNaN(optStartDate.getTime())) return { error: "Invalid OPT start date" } as const;
   }
+
+  const rest = [body.phoneNumber, body.visaStatus, body.university, body.state, body.comments].map(text);
+  if (!consultantName && !email && !optStartDate && rest.every((v) => !v)) return { error: "Fill in at least one field" } as const;
 
   return {
     data: {
@@ -80,6 +84,10 @@ export function parseLeadInput(body: Record<string, unknown>) {
     },
   } as const;
 }
+
+/** What to call a lead that has no name yet */
+export const leadLabel = (l: { consultantName: string; email: string; phoneNumber?: string | null }) =>
+  l.consultantName || l.email || l.phoneNumber || "Unnamed lead";
 
 /** OPT start dates are stored as UTC midnight; format without shifting the day */
 export function fmtOptDate(iso: string | null) {
