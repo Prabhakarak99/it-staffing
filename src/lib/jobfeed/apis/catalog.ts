@@ -21,6 +21,8 @@ export interface JobApiMeta {
   /** Zyte reads pages you point it at, instead of searching a jobs database */
   needsStartUrls?: boolean;
   defaultIntervalMin: number;
+  /** Default pulling hours, Central time, both included (none = all day) */
+  defaultWindow?: { from: number; to: number };
   /** What "Extra settings" are sent as */
   extraHint: string;
 }
@@ -37,6 +39,8 @@ export const JOB_APIS: Record<JobApiId, JobApiMeta> = {
     docsUrl: "https://developer.fantastic.jobs",
     confidence: "documented",
     defaultIntervalMin: 60,
+    // One request per pull, hourly 8 AM to 5 PM Central = 10 requests a day
+    defaultWindow: { from: 8, to: 17 },
     extraHint: "Query parameters, e.g. ai_visa_sponsorship=only&organization_agency=only",
   },
   coresignal: {
@@ -116,6 +120,9 @@ export interface JobApiRow {
   keyPreview: string | null;
   isEnabled: boolean;
   intervalMin: number;
+  /** Central-time hours pulls are allowed in, both included; null = all day */
+  activeFromHour: number | null;
+  activeToHour: number | null;
   maxPerRun: number;
   keywords: string[];
   contractOnly: boolean;

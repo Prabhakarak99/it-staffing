@@ -15,6 +15,9 @@ interface FormState {
   apiKey: string;
   isEnabled: boolean;
   intervalMin: string;
+  /** "" = all day */
+  fromHour: string;
+  toHour: string;
   maxPerRun: string;
   keywords: string;
   contractOnly: boolean;
@@ -22,6 +25,17 @@ interface FormState {
   startUrls: string;
 }
 
+const hourLabel = (h: number) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+/** Pulls in a day: one per interval slot inside the allowed hours */
+const pullsPerDay = (intervalMin: number, from: number | null, to: number | null) => {
+  const step = Math.max(15, intervalMin || 60);
+  if (from === null || to === null) return Math.ceil(1440 / step);
+  const hours = new Set<number>();
+  for (let h = from; ; h = (h + 1) % 24) { hours.add(h); if (h === to) break; }
+  const slots = new Set<number>();
+  for (const h of hours) for (let m = 0; m < 60; m += 15) slots.add(Math.floor((h * 60 + m) / step));
+  return slots.size;
+};
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: APP_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const areaCls = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100";
 const labelCls = "text-[10px] font-semibold uppercase tracking-wide text-slate-500";
@@ -48,7 +62,7 @@ export function JobApisSection({ initial, notify }: { initial: JobApiRow[]; noti
 
   const open = (a: JobApiRow) =>
     setForm({
-      id: a.id, apiKey: "", isEnabled: a.isEnabled, intervalMin: String(a.intervalMin), maxPerRun: String(a.maxPerRun),
+      id: a.id, apiKey: "", isEnabled: a.isEnabled, intervalMin: String(a.intervalMin), fromHour: a.activeFromHour === null ? "" : String(a.activeFromHour), toHour: a.activeToHour === null ? "" : String(a.activeToHour), maxPerRun: String(a.maxPerRun),
       keywords: a.keywords.join(", "), contractOnly: a.contractOnly, extraParams: a.extraParams, startUrls: a.startUrls.join("\n"),
     });
 
@@ -58,6 +72,7 @@ export function JobApisSection({ initial, notify }: { initial: JobApiRow[]; noti
     try {
       setApis(await call(`/api/job-apis/${form.id}`, "PATCH", {
         apiKey: form.apiKey, isEnabled: form.isEnabled, intervalMin: Number(form.intervalMin), maxPerRun: Number(form.maxPerRun),
+        activeFromHour: form.fromHour === "" || form.toHour === "" ? null : Number(form.fromHour), activeToHour: form.fromHour === "" || form.toHour === "" ? null : Number(form.toHour),
         keywords: form.keywords, contractOnly: form.contractOnly, extraParams: form.extraParams, startUrls: form.startUrls,
       }));
       notify(`${JOB_APIS[form.id].name} saved. Click Test to check the key.`, "success");
@@ -125,7 +140,7 @@ export function JobApisSection({ initial, notify }: { initial: JobApiRow[]; noti
               <dl className="mt-3 space-y-1.5 text-[12px]">
                 <div><dt className="inline font-semibold text-slate-500">Pricing: </dt><dd className="inline text-slate-700">{m.pricing}</dd></div>
                 <div><dt className="inline font-semibold text-slate-500">Key: </dt><dd className="inline text-slate-700">{m.access === "sales" ? "Through their sales team. " : "Self-serve. "}{a.keyPreview ? <span className="font-mono">{a.keyPreview}</span> : "None saved."}</dd></div>
-                {a.hasKey && <div><dt className="inline font-semibold text-slate-500">Schedule: </dt><dd className="inline text-slate-700">every {a.intervalMin} min, up to {a.maxPerRun} jobs a run{a.contractOnly ? ", contract only" : ""}</dd></div>}
+                {a.hasKey && <div><dt className="inline font-semibold text-slate-500">Schedule: </dt><dd className="inline text-slate-700">every {a.intervalMin} min{a.activeFromHour !== null && a.activeToHour !== null ? `, ${hourLabel(a.activeFromHour)} to ${hourLabel(a.activeToHour)} Central` : ""}, up to {a.maxPerRun} jobs a run{a.contractOnly ? ", contract only" : ""}</dd></div>}
               </dl>
               {a.lastTestedAt && (
                 <p className={cn("mt-2 flex items-start gap-1.5 text-[11.5px]", a.lastTestError ? "text-rose-600" : "text-emerald-700")}>
@@ -191,9 +206,27 @@ export function JobApisSection({ initial, notify }: { initial: JobApiRow[]; noti
                 <Input compact type="number" min={15} max={1440} label="Pull every (minutes)" value={form.intervalMin} onChange={(e) => setForm({ ...form, intervalMin: e.target.value })} />
                 <Input compact type="number" min={1} max={1000} label="Most jobs per pull" value={form.maxPerRun} onChange={(e) => setForm({ ...form, maxPerRun: e.target.value })} />
               </div>
-              <p className="text-[11px] text-slate-400">
-                These two numbers cap the spend: at most {Math.round((1440 / Math.max(15, Number(form.intervalMin) || 60)) * (Number(form.maxPerRun) || 0)).toLocaleString("en-US")} jobs a day from this provider.
-              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {(["fromHour", "toHour"] as const).map((k) => (
+                  <label key={k} className="block space-y-1">
+                    <span className={labelCls}>{k === "fromHour" ? "First pull of the day (Central)" : "Last pull of the day (Central)"}</span>
+                    <select value={form[k]} onChange={(e) => setForm(e.target.value === "" ? { ...form, fromHour: "", toHour: "" } : { ...form, [k]: e.target.value, ...(form[k === "fromHour" ? "toHour" : "fromHour"] === "" ? { [k === "fromHour" ? "toHour" : "fromHour"]: k === "fromHour" ? "17" : "8" } : {}) })}
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px]">
+                      <option value="">All day</option>
+                      {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </div>
+              {(() => {
+                const pulls = pullsPerDay(Number(form.intervalMin), form.fromHour === "" ? null : Number(form.fromHour), form.toHour === "" ? null : Number(form.toHour));
+                return (
+                  <p className="text-[11px] text-slate-400">
+                    This caps the spend: {pulls} pull{pulls === 1 ? "" : "s"} a day, at most {(pulls * (Number(form.maxPerRun) || 0)).toLocaleString("en-US")} jobs a day from this provider.
+                    {form.id === "fantastic" ? " Each pull is one API request." : ""}
+                  </p>
+                );
+              })()}
               <label className="flex items-center gap-2 text-[12.5px] text-slate-700">
                 <input type="checkbox" checked={form.contractOnly} onChange={(e) => setForm({ ...form, contractOnly: e.target.checked })} className="h-4 w-4 rounded border-slate-300" />
                 Ask for contract jobs only

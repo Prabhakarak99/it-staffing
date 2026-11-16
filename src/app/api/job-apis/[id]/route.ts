@@ -21,6 +21,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   const body = (await req.json()) as Record<string, unknown>;
   const num = (k: string, min: number, max: number) => (typeof body[k] === "number" && Number.isFinite(body[k]) ? Math.min(max, Math.max(min, Math.round(body[k] as number))) : undefined);
+  // Hours: a number 0-23, or null for "all day" (both or neither)
+  const hour = (k: string) => (body[k] === null ? null : typeof body[k] === "number" && Number.isInteger(body[k]) && (body[k] as number) >= 0 && (body[k] as number) <= 23 ? (body[k] as number) : undefined);
+  const [fromHour, toHour] = [hour("activeFromHour"), hour("activeToHour")];
+  const window = fromHour === undefined || toHour === undefined ? undefined : fromHour === null || toHour === null ? { activeFromHour: null, activeToHour: null } : { activeFromHour: fromHour, activeToHour: toHour };
   const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
   const startUrls = body.startUrls !== undefined ? lines(body.startUrls, 25) : undefined;
   if (startUrls?.some((u) => !/^https:\/\/\S+$/i.test(u))) return NextResponse.json({ error: "Every page to read must start with https://" }, { status: 400 });
@@ -34,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     ...(body.removeKey === true ? { apiKeyEnc: null, isEnabled: false } : {}),
     ...(typeof body.isEnabled === "boolean" && body.removeKey !== true ? { isEnabled: body.isEnabled } : {}),
     ...(num("intervalMin", 15, 1440) !== undefined ? { intervalMin: num("intervalMin", 15, 1440) } : {}),
+    ...(window ?? {}),
     ...(num("maxPerRun", 1, 1000) !== undefined ? { maxPerRun: num("maxPerRun", 1, 1000) } : {}),
     ...(body.keywords !== undefined ? { keywords: lines(body.keywords, 30).join("\n") } : {}),
     ...(typeof body.contractOnly === "boolean" ? { contractOnly: body.contractOnly } : {}),
@@ -43,7 +48,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   };
   await prisma.jobApiSource.upsert({
     where: { id },
-    create: { id, intervalMin: JOB_APIS[id].defaultIntervalMin, keywords: DEFAULT_KEYWORDS.join("\n"), ...data },
+    create: {
+      id, intervalMin: JOB_APIS[id].defaultIntervalMin, keywords: DEFAULT_KEYWORDS.join("\n"),
+      activeFromHour: JOB_APIS[id].defaultWindow?.from ?? null, activeToHour: JOB_APIS[id].defaultWindow?.to ?? null,
+      ...data,
+    },
     update: data,
   });
   return NextResponse.json(await listJobApis());

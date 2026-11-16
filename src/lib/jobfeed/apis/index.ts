@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/gmail/crypto";
+import { APP_TZ } from "@/lib/tz";
 import type { ScrapedJob } from "@/lib/apify/types";
 import {
   extractClientName, extractEmail, extractPhone, extractPrimaryTechnology,
@@ -37,6 +38,8 @@ export async function listJobApis(): Promise<JobApiRow[]> {
       keyPreview,
       isEnabled: r?.isEnabled ?? false,
       intervalMin: r?.intervalMin ?? JOB_APIS[id].defaultIntervalMin,
+      activeFromHour: r ? r.activeFromHour : JOB_APIS[id].defaultWindow?.from ?? null,
+      activeToHour: r ? r.activeToHour : JOB_APIS[id].defaultWindow?.to ?? null,
       maxPerRun: r?.maxPerRun ?? 100,
       keywords: r ? list(r.keywords) : DEFAULT_KEYWORDS,
       contractOnly: r?.contractOnly ?? true,
@@ -162,12 +165,48 @@ export async function runJobApi(id: JobApiId) {
   }
 }
 
-/** Worker step: run every enabled provider whose interval has passed */
+/** Central-time day and minutes since midnight */
+function centralClock(at: Date) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: APP_TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at).map((p) => [p.type, p.value]));
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minutes: Number(parts.hour) * 60 + Number(parts.minute) };
+}
+
+/**
+ * Pulls follow the clock, not the gap since the last one: the Central day is cut into slots of
+ * `intervalMin` and a provider runs once per slot (hourly = once in each clock hour), only inside its
+ * allowed hours. So "hourly, 8 AM to 5 PM" is exactly 10 pulls a day.
+ */
+export function isDue(row: { intervalMin: number; activeFromHour: number | null; activeToHour: number | null; lastRunAt: Date | null }, now = new Date()) {
+  const clock = centralClock(now);
+  const [from, to] = [row.activeFromHour, row.activeToHour];
+  if (from !== null && to !== null && (from <= to ? clock.hour < from || clock.hour > to : clock.hour < from && clock.hour > to)) return false;
+  if (!row.lastRunAt) return true;
+  const last = centralClock(row.lastRunAt);
+  const slot = (c: { minutes: number }) => Math.floor(c.minutes / row.intervalMin);
+  return last.day !== clock.day || slot(last) !== slot(clock);
+}
+
+/** One-time: Fantastic.jobs pulls hourly from 8 AM to 5 PM Central (10 requests a day), as asked on 2026-11-16 */
+let defaultsChecked = false;
+async function applyScheduleOnce() {
+  if (defaultsChecked) return;
+  const id = "job-api-fantastic-8-to-5";
+  if (!(await prisma.appMigration.findUnique({ where: { id } }))) {
+    await prisma.$transaction([
+      prisma.jobApiSource.updateMany({ where: { id: "fantastic" }, data: { intervalMin: 60, activeFromHour: 8, activeToHour: 17 } }),
+      prisma.appMigration.create({ data: { id } }),
+    ]);
+  }
+  defaultsChecked = true;
+}
+
+/** Worker step: run every enabled provider that is due */
 export async function processJobApis() {
+  await applyScheduleOnce();
   const rows = await prisma.jobApiSource.findMany({ where: { isEnabled: true, apiKeyEnc: { not: null } } });
   for (const row of rows) {
     if (!(JOB_API_IDS as readonly string[]).includes(row.id)) continue;
-    if (row.lastRunAt && Date.now() - row.lastRunAt.getTime() < row.intervalMin * 60_000) continue;
+    if (!isDue(row)) continue;
     await runJobApi(row.id as JobApiId);
   }
 }

@@ -414,6 +414,9 @@ model JobApiSource {
   apiKeyEnc     String?
   isEnabled     Boolean   @default(false)
   intervalMin   Int       @default(60)
+  /// Pull only between these Central-time hours (both included, 0-23); null = all day
+  activeFromHour Int?
+  activeToHour   Int?
   maxPerRun     Int       @default(100)
   keywords      String    @default("") // one per line
   contractOnly  Boolean   @default(true)
