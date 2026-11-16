@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Download, ExternalLink, FileSpreadsheet, Link2, Loader2, RefreshCw, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TeamSheetSection } from "./team-sheet-section";
 
 interface Result { added: number; skipped: { row: number; reason: string }[] }
 export type SheetNotice = { ok: true; enabledOnly?: boolean } | { ok: false; message: string };
 interface SheetStatus { connected: boolean; url: string | null }
 
 /** Popup: download the sheet format, then upload a filled Excel / Google Sheets file */
-export function LeadImportDialog({ onClose, notice }: { onClose: () => void; notice?: SheetNotice | null }) {
+export function LeadImportDialog({ onClose, notice, myEmail }: { onClose: () => void; notice?: SheetNotice | null; myEmail: string }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -89,11 +90,13 @@ export function LeadImportDialog({ onClose, notice }: { onClose: () => void; not
               )}
             </p>
           )}
+          <TeamSheetSection myEmail={myEmail} onError={(m) => { setError(m); setResult(null); }} onResult={(r) => { setResult(r); if (r.added) router.refresh(); }} />
+
           {notice?.ok && notice.enabledOnly && (
             <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-700">Google Sheets is now switched on for the app. Click Connect to Google Sheet below.</p>
           )}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-            <p className="flex items-center gap-1.5 font-semibold text-slate-800"><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Google Sheet (no Excel needed)</p>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-800"><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> My own Google Sheet (needs Google sign-in)</p>
             {!sheet ? (
               <p className="mt-2 text-slate-500"><Loader2 className="inline h-3.5 w-3.5 animate-spin" /> Checking…</p>
             ) : !sheet.connected ? (

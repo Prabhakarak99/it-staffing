@@ -7,10 +7,11 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (req.nextUrl.searchParams.get("format") === "csv") {
-    return new NextResponse(leadTemplateCsv(), {
+    const team = req.nextUrl.searchParams.get("team") === "1";
+    return new NextResponse(leadTemplateCsv(team), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="Leads_Upload_Format.csv"',
+        "Content-Disposition": `attachment; filename="${team ? "Leads_Team_Sheet_Format" : "Leads_Upload_Format"}.csv"`,
         "Cache-Control": "no-store",
       },
     });

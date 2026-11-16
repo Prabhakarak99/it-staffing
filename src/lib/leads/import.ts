@@ -24,6 +24,9 @@ export const LEAD_SHEET_HEADERS: string[] = COLUMNS.map((c) => c.header);
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const HEADER_KEY = new Map<string, Key>(COLUMNS.flatMap((c) => [c.header, ...c.aliases].map((h) => [norm(h), c.key] as const)));
+/** Team sheet only: the column naming the recruiter a row belongs to */
+export const OWNER_HEADER = "Recruiter Email";
+const OWNER_HEADERS = new Set([OWNER_HEADER, "recruiter", "recruiter email id", "added by", "owner email", "your email"].map(norm));
 const STATUS_BY_NORM = new Map<string, LeadStatus>(LEAD_STATUSES.map((s) => [norm(s), s]));
 
 /** The blank workbook people fill in (also opens in Google Sheets) */
@@ -67,7 +70,8 @@ export async function leadTemplate(): Promise<Buffer> {
 }
 
 /** The same headings as a plain CSV, which Google Sheets opens directly */
-export const leadTemplateCsv = () => `﻿${COLUMNS.map((c) => c.header).join(",")}\r\n`;
+export const leadTemplateCsv = (team = false) => `﻿${[...(team ? [OWNER_HEADER] : []), ...COLUMNS.map((c) => c.header)].join(",")}
+`;
 
 /**
  * Downloads a Google Sheet as CSV from its link. Only the sheet id (and tab id) are taken from the
@@ -139,16 +143,21 @@ export interface ParsedLead {
   status: LeadStatus;
   comments: string | null;
 }
-export interface SkippedRow { row: number; reason: string }
+export interface SkippedRow { row: number; reason: string; /** Team sheet: the row's recruiter email */ owner?: string }
+export interface ParsedSheet {
+  leads: { row: number; lead: ParsedLead; /** Team sheet: lower-cased recruiter email, "" when empty */ owner?: string }[];
+  skipped: SkippedRow[];
+  hasOwnerColumn: boolean;
+}
 
 /** Reads an uploaded sheet into leads; rows that can't be used come back in `skipped` with their sheet row number */
-export async function parseLeadSheet(name: string, bytes: Buffer): Promise<{ error: string } | { leads: { row: number; lead: ParsedLead }[]; skipped: SkippedRow[] }> {
+export async function parseLeadSheet(name: string, bytes: Buffer): Promise<{ error: string } | ParsedSheet> {
   const grid = await readGrid(name, bytes);
   return "error" in grid ? grid : parseLeadGrid(grid);
 }
 
 /** The same for rows already read (first row = headings) */
-export function parseLeadGrid(grid: (string | Date)[][]): { error: string } | { leads: { row: number; lead: ParsedLead }[]; skipped: SkippedRow[] } {
+export function parseLeadGrid(grid: (string | Date)[][]): { error: string } | ParsedSheet {
   if (grid.length === 0) return { error: "The file is empty" };
 
   const keys = grid[0].map((h) => HEADER_KEY.get(norm(String(h))));
@@ -157,8 +166,9 @@ export function parseLeadGrid(grid: (string | Date)[][]): { error: string } | { 
 
   const visaByNorm = new Map(LEAD_VISA_STATUSES.map((v) => [norm(v), v]));
   const stateByNorm = new Map(US_STATES.map((v) => [norm(v), v]));
-  const leads: { row: number; lead: ParsedLead }[] = [];
+  const leads: ParsedSheet["leads"] = [];
   const skipped: SkippedRow[] = [];
+  const ownerCol = grid[0].findIndex((h) => OWNER_HEADERS.has(norm(String(h))));
 
   grid.slice(1).forEach((cells, i) => {
     const row = i + 2;
@@ -166,17 +176,19 @@ export function parseLeadGrid(grid: (string | Date)[][]): { error: string } | { 
     keys.forEach((k, c) => { if (k && raw[k] === undefined) raw[k] = cells[c] ?? ""; });
     const str = (k: Key) => { const v = raw[k]; return v instanceof Date ? v.toISOString().slice(0, 10) : (v ?? "").trim(); };
     if (COLUMNS.every((c) => !str(c.key))) return;
+    const owner = ownerCol >= 0 ? String(cells[ownerCol] ?? "").trim().toLowerCase() : undefined;
 
     const statusText = str("status");
     const status = statusText ? STATUS_BY_NORM.get(norm(statusText)) : "Interested";
-    if (!status) return void skipped.push({ row, reason: `Status "${statusText}" is not one of: ${LEAD_STATUSES.join(", ")}` });
+    if (!status) return void skipped.push({ row, owner, reason: `Status "${statusText}" is not one of: ${LEAD_STATUSES.join(", ")}` });
     const optStartDate = parseDate(raw.optStartDate ?? "");
-    if (optStartDate === "bad") return void skipped.push({ row, reason: `OPT Start Date "${str("optStartDate")}" is not a date (use 2026-11-01 or 11/01/2026)` });
+    if (optStartDate === "bad") return void skipped.push({ row, owner, reason: `OPT Start Date "${str("optStartDate")}" is not a date (use 2026-11-01 or 11/01/2026)` });
 
     const visa = str("visaStatus");
     const state = str("state");
     leads.push({
       row,
+      owner,
       lead: {
         consultantName: str("consultantName"),
         email: str("email"),
@@ -190,7 +202,7 @@ export function parseLeadGrid(grid: (string | Date)[][]): { error: string } | { 
       },
     });
   });
-  return { leads, skipped };
+  return { leads, skipped, hasOwnerColumn: ownerCol >= 0 };
 }
 
 /** Same person as an existing lead: by email, or by name + number when there is no email (null: nothing to compare) */

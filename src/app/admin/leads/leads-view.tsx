@@ -9,11 +9,13 @@ import { LeadList } from "./lead-list";
 import { LeadDetail } from "./lead-detail";
 import type { LeadRow } from "@/lib/leads/fields";
 
-export function LeadsView({ leads: initialLeads, showOwner, sheetNotice }: {
+export function LeadsView({ leads: initialLeads, showOwner, sheetNotice, myEmail }: {
   leads: LeadRow[];
   showOwner: boolean;
   /** Just back from Google after "Connect Google Sheet" */
   sheetNotice: SheetNotice | null;
+  /** The signed-in user's email: what they put in the team sheet's Recruiter Email column */
+  myEmail: string;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(!!sheetNotice);
@@ -84,7 +86,7 @@ export function LeadsView({ leads: initialLeads, showOwner, sheetNotice }: {
         )}
       </SlideOver>
 
-      {showImport && <LeadImportDialog notice={sheetNotice} onClose={() => setShowImport(false)} />}
+      {showImport && <LeadImportDialog notice={sheetNotice} myEmail={myEmail} onClose={() => setShowImport(false)} />}
 
       <SlideOver open={showAdd} onClose={() => setShowAdd(false)} maxWidth="max-w-4xl">
         <LeadForm

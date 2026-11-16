@@ -323,6 +323,15 @@ model LeadSheet {
   @@map("lead_sheets")
 }
 
+/// Small app-wide settings by key (e.g. "leads-team-sheet": the shared Google Sheet for leads)
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
 /// One-time data changes that already ran (see src/lib/screens.ts)
 model AppMigration {
   id    String   @id
