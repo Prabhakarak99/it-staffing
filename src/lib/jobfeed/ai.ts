@@ -96,7 +96,7 @@ function buildPrompt(job: { title: string | null; companyName: string | null; ve
 
 /** Jobs waiting for AI: classifiedBy is null (rules weren't certain) */
 export function pendingAiWhere() {
-  return { classifiedBy: null, isActive: true, title: { not: null } };
+  return { classifiedBy: null, isActive: true, archivedAt: null, title: { not: null } };
 }
 
 /**

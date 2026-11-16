@@ -360,6 +360,8 @@ model JobSearchResult {
   isContract       Boolean   @default(true)
   dedupeHash       String?
   lastSeenAt       DateTime  @default(now())
+  /// Soft delete: hidden from the Requirements tab for good, kept only as a backup
+  archivedAt       DateTime?
   classifiedBy     String? // regex | ai
   aiParsedAt       DateTime?
   aiConfidence     Float?

@@ -9,7 +9,7 @@ export async function getJobFeedOverview() {
     prisma.atsCompany.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     prisma.jobSearchResult.groupBy({
       by: ["sourceType"],
-      where: { isActive: true, isContract: true },
+      where: { isActive: true, archivedAt: null, isContract: true },
       _count: { _all: true },
     }),
     prisma.jobSearchResult.count({ where: pendingAiWhere() }),

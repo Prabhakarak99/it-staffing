@@ -115,7 +115,7 @@ export async function saveJobs(jobs: ScrapedJob[], opts: { refreshExisting?: boo
   if (fresh.length === 0) return result;
 
   const dupRows = await prisma.jobSearchResult.findMany({
-    where: { dedupeHash: { in: fresh.map((f) => f.hash) }, isActive: true },
+    where: { dedupeHash: { in: fresh.map((f) => f.hash) }, isActive: true, archivedAt: null },
     select: { dedupeHash: true },
   });
   const dupHashes = new Set(dupRows.map((r) => r.dedupeHash));

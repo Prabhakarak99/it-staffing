@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const must: any[] = [
     { isActive: true },
+    // Archived jobs are a backup only and never listed
+    { archivedAt: null },
     { jobType: jobType ? { contains: jobType, mode: "insensitive" } : { in: CONTRACT_JOB_TYPES } },
   ];
 

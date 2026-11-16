@@ -8,7 +8,7 @@ export default async function RequirementsPage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const defaultWhere = { isActive: true, jobType: { in: CONTRACT_JOB_TYPES } };
+  const defaultWhere = { isActive: true, archivedAt: null, jobType: { in: CONTRACT_JOB_TYPES } };
 
   const [initialJobs, total, stats] = await Promise.all([
     prisma.jobSearchResult.findMany({
@@ -25,11 +25,11 @@ export default async function RequirementsPage() {
     }),
     prisma.jobSearchResult.count({ where: defaultWhere }),
     Promise.all([
-      prisma.jobSearchResult.count({ where: { isActive: true, isContract: true, dateScraped: { gte: todayStart } } }),
-      prisma.jobSearchResult.count({ where: { isActive: true, isContract: true, isRemote: true } }),
-      prisma.jobSearchResult.count({ where: { isActive: true, isContract: true, jobType: { contains: "C2C" } } }),
-      prisma.jobSearchResult.aggregate({ where: { isActive: true, isContract: true, rateMin: { not: null } }, _avg: { rateMin: true } }),
-      prisma.jobSearchResult.findFirst({ where: { isActive: true, isContract: true }, orderBy: { dateScraped: "desc" }, select: { dateScraped: true } }),
+      prisma.jobSearchResult.count({ where: { isActive: true, archivedAt: null, isContract: true, dateScraped: { gte: todayStart } } }),
+      prisma.jobSearchResult.count({ where: { isActive: true, archivedAt: null, isContract: true, isRemote: true } }),
+      prisma.jobSearchResult.count({ where: { isActive: true, archivedAt: null, isContract: true, jobType: { contains: "C2C" } } }),
+      prisma.jobSearchResult.aggregate({ where: { isActive: true, archivedAt: null, isContract: true, rateMin: { not: null } }, _avg: { rateMin: true } }),
+      prisma.jobSearchResult.findFirst({ where: { isActive: true, archivedAt: null, isContract: true }, orderBy: { dateScraped: "desc" }, select: { dateScraped: true } }),
     ]),
   ]);
 
