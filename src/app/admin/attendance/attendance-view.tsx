@@ -841,13 +841,14 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
                         title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} IST${cell.late ? " (late)" : ""}` : ""}${editable ? ` · click to change` : ""}`}
                         className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
                       >
-                        <MiniCell cell={cell} />
-                        {/* Entry time (IST), slanted so it fits the narrow column */}
-                        {cell.markedAt && (
-                          <span className="mx-auto mt-1 flex h-7 w-6 items-center justify-center">
+                        {/* Entry time (IST), slanted so it fits the narrow column, above the day's box.
+                            The space is kept on days without a time so every box in the row lines up. */}
+                        <span className="mx-auto mb-1 flex h-7 w-6 items-center justify-center">
+                          {cell.markedAt && (
                             <span className={cn("-rotate-[60deg] whitespace-nowrap text-[8.5px] font-bold", cell.late ? "text-orange-600" : "text-slate-600")}>{fmtEntry(cell.markedAt).replace(/\s?([AP])M$/, (_, m: string) => m.toLowerCase())}</span>
-                          </span>
-                        )}
+                          )}
+                        </span>
+                        <MiniCell cell={cell} />
                       </td>
                     );
                   })}
