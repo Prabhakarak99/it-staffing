@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ScrapedJob } from "@/lib/apify/types";
+import { dayKeyOf } from "@/lib/tz";
 
 export interface SaveResult {
   created: number;
@@ -28,8 +29,17 @@ export async function findExistingJobIds(jobIds: string[]): Promise<Set<string>>
   return new Set(rows.map((r) => r.jobId));
 }
 
+/**
+ * Only jobs posted today are shown. A job that arrives with an older posting date is stored already
+ * archived: kept as a backup (and so pay-per-job sources are not asked for it again), never listed.
+ * Posting dates are often date-only (UTC midnight), so the UTC date is compared with today's Central date.
+ */
+export const postedBeforeToday = (datePosted: Date | null, now = new Date()) =>
+  !!datePosted && datePosted.toISOString().slice(0, 10) < dayKeyOf(now);
+
 function createData(job: ScrapedJob, hash: string): Prisma.JobSearchResultCreateManyInput {
   return {
+    archivedAt:       postedBeforeToday(job.datePosted) ? new Date() : null,
     jobId:            job.jobId,
     source:           job.source,
     title:            job.title,

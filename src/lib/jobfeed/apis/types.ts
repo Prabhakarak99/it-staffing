@@ -7,6 +7,8 @@ export interface ApiJob {
   externalId: string;
   title: string | null;
   company: string | null;
+  /** Where the job was found, when it differs from the provider (e.g. "LinkedIn" from a job-board feed) */
+  sourceLabel?: string;
   /** The recruiter or poster, when the provider names one */
   contactName?: string | null;
   location: string | null;

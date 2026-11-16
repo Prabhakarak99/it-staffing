@@ -2,6 +2,11 @@ import { apiJson, pick, rowsOf, toDate, type ApiJob, type JobApiConnector } from
 
 // Fantastic.jobs — https://developer.fantastic.jobs (GET /v1/active-ats, Bearer key).
 // Plans count both jobs returned and API requests, so a pull is ONE request: all titles joined with OR.
+const BOARD_NAMES: Record<string, string> = { linkedin: "LinkedIn", wellfound: "Wellfound", ycombinator: "Y Combinator" };
+
+/** Today's date in US Central time, "yyyy-mm-dd" */
+const todayCentral = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
 const feed = (path: "active-ats" | "active-jb"): JobApiConnector => async (cfg) => {
   // time_frame only has fixed sizes, so date_created_gte narrows it to what is new since the last pull:
   // every job returned costs a credit, and this keeps the same job from being paid for twice
@@ -11,6 +16,8 @@ const feed = (path: "active-ats" | "active-jb"): JobApiConnector => async (cfg) 
   const params = new URLSearchParams({
     time_frame: timeFrame,
     date_created_gte: cfg.since.toISOString(),
+    // Only jobs posted today (Central date): older postings would be billed and then hidden anyway
+    date_posted_gte: `${todayCentral()}T00:00:00Z`,
     title,
     location: "United States",
     description_format: "text",
@@ -30,6 +37,8 @@ const feed = (path: "active-ats" | "active-jb"): JobApiConnector => async (cfg) 
       title: pick(r, "title"),
       company: pick(r, "organization"),
       contactName: pick(r, "recruiter_name", "ai_hiring_manager_name"),
+      // Job boards: name the board itself (LinkedIn, Wellfound...) so the Source filter finds it
+      sourceLabel: path === "active-jb" ? BOARD_NAMES[pick(r, "source") ?? ""] : undefined,
       location: pick(r, "locations_derived", "locations_alt", "cities_derived", "regions_derived", "countries_derived"),
       description: pick(r, "description_text") ?? "",
       applyUrl: pick(r, "url"),

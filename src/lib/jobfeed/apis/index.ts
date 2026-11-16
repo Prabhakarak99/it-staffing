@@ -18,6 +18,9 @@ import { aspen } from "./aspen";
 import { jobfront } from "./jobfront";
 import { zyte } from "./zyte";
 
+/** Short names shown on job cards and in the Source filter */
+const SOURCE_LABEL: Partial<Record<JobApiId, string>> = { fantastic: "Fantastic.jobs", fantasticjb: "LinkedIn", linkedinposts: "LinkedIn Posts", aspen: "Aspen Tech Labs", zyte: "Zyte" };
+
 const CONNECTORS: Record<JobApiId, JobApiConnector> = { fantastic, fantasticjb: fantasticBoards, linkedinposts: linkedinPosts, coresignal, sourcestack, aspen, jobfront, zyte };
 
 const mask = (key: string) => (key.length <= 8 ? "••••" : `${key.slice(0, 4)}••••${key.slice(-4)}`);
@@ -70,7 +73,7 @@ function toScrapedJob(id: JobApiId, job: ApiJob): ScrapedJob {
   const keep = rules.jobType !== "Full-time";
   return {
     jobId: jobIdOf(id, job.externalId),
-    source: JOB_APIS[id].name,
+    source: job.sourceLabel ?? SOURCE_LABEL[id] ?? JOB_APIS[id].name,
     title: title || null,
     vendorName: job.contactName ?? job.company,
     vendorEmail: keep ? extractEmail(job.description) : null,

@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
   if (source)     must.push({ source });
   if (sourceType) must.push({ sourceType });
   if (location)   must.push({ location: { contains: location, mode: "insensitive" } });
-  if (dateFrom)   must.push({ dateScraped: { gte: new Date(dateFrom) } });
+  // By the day the job was posted (the day we found it, for sources that give no posting date)
+  if (dateFrom)   must.push({ OR: [{ datePosted: { gte: new Date(dateFrom) } }, { datePosted: null, dateScraped: { gte: new Date(dateFrom) } }] });
 
   if (keyword) {
     must.push({

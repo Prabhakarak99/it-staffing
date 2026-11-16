@@ -17,7 +17,7 @@ export const EMPTY_FILTERS: Filters = {
   keyword: "", technology: "", source: "", location: "", dateFrom: "", jobType: "", sourceType: "",
 };
 
-const SOURCES = ["LinkedIn", "Indeed", "Google", "Greenhouse", "Lever", "Ashby", "SmartRecruiters", "Workday"];
+const SOURCES = ["LinkedIn", "LinkedIn Posts", "Indeed", "Google", "Fantastic.jobs", "Greenhouse", "Lever", "Ashby", "SmartRecruiters", "Workday"];
 
 const JOB_TYPES = [
   { label: "All", value: "" },
@@ -36,7 +36,8 @@ const SOURCE_TYPES = [
 
 const DATE_OPTIONS = [
   { label: "All Time", value: "" },
-  { label: "Today",    value: new Date().toISOString().split("T")[0] },
+  // Today in US Central time, matching how posting days are counted
+  { label: "Today",    value: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()) },
   { label: "This Week", value: (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })() },
   { label: "This Month", value: (() => { const d = new Date(); d.setDate(1); return d.toISOString().split("T")[0]; })() },
 ];
