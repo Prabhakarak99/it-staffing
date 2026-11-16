@@ -31,6 +31,7 @@ const SOURCE_TYPES = [
   { label: "All", value: "" },
   { label: "Company sites", value: "ats" },
   { label: "Job boards", value: "board" },
+  { label: "Job data APIs", value: "api" },
 ];
 
 const DATE_OPTIONS = [

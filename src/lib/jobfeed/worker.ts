@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { runAllScrapers } from "@/lib/apify/scraperService";
 import { crawlCompany } from "./ats";
 import { runAiStep } from "./ai";
+import { processJobApis } from "./apis";
 
 // ATS jobs not seen for this long are closed; non-contract markers are deleted after the longer window
 const STALE_DAYS = 3;
@@ -86,6 +87,8 @@ export async function processJobFeed(opts: { force?: boolean } = {}) {
 
     await crawlDueCompanies(config, force);
     await scrapeBoardsIfDue(config, force);
+    // Paid job-data APIs configured in AI Settings, each on its own schedule
+    await processJobApis().catch((err) => console.error("[job-apis] step failed:", err));
     if (config.aiEnabled) {
       // Re-read: the crawl may take minutes and the batch id is written by runAiStep itself
       await runAiStep(await getJobIngestConfig());

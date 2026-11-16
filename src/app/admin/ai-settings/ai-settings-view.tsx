@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/catalog";
 import type { AiProviderRow } from "@/lib/ai/admin";
 import { APP_TZ } from "@/lib/tz";
+import type { JobApiRow } from "@/lib/jobfeed/apis/catalog";
+import { JobApisSection } from "./job-apis-section";
 
 interface FormState {
   id?: string;
@@ -28,7 +30,7 @@ const emptyForm = (provider: ProviderId = "openai"): FormState => ({
   baseUrl: "",
 });
 
-export function AiSettingsView({ providers: initial }: { providers: AiProviderRow[] }) {
+export function AiSettingsView({ providers: initial, jobApis }: { providers: AiProviderRow[]; jobApis: JobApiRow[] }) {
   const { toast, show, hide } = useToast();
   const [providers, setProviders] = useState(initial);
   const [form, setForm] = useState<FormState | null>(null);
@@ -89,7 +91,7 @@ export function AiSettingsView({ providers: initial }: { providers: AiProviderRo
 
   return (
     <>
-      <Header title="AI Settings" subtitle="API keys used for AI resume updates and ATS scoring" />
+      <Header title="AI Settings" subtitle="API keys for AI resume updates and ATS scoring, and for job data APIs" />
       <div className="space-y-5 p-6">
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-5 py-4">
           <Bot className="h-5 w-5 text-indigo-600" />
@@ -155,6 +157,8 @@ export function AiSettingsView({ providers: initial }: { providers: AiProviderRo
             ))}
           </div>
         )}
+
+        <JobApisSection initial={jobApis} notify={show} />
       </div>
 
       {form && meta && (

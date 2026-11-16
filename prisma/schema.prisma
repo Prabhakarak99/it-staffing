@@ -407,6 +407,31 @@ model JobIngestConfig {
   updatedAt            DateTime  @updatedAt
 }
 
+/// A paid job-data API feeding the Requirements tab (see src/lib/jobfeed/apis). id = provider key.
+model JobApiSource {
+  id            String    @id // fantastic | coresignal | sourcestack | aspen | jobfront | zyte
+  /// AES-256-GCM encrypted; never sent to the browser
+  apiKeyEnc     String?
+  isEnabled     Boolean   @default(false)
+  intervalMin   Int       @default(60)
+  maxPerRun     Int       @default(100)
+  keywords      String    @default("") // one per line
+  contractOnly  Boolean   @default(true)
+  extraParams   String    @default("") // provider-specific query string
+  startUrls     String    @default("") // Zyte: pages to read, one per line
+  lastRunAt     DateTime?
+  lastError     String?
+  lastFetched   Int       @default(0)
+  lastNew       Int       @default(0)
+  totalNew      Int       @default(0)
+  lastTestedAt  DateTime?
+  lastTestError String?
+  updatedById   String?
+  updatedAt     DateTime  @updatedAt
+
+  @@map("job_api_sources")
+}
+
 // ── Gmail: each user's own Workspace mailbox (OAuth, gmail.modify) ─────────
 
 model GmailAccount {

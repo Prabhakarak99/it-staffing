@@ -20,7 +20,7 @@ export interface ScrapedJob {
   datePosted: Date | null;
   rawData: Record<string, unknown>;
   // ── Job feed fields (optional so the Apify scrapers don't need to set them) ──
-  sourceType?: "ats" | "board" | "email";
+  sourceType?: "ats" | "board" | "email" | "api";
   atsProvider?: string | null;
   atsCompanyId?: string | null;
   companyName?: string | null;
