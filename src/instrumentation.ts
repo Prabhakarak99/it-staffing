@@ -21,9 +21,10 @@ export async function register() {
     .catch((err) => console.error("[requirements] undo automatic submissions failed:", err));
 
   void import("@/lib/jobfeed/archive")
-    .then(async ({ archiveOldJobsOnce, archiveOldPostedJobsOnce }) => {
+    .then(async ({ archiveOldJobsOnce, archiveOldPostedJobsOnce, restoreYesterdayPostedJobsOnce }) => {
       await archiveOldJobsOnce();
       await archiveOldPostedJobsOnce();
+      await restoreYesterdayPostedJobsOnce();
     })
     .catch((err) => console.error("[jobfeed] archiving old jobs failed:", err));
 

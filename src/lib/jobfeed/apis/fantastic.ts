@@ -4,8 +4,11 @@ import { apiJson, pick, rowsOf, toDate, type ApiJob, type JobApiConnector } from
 // Plans count both jobs returned and API requests, so a pull is ONE request: all titles joined with OR.
 const BOARD_NAMES: Record<string, string> = { linkedin: "LinkedIn", wellfound: "Wellfound", ycombinator: "Y Combinator" };
 
-/** Today's date in US Central time, "yyyy-mm-dd" */
-const todayCentral = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+/** Yesterday's date in US Central time, "yyyy-mm-dd" */
+const yesterdayCentral = () => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+};
 
 const feed = (path: "active-ats" | "active-jb"): JobApiConnector => async (cfg) => {
   // time_frame only has fixed sizes, so date_created_gte narrows it to what is new since the last pull:
@@ -16,8 +19,8 @@ const feed = (path: "active-ats" | "active-jb"): JobApiConnector => async (cfg) 
   const params = new URLSearchParams({
     time_frame: timeFrame,
     date_created_gte: cfg.since.toISOString(),
-    // Only jobs posted today (Central date): older postings would be billed and then hidden anyway
-    date_posted_gte: `${todayCentral()}T00:00:00Z`,
+    // Only jobs posted yesterday or today (Central dates): older postings would be billed and then hidden anyway
+    date_posted_gte: `${yesterdayCentral()}T00:00:00Z`,
     title,
     location: "United States",
     description_format: "text",

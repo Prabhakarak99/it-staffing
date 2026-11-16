@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ScrapedJob } from "@/lib/apify/types";
-import { dayKeyOf } from "@/lib/tz";
+import { addKeyDays, dayKeyOf } from "@/lib/tz";
 
 export interface SaveResult {
   created: number;
@@ -30,16 +30,17 @@ export async function findExistingJobIds(jobIds: string[]): Promise<Set<string>>
 }
 
 /**
- * Only jobs posted today are shown. A job that arrives with an older posting date is stored already
- * archived: kept as a backup (and so pay-per-job sources are not asked for it again), never listed.
- * Posting dates are often date-only (UTC midnight), so the UTC date is compared with today's Central date.
+ * Only jobs posted yesterday or today are shown (yesterday too, so evening postings pulled the next
+ * morning are not lost). A job that arrives with an older posting date is stored already archived:
+ * kept as a backup (and so pay-per-job sources are not asked for it again), never listed.
+ * Posting dates are often date-only (UTC midnight), so the UTC date is compared with Central dates.
  */
-export const postedBeforeToday = (datePosted: Date | null, now = new Date()) =>
-  !!datePosted && datePosted.toISOString().slice(0, 10) < dayKeyOf(now);
+export const postedTooLongAgo = (datePosted: Date | null, now = new Date()) =>
+  !!datePosted && datePosted.toISOString().slice(0, 10) < addKeyDays(dayKeyOf(now), -1);
 
 function createData(job: ScrapedJob, hash: string): Prisma.JobSearchResultCreateManyInput {
   return {
-    archivedAt:       postedBeforeToday(job.datePosted) ? new Date() : null,
+    archivedAt:       postedTooLongAgo(job.datePosted) ? new Date() : null,
     jobId:            job.jobId,
     source:           job.source,
     title:            job.title,

@@ -32,3 +32,21 @@ export async function archiveOldPostedJobsOnce() {
   ]);
   console.log(`[jobfeed] archived ${res.count} requirement job(s) posted before today (kept as backup)`);
 }
+
+/**
+ * One-time, asked for on 2026-11-16: yesterday's postings count as fresh too. Brings back the jobs
+ * pulled on Nov 16 and posted on Nov 15 that the step above hid. Jobs collected before Nov 16 (the
+ * first soft delete) stay archived.
+ */
+export async function restoreYesterdayPostedJobsOnce() {
+  const id = "restore-requirement-jobs-posted-2026-11-15";
+  if (await prisma.appMigration.findUnique({ where: { id } })) return;
+  const [res] = await prisma.$transaction([
+    prisma.jobSearchResult.updateMany({
+      where: { archivedAt: { not: null }, dateScraped: { gte: dayStart("2026-11-16") }, datePosted: { gte: new Date("2026-11-15T00:00:00.000Z") } },
+      data: { archivedAt: null },
+    }),
+    prisma.appMigration.create({ data: { id } }),
+  ]);
+  console.log(`[jobfeed] restored ${res.count} requirement job(s) posted on Nov 15 or later`);
+}
