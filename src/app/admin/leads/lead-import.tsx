@@ -6,7 +6,7 @@ import { CheckCircle2, Download, ExternalLink, FileSpreadsheet, Link2, Loader2, 
 import { Button } from "@/components/ui/button";
 
 interface Result { added: number; skipped: { row: number; reason: string }[] }
-export type SheetNotice = { ok: true } | { ok: false; message: string };
+export type SheetNotice = { ok: true; enabledOnly?: boolean } | { ok: false; message: string };
 interface SheetStatus { connected: boolean; url: string | null }
 
 /** Popup: download the sheet format, then upload a filled Excel / Google Sheets file */
@@ -79,9 +79,18 @@ export function LeadImportDialog({ onClose, notice }: { onClose: () => void; not
             <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 font-medium text-rose-700">
               {error}
               {/Google Sheets API is not turned on/.test(error) && (
-                <> <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank" rel="noreferrer" className="font-semibold underline">Open the Google Sheets API page</a>, choose the project used for Mailbox, and click Enable.</>
+                <span className="mt-2 block">
+                  <a href="/api/leads/sheet/enable-api" className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 font-semibold text-white hover:bg-rose-700">Turn it on now</a>
+                  <span className="mt-1.5 block font-normal text-rose-700/90">
+                    Sign in with the Google account that owns the Google Cloud project (the one that set up Mailbox) and click Allow; the app switches it on and creates your sheet.
+                    Or do it by hand: <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank" rel="noreferrer" className="font-semibold underline">open the Google Sheets API page</a> and click Enable.
+                  </span>
+                </span>
               )}
             </p>
+          )}
+          {notice?.ok && notice.enabledOnly && (
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-700">Google Sheets is now switched on for the app. Click Connect to Google Sheet below.</p>
           )}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
             <p className="flex items-center gap-1.5 font-semibold text-slate-800"><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Google Sheet (no Excel needed)</p>
@@ -106,7 +115,7 @@ export function LeadImportDialog({ onClose, notice }: { onClose: () => void; not
               </>
             ) : (
               <>
-                {notice?.ok && <p className="mt-1 font-semibold text-emerald-700">Connected. Your Leads sheet is ready in your Google Drive.</p>}
+                {notice?.ok && !notice.enabledOnly && <p className="mt-1 font-semibold text-emerald-700">Connected. Your Leads sheet is ready in your Google Drive.</p>}
                 <p className="mt-1 text-slate-600">Add one lead per row in your sheet, then click Load. Rows already loaded are skipped, so you can keep adding to the same sheet.</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <a href={sheet.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 font-semibold text-emerald-700 hover:bg-emerald-50">

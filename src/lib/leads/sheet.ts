@@ -9,6 +9,49 @@ export const SHEET_SCOPE = "https://www.googleapis.com/auth/drive.file";
 /** Third part of the OAuth state when the sign-in is for the Leads sheet (see /api/gmail/callback) */
 export const SHEET_STATE = "sheet";
 
+/** Lets the app switch a Google service on in the project (asked for only by "Turn it on now") */
+export const CLOUD_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+/** OAuth state for that one-off sign-in */
+export const SHEET_API_STATE = "sheetapi";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Switches the Google Sheets API on in the app's Google Cloud project, with the access token of
+ * whoever just signed in. Google only allows this for an owner or editor of that project.
+ */
+export async function enableSheetsApi(accessToken: string, projectNumber: string) {
+  const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+  const res = await fetch(`https://serviceusage.googleapis.com/v1/projects/${projectNumber}/services/sheets.googleapis.com:enable`, { method: "POST", headers, body: "{}", signal: AbortSignal.timeout(25_000) });
+  const body = (await res.json().catch(() => null)) as { name?: string; done?: boolean; error?: { message?: string; status?: string; details?: { reason?: string }[] } } | null;
+  if (!res.ok) {
+    console.error("[lead-sheet] enabling the Sheets API failed:", res.status, JSON.stringify(body?.error ?? {}));
+    if (body?.error?.details?.some((d) => d.reason === "SERVICE_DISABLED")) {
+      throw new Error("Google would not let the app switch it on automatically for this project (its Service Usage API is off). Please use the manual link and click Enable.");
+    }
+    if (res.status === 403) throw new Error("That Google account is not an owner or editor of the Google Cloud project. Sign in with the account that created the Mailbox Google setup.");
+    throw new Error(`Google could not turn on the Sheets API (${res.status}): ${body?.error?.message ?? "unknown reason"}`);
+  }
+  // Enabling is a short background operation at Google; wait for it to finish
+  for (let i = 0; i < 10 && body?.name && !body.done; i++) {
+    await sleep(2_000);
+    const op = (await fetch(`https://serviceusage.googleapis.com/v1/${body.name}`, { headers }).then((r) => r.json()).catch(() => null)) as { done?: boolean } | null;
+    if (op?.done) break;
+  }
+}
+
+/** Creates the sheet, retrying for about half a minute while a just-enabled API takes effect */
+export async function createLeadSheetWhenReady(userId: string, ownerName: string) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await createLeadSheet(userId, ownerName);
+    } catch (err) {
+      if (attempt >= 5 || !(err instanceof LeadSheetError) || !/not turned on/.test(err.message)) throw err;
+      await sleep(6_000);
+    }
+  }
+}
+
 export class LeadSheetError extends Error {
   constructor(message: string, readonly code: "not_connected" | "gone" | "google" = "google") {
     super(message);

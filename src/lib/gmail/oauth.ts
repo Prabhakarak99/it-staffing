@@ -35,6 +35,11 @@ export function clearOAuthClientCache() {
   cached = null;
 }
 
+/** The Google Cloud project the OAuth client belongs to: the number a client id starts with */
+export async function googleProjectNumber() {
+  return /^(\d+)-/.exec((await getOAuthClient())?.clientId ?? "")?.[1] ?? null;
+}
+
 export async function isGmailConfigured() {
   return !!(await getOAuthClient());
 }

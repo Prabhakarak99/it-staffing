@@ -21,7 +21,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <LeadsView
       showOwner={seeAll}
-      sheetNotice={sp.sheet === "connected" ? { ok: true } : sp.sheet === "error" ? { ok: false, message: sp.message ?? "Could not connect Google Sheets." } : null}
+      sheetNotice={sp.sheet === "connected" ? { ok: true } : sp.sheet === "enabled" ? { ok: true, enabledOnly: true } : sp.sheet === "error" ? { ok: false, message: sp.message ?? "Could not connect Google Sheets." } : null}
       leads={leads.map(({ createdBy, ...lead }) => ({
         ...lead,
         createdByName: createdBy ? `${createdBy.firstName} ${createdBy.lastName}` : null,

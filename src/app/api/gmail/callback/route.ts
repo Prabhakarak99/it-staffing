@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-url";
-import { OAUTH_STATE_COOKIE, exchangeCode, fetchProfileEmail, saveAccount, saveConsultantMailbox } from "@/lib/gmail/oauth";
+import { OAUTH_STATE_COOKIE, exchangeCode, fetchProfileEmail, googleProjectNumber, saveAccount, saveConsultantMailbox } from "@/lib/gmail/oauth";
 import { syncEmailStats } from "@/lib/gmail/stats";
 import { CONSULTANT_MAIL_SCREEN } from "@/lib/consultant-mail/data";
 import { consultantScope } from "@/lib/resumes/data";
-import { SHEET_STATE, createLeadSheet, saveSheetTokens } from "@/lib/leads/sheet";
+import { SHEET_API_STATE, SHEET_STATE, createLeadSheet, createLeadSheetWhenReady, enableSheetsApi, saveSheetTokens } from "@/lib/leads/sheet";
+
+// Switching the Sheets API on and then creating the sheet can take up to a minute
+export const maxDuration = 120;
 
 /**
  * GET /api/gmail/callback — Google redirects here after access is allowed (or denied): for the user's
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.redirect(new URL("/login", appOrigin()));
 
   // Leads > "Connect Google Sheet" comes back here too (one redirect URI at Google)
-  if (target === SHEET_STATE) {
+  if (target === SHEET_STATE || target === SHEET_API_STATE) {
     const toLeads = (status: string, message?: string) => {
       const url = new URL("/admin/leads", appOrigin());
       url.searchParams.set("sheet", status);
@@ -46,9 +49,22 @@ export async function GET(req: NextRequest) {
       return toLeads("error", "The connection request expired. Please try again.");
     }
     try {
-      await saveSheetTokens(session.userId, await exchangeCode(sheetCode));
       const me = await prisma.user.findUnique({ where: { id: session.userId }, select: { firstName: true, lastName: true } });
-      await createLeadSheet(session.userId, me ? `${me.firstName} ${me.lastName}`.trim() : session.email);
+      const myName = me ? `${me.firstName} ${me.lastName}`.trim() : session.email;
+
+      // "Turn it on now": switch the Sheets API on in the Google Cloud project, then finish this person's sheet
+      if (target === SHEET_API_STATE) {
+        const project = await googleProjectNumber();
+        if (!project) return toLeads("error", "Could not tell which Google Cloud project the app uses.");
+        await enableSheetsApi((await exchangeCode(sheetCode)).access_token, project);
+        const connected = await prisma.leadSheet.findUnique({ where: { userId: session.userId }, select: { spreadsheetId: true } });
+        if (!connected) return toLeads("enabled");
+        if (!connected.spreadsheetId) await createLeadSheetWhenReady(session.userId, myName);
+        return toLeads("connected");
+      }
+
+      await saveSheetTokens(session.userId, await exchangeCode(sheetCode));
+      await createLeadSheet(session.userId, myName);
       return toLeads("connected");
     } catch (err) {
       console.error("[lead-sheet] connect failed:", err);
