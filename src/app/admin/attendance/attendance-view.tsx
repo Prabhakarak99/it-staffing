@@ -10,7 +10,6 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { APP_TZ } from "@/lib/tz";
 import { fmtDayKey, fmtMonth, shiftMonth, weekday } from "@/lib/attendance/dates";
 import type { LeaveBalance } from "@/lib/attendance/leave";
 import { isEditableDay } from "@/lib/attendance/cells";
@@ -79,8 +78,8 @@ const range = (l: { startDate: string; endDate: string }) =>
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Weeks Monday → Sunday, padded with nulls on either side */
-/** "9:02 AM" Central */
-const fmtEntry = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ });
+/** Entry times are always shown in India time (IST), where the team works: "9:02 AM" */
+const fmtEntry = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
 function weeks(days: DayCell[]) {
   const lead = (weekday(days[0].day) + 6) % 7;
@@ -375,7 +374,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
           <div>
             <p className="text-[13px] font-bold text-slate-900">{fmtMonth(view.month)}</p>
             <p className="text-[11px] text-slate-400">
-              One row per week, Monday to Sunday. Central time (CT).{onEditDay ? " Click a day to mark it present or absent (you confirm first)." : ""}
+              One row per week, Monday to Sunday. Days follow Central time; the entry time written across a day is in India time (IST).{onEditDay ? " Click a day to mark it present or absent (you confirm first)." : ""}
             </p>
           </div>
         </div>
@@ -389,20 +388,26 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
             cell ? (
               <div
                 key={cell.day}
-                title={`${CELL[cell.status].label}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} CT` : ""}${onEditDay && isEditableDay(cell, today) ? " · click to change" : ""}`}
+                title={`${CELL[cell.status].label}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} IST` : ""}${onEditDay && isEditableDay(cell, today) ? " · click to change" : ""}`}
                 onClick={onEditDay && isEditableDay(cell, today) ? () => onEditDay(cell) : undefined}
                 className={cn(
-                  "flex h-[78px] flex-col justify-between rounded-xl border p-2",
+                  "relative flex h-[78px] flex-col justify-between overflow-hidden rounded-xl border p-2",
                   CELL[cell.status].box,
                   onEditDay && isEditableDay(cell, today) && "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md",
                 )}
               >
+                {/* Entry time (IST), written diagonally across the box */}
+                {cell.markedAt && (
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="-rotate-[24deg] whitespace-nowrap text-[13px] font-extrabold tracking-wide text-slate-700/80">{fmtEntry(cell.markedAt)}</span>
+                  </span>
+                )}
                 <div className="flex items-start justify-between">
                   <span className="text-[13px] font-bold text-slate-700">{Number(cell.day.slice(8))}</span>
                   <DayBadge status={cell.status} />
                 </div>
                 <span className={cn("truncate text-[10px] font-medium", cell.status === "weekend" ? "text-slate-400" : "text-slate-500")}>
-                  {cell.sandwich ? "Sandwich" : cell.markedAt ? <>In <b className="font-semibold text-slate-700">{fmtEntry(cell.markedAt)}</b></> : CELL[cell.status].label}
+                  {cell.sandwich ? "Sandwich" : cell.markedAt ? "" : CELL[cell.status].label}
                 </span>
               </div>
             ) : (
@@ -673,7 +678,7 @@ function Approvals({ data, notify, onChange }: { data: ApprovalData; notify: (m:
                     <td className="whitespace-nowrap px-4 py-2.5 font-medium text-slate-800">{fmtDayKey(a.day)}</td>
                     <td className="px-4 py-2.5"><p className="font-semibold text-slate-800">{a.name}</p><p className="text-[11px] text-slate-400">{a.email}</p></td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">
-                      {new Date(a.markedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ })} CT
+                      {fmtEntry(a.markedAt)} IST
                     </td>
                     <td className="max-w-[260px] truncate px-4 py-2.5 text-slate-500" title={a.note ?? ""}>{a.note || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
@@ -825,10 +830,16 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
                       <td
                         key={cell.day}
                         onClick={editable ? () => onEditDay(r.userId, cell) : undefined}
-                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} CT` : ""}${editable ? ` · click to change` : ""}`}
+                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} IST` : ""}${editable ? ` · click to change` : ""}`}
                         className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
                       >
                         <MiniCell cell={cell} />
+                        {/* Entry time (IST), slanted so it fits the narrow column */}
+                        {cell.markedAt && (
+                          <span className="mx-auto mt-1 flex h-7 w-6 items-center justify-center">
+                            <span className="-rotate-[60deg] whitespace-nowrap text-[8.5px] font-bold text-slate-600">{fmtEntry(cell.markedAt).replace(/\s?([AP])M$/, (_, m: string) => m.toLowerCase())}</span>
+                          </span>
+                        )}
                       </td>
                     );
                   })}
