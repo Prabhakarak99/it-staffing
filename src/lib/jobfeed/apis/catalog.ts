@@ -1,6 +1,6 @@
 // Paid job-data APIs that can feed the Requirements tab. No server imports: the settings page uses this too.
 
-export const JOB_API_IDS = ["fantastic", "coresignal", "sourcestack", "aspen", "jobfront", "zyte"] as const;
+export const JOB_API_IDS = ["fantastic", "fantasticjb", "linkedinposts", "coresignal", "sourcestack", "aspen", "jobfront", "zyte"] as const;
 export type JobApiId = (typeof JOB_API_IDS)[number];
 
 export const isJobApiId = (v: unknown): v is JobApiId => typeof v === "string" && (JOB_API_IDS as readonly string[]).includes(v);
@@ -42,6 +42,34 @@ export const JOB_APIS: Record<JobApiId, JobApiMeta> = {
     // One request per pull, hourly 8 AM to 5 PM Central = 10 requests a day
     defaultWindow: { from: 8, to: 17 },
     extraHint: "Query parameters, e.g. ai_visa_sponsorship=only&organization_agency=only",
+  },
+  fantasticjb: {
+    name: "Fantastic.jobs: LinkedIn & job boards",
+    about: "Job listings posted directly on LinkedIn, Wellfound and Y Combinator, with the recruiter's name. A second feed on the same Fantastic.jobs account.",
+    access: "self-serve",
+    accessNote: "Paste the same Fantastic.jobs API key here. Its pulls count against the same plan as the company-site feed.",
+    pricing: "Same Fantastic.jobs plan: one job credit per job returned and one request per pull.",
+    keyLabel: "Fantastic.jobs API key",
+    keyUrl: "https://dashboard.fantastic.jobs",
+    docsUrl: "https://developer.fantastic.jobs/api/job-board-jobs",
+    confidence: "documented",
+    defaultIntervalMin: 60,
+    defaultWindow: { from: 8, to: 17 },
+    extraHint: "Query parameters, e.g. source=linkedin&seniority=Mid-Senior level",
+  },
+  linkedinposts: {
+    name: "LinkedIn posts (Apify)",
+    about: "Searches public LinkedIn posts for requirement posts (\"C2C Java...\") and keeps the ones that look like a job requirement. No LinkedIn login is used.",
+    access: "self-serve",
+    accessNote: "Uses your Apify account: paste an Apify API token. It runs the HarvestAPI LinkedIn Post Search actor.",
+    pricing: "About $1.50 to $2 per 1,000 posts read, billed to your Apify account. Posts that are not requirements are read (and billed) but not saved.",
+    keyLabel: "Apify API token",
+    keyUrl: "https://console.apify.com/account/integrations",
+    docsUrl: "https://apify.com/harvestapi/linkedin-post-search",
+    confidence: "partly documented",
+    defaultIntervalMin: 120,
+    defaultWindow: { from: 8, to: 17 },
+    extraHint: "Actor input fields, e.g. sortBy=relevance",
   },
   coresignal: {
     name: "Coresignal",

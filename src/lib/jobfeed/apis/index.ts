@@ -10,14 +10,15 @@ import { classifyByRules, isUsLocation } from "../rules";
 import { findExistingJobIds, saveJobs } from "../upsert";
 import { DEFAULT_KEYWORDS, JOB_APIS, JOB_API_IDS, type JobApiId, type JobApiRow } from "./catalog";
 import type { ApiJob, JobApiConnector } from "./types";
-import { fantastic } from "./fantastic";
+import { fantastic, fantasticBoards } from "./fantastic";
+import { linkedinPosts } from "./linkedin-posts";
 import { coresignal } from "./coresignal";
 import { sourcestack } from "./sourcestack";
 import { aspen } from "./aspen";
 import { jobfront } from "./jobfront";
 import { zyte } from "./zyte";
 
-const CONNECTORS: Record<JobApiId, JobApiConnector> = { fantastic, coresignal, sourcestack, aspen, jobfront, zyte };
+const CONNECTORS: Record<JobApiId, JobApiConnector> = { fantastic, fantasticjb: fantasticBoards, linkedinposts: linkedinPosts, coresignal, sourcestack, aspen, jobfront, zyte };
 
 const mask = (key: string) => (key.length <= 8 ? "••••" : `${key.slice(0, 4)}••••${key.slice(-4)}`);
 const list = (s: string) => s.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
@@ -71,7 +72,7 @@ function toScrapedJob(id: JobApiId, job: ApiJob): ScrapedJob {
     jobId: jobIdOf(id, job.externalId),
     source: JOB_APIS[id].name,
     title: title || null,
-    vendorName: job.company,
+    vendorName: job.contactName ?? job.company,
     vendorEmail: keep ? extractEmail(job.description) : null,
     vendorPhone: keep ? extractPhone(job.description) : null,
     location: job.location,

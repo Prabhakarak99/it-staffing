@@ -7,6 +7,8 @@ export interface ApiJob {
   externalId: string;
   title: string | null;
   company: string | null;
+  /** The recruiter or poster, when the provider names one */
+  contactName?: string | null;
   location: string | null;
   /** Plain text */
   description: string;
