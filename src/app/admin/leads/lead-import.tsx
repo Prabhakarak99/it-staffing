@@ -75,6 +75,14 @@ export function LeadImportDialog({ onClose, notice }: { onClose: () => void; not
         </div>
 
         <div className="space-y-4 overflow-y-auto p-5 text-[12.5px] text-slate-700">
+          {error && (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 font-medium text-rose-700">
+              {error}
+              {/Google Sheets API is not turned on/.test(error) && (
+                <> <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank" rel="noreferrer" className="font-semibold underline">Open the Google Sheets API page</a>, choose the project used for Mailbox, and click Enable.</>
+              )}
+            </p>
+          )}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
             <p className="flex items-center gap-1.5 font-semibold text-slate-800"><FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Google Sheet (no Excel needed)</p>
             {!sheet ? (
@@ -149,7 +157,6 @@ export function LeadImportDialog({ onClose, notice }: { onClose: () => void; not
             </p>
           </div>
 
-          {error && <p className="font-medium text-rose-600">{error}</p>}
 
           {result && (
             <div className="space-y-2">
