@@ -994,6 +994,9 @@ model AppreciationAward {
   count     Int
   /// Rupees: the prize divided by the number of winners
   amount    Float
+  /// Paid out to the employee (null = pending), and which Super Admin marked it
+  paidAt    DateTime?
+  paidById  String?
   createdAt DateTime @default(now())
 
   @@unique([month, category, userId])
@@ -1015,6 +1018,9 @@ model AppreciationBonus {
   consultantName String?
   /// Rupees
   amount         Float
+  /// Paid out to the employee (null = pending), and which Super Admin marked it
+  paidAt         DateTime?
+  paidById       String?
   createdById    String
   createdAt      DateTime @default(now())
 

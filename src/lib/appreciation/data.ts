@@ -102,17 +102,18 @@ export async function bonusOptions(now = new Date()) {
   };
 }
 
-export interface AwardRow { id: string; month: string; category: Category; userId: string; name: string; count: number; amount: number }
+export interface AwardRow { id: string; month: string; category: Category; userId: string; name: string; count: number; amount: number; paidAt: string | null }
 export interface Standing { userId: string; name: string; count: number }
 
-export interface BonusRow { id: string; userId: string; name: string; reason: string; amount: number; addedBy: string; at: string }
+export interface BonusRow { id: string; userId: string; name: string; reason: string; amount: number; addedBy: string; at: string; paidAt: string | null }
 
 export interface AppreciationBoard {
   awards: AwardRow[];
   /** Additional bonuses a Super Admin added, newest first */
   bonuses: BonusRow[];
   /** Total per person (awards + bonuses), highest first; `wins` counts monthly awards only */
-  accounts: { userId: string; name: string; wins: number; bonus: number; total: number }[];
+  /** `paid` / `pending`: rupees already paid out, and still to pay */
+  accounts: { userId: string; name: string; wins: number; bonus: number; total: number; paid: number; pending: number }[];
   myTotal: number;
   /** The running month so far: top five in each category */
   current: { month: string; standings: Record<Category, Standing[]> };
@@ -129,30 +130,32 @@ export async function appreciationBoard(session: SessionPayload, now = new Date(
   const nameOf = new Map(users.map((u) => [u.id, fullName(u)]));
   const name = (id: string) => nameOf.get(id) ?? "Former employee";
 
-  const accounts = new Map<string, { userId: string; name: string; wins: number; bonus: number; total: number }>();
+  const accounts = new Map<string, AppreciationBoard["accounts"][number]>();
   const account = (userId: string) => {
     let acc = accounts.get(userId);
-    if (!acc) accounts.set(userId, (acc = { userId, name: name(userId), wins: 0, bonus: 0, total: 0 }));
+    if (!acc) accounts.set(userId, (acc = { userId, name: name(userId), wins: 0, bonus: 0, total: 0, paid: 0, pending: 0 }));
     return acc;
   };
   for (const a of awards) {
     const acc = account(a.userId);
     acc.wins++;
     acc.total += a.amount;
+    acc[a.paidAt ? "paid" : "pending"] += a.amount;
   }
   for (const b of bonuses) {
     const acc = account(b.userId);
     acc.bonus += b.amount;
     acc.total += b.amount;
+    acc[b.paidAt ? "paid" : "pending"] += b.amount;
   }
   const top5 = (byUser: Map<string, number>): Standing[] =>
     [...byUser.entries()].map(([userId, count]) => ({ userId, name: name(userId), count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 5);
 
   return {
-    awards: awards.map((a) => ({ id: a.id, month: a.month, category: a.category as Category, userId: a.userId, name: name(a.userId), count: a.count, amount: a.amount })),
+    awards: awards.map((a) => ({ id: a.id, month: a.month, category: a.category as Category, userId: a.userId, name: name(a.userId), count: a.count, amount: a.amount, paidAt: a.paidAt?.toISOString() ?? null })),
     bonuses: bonuses.map((b) => ({
       id: b.id, userId: b.userId, name: name(b.userId), reason: bonusReasonLabel(b), amount: b.amount,
-      addedBy: nameOf.get(b.createdById) ?? "Super Admin", at: b.createdAt.toISOString(),
+      addedBy: nameOf.get(b.createdById) ?? "Super Admin", at: b.createdAt.toISOString(), paidAt: b.paidAt?.toISOString() ?? null,
     })),
     accounts: [...accounts.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)),
     myTotal: accounts.get(session.userId)?.total ?? 0,

@@ -107,6 +107,35 @@ export function AdditionalBonusButton({ options }: { options: BonusOptions }) {
   );
 }
 
+/** Paid / Pending for one award or bonus: a dropdown for the Super Admin, a badge for everyone else */
+export function PaidStatus({ kind, id, paidAt, canEdit }: { kind: "award" | "bonus"; id: string; paidAt: string | null; canEdit: boolean }) {
+  const router = useRouter();
+  const [paid, setPaid] = useState(!!paidAt);
+  const [busy, setBusy] = useState(false);
+  const cls = paid ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700";
+  if (!canEdit) return <span className={`rounded-md border px-1.5 py-0.5 text-[11px] font-semibold ${cls}`}>{paid ? "Paid" : "Pending"}</span>;
+
+  const change = async (next: boolean) => {
+    setPaid(next);
+    setBusy(true);
+    const res = await fetch("/api/appreciation/paid", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, paid: next }) });
+    setBusy(false);
+    if (!res.ok) {
+      setPaid(!next);
+      return window.alert("Could not change the payment status");
+    }
+    router.refresh();
+  };
+  return (
+    <select value={paid ? "paid" : "pending"} disabled={busy} onChange={(e) => change(e.target.value === "paid")}
+      title={paidAt ? `Paid on ${new Date(paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : "Not paid yet"}
+      className={`h-7 rounded-md border px-1.5 text-[11.5px] font-semibold disabled:opacity-60 ${cls}`}>
+      <option value="pending">Pending</option>
+      <option value="paid">Paid</option>
+    </select>
+  );
+}
+
 /** Super Admin: remove a bonus added by mistake */
 export function DeleteBonusButton({ id, label }: { id: string; label: string }) {
   const router = useRouter();

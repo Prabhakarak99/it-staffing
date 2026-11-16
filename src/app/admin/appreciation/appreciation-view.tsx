@@ -2,7 +2,7 @@ import { Award, CalendarCheck, Send } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { cn } from "@/lib/utils";
 import type { AppreciationBoard, Category } from "@/lib/appreciation/data";
-import { AdditionalBonusButton, DeleteBonusButton, type BonusOptions } from "./bonus-controls";
+import { AdditionalBonusButton, DeleteBonusButton, PaidStatus, type BonusOptions } from "./bonus-controls";
 import { APP_TZ } from "@/lib/tz";
 
 const rupees = (n: number) => `₹${(Math.round(n * 100) / 100).toLocaleString("en-IN")}`;
@@ -27,6 +27,9 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
 }) {
   const { awards, bonuses, accounts, myTotal, current } = board;
   const months = [...new Set(awards.map((a) => a.month))];
+  // Only the Super Admin (who sees the bonus controls) marks payments
+  const canPay = !!bonusOptions;
+  const sum = (k: "paid" | "pending") => accounts.reduce((n, a) => n + a[k], 0);
   const th = "whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300";
 
   return (
@@ -52,8 +55,9 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
             </div>
           )}
           <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Awards and bonuses given</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-800">{awards.length + bonuses.length}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Still to pay</p>
+            <p className={cn("mt-1 text-2xl font-bold tabular-nums", sum("pending") ? "text-amber-600" : "text-slate-400")}>{rupees(sum("pending"))}</p>
+            <p className="mt-0.5 text-[11px] text-slate-400">{rupees(sum("paid"))} paid so far</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total given</p>
@@ -102,11 +106,11 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">
               <thead className="bg-slate-800">
-                <tr>{["Month", "Award", "Winner", "Count", "Amount"].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
+                <tr>{["Month", "Award", "Winner", "Count", "Amount", "Status"].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {awards.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-400">No awards yet. The first ones are added on December 1, 2026, for November.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">No awards yet. The first ones are added on December 1, 2026, for November.</td></tr>
                 )}
                 {months.flatMap((m) =>
                   awards.filter((a) => a.month === m).map((a, i) => (
@@ -120,6 +124,7 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
                       <td className="whitespace-nowrap px-4 py-2.5 font-bold tabular-nums text-emerald-700">
                         {rupees(a.amount)}{a.amount < prize ? <span className="ml-1 text-[11px] font-medium text-slate-400">shared</span> : null}
                       </td>
+                      <td className="whitespace-nowrap px-4 py-2.5"><PaidStatus kind="award" id={a.id} paidAt={a.paidAt} canEdit={canPay} /></td>
                     </tr>
                   )),
                 )}
@@ -135,11 +140,11 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
             <div className="overflow-x-auto">
               <table className="w-full text-[12.5px]">
                 <thead className="bg-slate-800">
-                  <tr>{["Date", "Employee", "Reason", "Amount", "Added by", ...(bonusOptions ? [""] : [])].map((h, i) => <th key={i} className={th}>{h}</th>)}</tr>
+                  <tr>{["Date", "Employee", "Reason", "Amount", "Status", "Added by", ...(bonusOptions ? [""] : [])].map((h, i) => <th key={i} className={th}>{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {bonuses.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No additional bonuses yet. Use the Additional Bonus button to add one.</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No additional bonuses yet. Use the Additional Bonus button to add one.</td></tr>
                   )}
                   {bonuses.map((b) => (
                     <tr key={b.id} className={cn("hover:bg-slate-50", b.userId === myId && "bg-indigo-50/40")}>
@@ -147,6 +152,7 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
                       <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-800">{b.name}{b.userId === myId ? " (you)" : ""}</td>
                       <td className="px-4 py-2.5 text-slate-700">{b.reason}</td>
                       <td className="whitespace-nowrap px-4 py-2.5 font-bold tabular-nums text-emerald-700">{rupees(b.amount)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5"><PaidStatus kind="bonus" id={b.id} paidAt={b.paidAt} canEdit={canPay} /></td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{b.addedBy}</td>
                       {bonusOptions && <td className="px-4 py-2.5 text-right"><DeleteBonusButton id={b.id} label={b.name} /></td>}
                     </tr>
@@ -164,7 +170,7 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
             <div className="overflow-x-auto">
               <table className="w-full text-[12.5px]">
                 <thead className="bg-slate-800">
-                  <tr>{["Name", "Monthly awards won", "Additional bonus", "Total"].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
+                  <tr>{["Name", "Monthly awards won", "Additional bonus", "Total", "Paid", "Pending"].map((h) => <th key={h} className={th}>{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {accounts.map((a) => (
@@ -173,6 +179,8 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
                       <td className="px-4 py-2.5 tabular-nums text-slate-600">{a.wins}</td>
                       <td className={cn("px-4 py-2.5 tabular-nums", a.bonus ? "text-slate-700" : "text-slate-300")}>{rupees(a.bonus)}</td>
                       <td className="px-4 py-2.5 font-bold tabular-nums text-emerald-700">{rupees(a.total)}</td>
+                      <td className={cn("px-4 py-2.5 tabular-nums", a.paid ? "text-slate-700" : "text-slate-300")}>{rupees(a.paid)}</td>
+                      <td className={cn("px-4 py-2.5 font-semibold tabular-nums", a.pending ? "text-amber-600" : "text-slate-300")}>{rupees(a.pending)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -182,6 +190,8 @@ export function AppreciationView({ board, prize, myId, hasAccount, bonusOptions 
                     <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{accounts.reduce((n, a) => n + a.wins, 0)}</td>
                     <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{rupees(accounts.reduce((n, a) => n + a.bonus, 0))}</td>
                     <td className="px-4 py-2.5 font-bold tabular-nums text-emerald-700">{rupees(accounts.reduce((n, a) => n + a.total, 0))}</td>
+                    <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{rupees(sum("paid"))}</td>
+                    <td className="px-4 py-2.5 font-bold tabular-nums text-amber-600">{rupees(sum("pending"))}</td>
                   </tr>
                 </tfoot>
               </table>
