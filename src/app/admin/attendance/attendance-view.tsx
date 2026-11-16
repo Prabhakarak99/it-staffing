@@ -767,11 +767,15 @@ const TOTALS: { label: string; get: (r: TeamMonthRow) => number; color: string }
 
 /** Small day marker for the team grid */
 function MiniCell({ cell }: { cell: DayCell }) {
-  const base = "mx-auto flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold";
+  const base = "mx-auto flex h-8 w-8 items-center justify-center overflow-hidden rounded-md text-[10px] font-bold";
+  // Entry time (IST) written at an angle on the coloured box itself, e.g. "7:56p"
+  const time = cell.markedAt ? (
+    <span className="-rotate-45 whitespace-nowrap text-[9px] font-extrabold leading-none">{fmtEntry(cell.markedAt).replace(/\s?([AP])M$/, (_, m: string) => m.toLowerCase())}</span>
+  ) : null;
   switch (cell.status) {
-    case "present": return <span className={cn(base, cell.late ? "bg-orange-500 text-white" : "bg-emerald-500 text-white")}><Check className="h-3.5 w-3.5" /></span>;
+    case "present": return <span className={cn(base, cell.late ? "bg-orange-500 text-white" : "bg-emerald-500 text-white")}>{time ?? <Check className="h-3.5 w-3.5" />}</span>;
     case "absent": return <span className={cn(base, "bg-rose-500 text-white", cell.sandwich && "ring-2 ring-rose-200")}>0</span>;
-    case "pending": return <span className={cn(base, cell.late ? "bg-orange-500 text-white" : "bg-amber-400 text-white")}><Clock className="h-3 w-3" /></span>;
+    case "pending": return <span className={cn(base, cell.late ? "bg-orange-500 text-white" : "bg-amber-400 text-white")}>{time ?? <Clock className="h-3 w-3" />}</span>;
     case "leave": return <span className={cn(base, "bg-sky-500 text-white")}>L</span>;
     case "unpaid": return <span className={cn(base, "bg-orange-500 text-[8px] text-white")}>LOP</span>;
     case "leave-pending": return <span className={cn(base, "bg-violet-400 text-white")}>L?</span>;
@@ -812,7 +816,7 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
             <tr className="bg-slate-800">
               <th className="sticky left-0 z-10 min-w-[180px] bg-slate-800 px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300">Employee</th>
               {days.map((d) => (
-                <th key={d.day} className={cn("min-w-[30px] px-0.5 py-1.5 text-center font-semibold", [0, 6].includes(weekday(d.day)) ? "text-slate-500" : "text-slate-200", d.day === today && "bg-indigo-600 text-white")}>
+                <th key={d.day} className={cn("min-w-[36px] px-0.5 py-1.5 text-center font-semibold", [0, 6].includes(weekday(d.day)) ? "text-slate-500" : "text-slate-200", d.day === today && "bg-indigo-600 text-white")}>
                   <span className="block text-[11px]">{Number(d.day.slice(8))}</span>
                   <span className="block text-[9px] font-normal">{"SMTWTFS"[weekday(d.day)]}</span>
                 </th>
@@ -841,13 +845,6 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
                         title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} IST${cell.late ? " (late)" : ""}` : ""}${editable ? ` · click to change` : ""}`}
                         className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
                       >
-                        {/* Entry time (IST), slanted so it fits the narrow column, above the day's box.
-                            The space is kept on days without a time so every box in the row lines up. */}
-                        <span className="mx-auto mb-1 flex h-7 w-6 items-center justify-center">
-                          {cell.markedAt && (
-                            <span className={cn("-rotate-[60deg] whitespace-nowrap text-[8.5px] font-bold", cell.late ? "text-orange-600" : "text-slate-600")}>{fmtEntry(cell.markedAt).replace(/\s?([AP])M$/, (_, m: string) => m.toLowerCase())}</span>
-                          )}
-                        </span>
                         <MiniCell cell={cell} />
                       </td>
                     );
