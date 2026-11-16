@@ -45,8 +45,8 @@ export function TeamSheetSection({ myEmail, onResult, onError }: {
       {!setup && team.url && (
         <>
           <p className="mt-1 text-slate-600">
-            Add your leads to the team sheet with <b>{myEmail}</b> in the <b>Recruiter Email</b> column, then click Load.
-            {team.canManage ? " As an admin, your Load brings in everyone's rows, each to the recruiter named on it." : " Only rows with your email are loaded."} Rows already loaded are skipped.
+            Everyone adds leads to this one sheet, then clicks Load. Rows are loaded once, to whoever loads them first.
+            To keep a row for a particular recruiter, put their login email (yours is <b>{myEmail}</b>) in a <b>Recruiter Email</b> column. Rows already loaded are skipped.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <a href={team.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 font-semibold text-indigo-700 hover:bg-indigo-50">
@@ -65,12 +65,9 @@ export function TeamSheetSection({ myEmail, onResult, onError }: {
       {setup && team.canManage && (
         <>
           <ol className="mt-1 list-decimal space-y-1 pl-4 text-slate-600">
-            <li>
-              <a href="/api/leads/template?format=csv&team=1" download className="inline-flex items-center gap-1 font-semibold text-indigo-700 hover:underline"><Download className="h-3.5 w-3.5" /> Download the team sheet format</a>,
-              open <a href="https://sheets.new" target="_blank" rel="noreferrer" className="font-semibold text-indigo-700 hover:underline">sheets.new</a>, then <b>File &gt; Import &gt; Upload</b> and pick the file.
-            </li>
-            <li>In the sheet click <b>Share</b>, set General access to <b>Anyone with the link</b>, role <b>Editor</b>, so every recruiter can add rows.</li>
-            <li>Copy the sheet&apos;s link from the address bar and paste it here.</li>
+            <li>Use any Google Sheet. For a ready-made one, <a href="/api/leads/template?format=csv&team=1" download className="inline-flex items-center gap-1 font-semibold text-indigo-700 hover:underline"><Download className="h-3.5 w-3.5" /> download the format</a>, open <a href="https://sheets.new" target="_blank" rel="noreferrer" className="font-semibold text-indigo-700 hover:underline">sheets.new</a>, then <b>File &gt; Import &gt; Upload</b>.</li>
+            <li>In the sheet click <b>Share</b>, set General access to <b>Anyone with the link</b>, role <b>Editor</b>, so everyone can work in it.</li>
+            <li>Paste the sheet&apos;s link here and click Save.</li>
           </ol>
           <div className="mt-2 flex gap-2">
             <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…"
