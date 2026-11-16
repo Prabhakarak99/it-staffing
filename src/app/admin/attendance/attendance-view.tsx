@@ -12,6 +12,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { fmtDayKey, fmtMonth, shiftMonth, weekday } from "@/lib/attendance/dates";
 import type { LeaveBalance } from "@/lib/attendance/leave";
+import { LATE_AFTER_LABEL, LATE_RULE_START, LOGIN_TIME_LABEL } from "@/lib/attendance/late";
 import { isEditableDay } from "@/lib/attendance/cells";
 import type { DayCell, DayStatus, MonthSummary, MonthView } from "@/lib/attendance/month";
 import type { TeamMonthRow } from "@/lib/attendance/team";
@@ -305,6 +306,7 @@ function LeaveBalanceBar({ balance, canRequest, onRequest, viewing }: {
     { label: "Earned", value: balance.accrued, hint: "1 paid leave every month" },
     { label: "Used", value: balance.used },
     { label: "Pending", value: balance.pending, hint: "In requests waiting for approval" },
+    ...(balance.latePenalty ? [{ label: "Late logins", value: balance.latePenalty, hint: `Leave taken for logging in after ${LATE_AFTER_LABEL}` }] : []),
   ];
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 to-white px-5 py-4 shadow-sm">
@@ -344,9 +346,10 @@ function SummaryCards({ summary }: { summary: MonthSummary }) {
     { label: "Paid Leave", value: summary.paidLeave, color: "text-sky-600" },
     { label: "Unpaid Leave", value: summary.unpaidLeave, color: "text-orange-600" },
     { label: "Pending", value: summary.pending, color: "text-amber-600" },
+    { label: summary.lateLeave ? `Late Days (${summary.lateLeave} leave)` : "Late Days", value: summary.lateDays, color: "text-orange-600" },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
       {cards.map((c) => (
         <div key={c.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <p className={cn("text-[24px] font-extrabold tabular-nums leading-none", c.color)}>{c.value}</p>
@@ -392,14 +395,14 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
                 onClick={onEditDay && isEditableDay(cell, today) ? () => onEditDay(cell) : undefined}
                 className={cn(
                   "relative flex h-[78px] flex-col justify-between overflow-hidden rounded-xl border p-2",
-                  CELL[cell.status].box,
+                  cell.late ? "border-orange-400 bg-orange-100" : CELL[cell.status].box,
                   onEditDay && isEditableDay(cell, today) && "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md",
                 )}
               >
                 {/* Entry time (IST), written diagonally across the box */}
                 {cell.markedAt && (
                   <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <span className="-rotate-[24deg] whitespace-nowrap text-[13px] font-extrabold tracking-wide text-slate-700/80">{fmtEntry(cell.markedAt)}</span>
+                    <span className={cn("-rotate-[24deg] whitespace-nowrap text-[13px] font-extrabold tracking-wide", cell.late ? "text-orange-700" : "text-slate-700/80")}>{fmtEntry(cell.markedAt)}</span>
                   </span>
                 )}
                 <div className="flex items-start justify-between">
@@ -407,7 +410,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
                   <DayBadge status={cell.status} />
                 </div>
                 <span className={cn("truncate text-[10px] font-medium", cell.status === "weekend" ? "text-slate-400" : "text-slate-500")}>
-                  {cell.sandwich ? "Sandwich" : cell.markedAt ? "" : CELL[cell.status].label}
+                  {cell.sandwich ? "Sandwich" : cell.late ? <b className="font-bold text-orange-700">Late</b> : cell.markedAt ? "" : CELL[cell.status].label}
                 </span>
               </div>
             ) : (
@@ -419,6 +422,10 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
           {(["present", "absent", "pending", "leave", "unpaid", "leave-pending"] as DayStatus[]).map((s) => (
             <span key={s} className="flex items-center gap-1.5"><DayBadge status={s} /> {CELL[s].label}</span>
           ))}
+          <span className="flex items-center gap-1.5">
+            <span className="rounded border border-orange-400 bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">Late</span>
+            Logged in after {LATE_AFTER_LABEL} (login time {LOGIN_TIME_LABEL}). In a month, 2 late days = half a day of leave, 3 = one full day. From {fmtDayKey(LATE_RULE_START, { month: "short", day: "numeric" })}.
+          </span>
           <span className="flex items-center gap-1.5">
             <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">Sandwich</span>
             Weekend counted because Friday and Monday were both off
@@ -754,6 +761,7 @@ const TOTALS: { label: string; get: (r: TeamMonthRow) => number; color: string }
   { label: "Leave", get: (r) => r.summary.paidLeave, color: "text-sky-700" },
   { label: "LOP", get: (r) => r.summary.unpaidLeave, color: "text-orange-600" },
   { label: "Pending", get: (r) => r.summary.pending, color: "text-amber-600" },
+  { label: "Late", get: (r) => r.summary.lateDays, color: "text-orange-600" },
   { label: "Balance", get: (r) => r.balance.available, color: "text-slate-800" },
 ];
 
@@ -761,9 +769,9 @@ const TOTALS: { label: string; get: (r: TeamMonthRow) => number; color: string }
 function MiniCell({ cell }: { cell: DayCell }) {
   const base = "mx-auto flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold";
   switch (cell.status) {
-    case "present": return <span className={cn(base, "bg-emerald-500 text-white")}><Check className="h-3.5 w-3.5" /></span>;
+    case "present": return <span className={cn(base, cell.late ? "bg-orange-500 text-white" : "bg-emerald-500 text-white")}><Check className="h-3.5 w-3.5" /></span>;
     case "absent": return <span className={cn(base, "bg-rose-500 text-white", cell.sandwich && "ring-2 ring-rose-200")}>0</span>;
-    case "pending": return <span className={cn(base, "bg-amber-400 text-white")}><Clock className="h-3 w-3" /></span>;
+    case "pending": return <span className={cn(base, cell.late ? "bg-orange-500 text-white" : "bg-amber-400 text-white")}><Clock className="h-3 w-3" /></span>;
     case "leave": return <span className={cn(base, "bg-sky-500 text-white")}>L</span>;
     case "unpaid": return <span className={cn(base, "bg-orange-500 text-[8px] text-white")}>LOP</span>;
     case "leave-pending": return <span className={cn(base, "bg-violet-400 text-white")}>L?</span>;
@@ -830,14 +838,14 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
                       <td
                         key={cell.day}
                         onClick={editable ? () => onEditDay(r.userId, cell) : undefined}
-                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} IST` : ""}${editable ? ` · click to change` : ""}`}
+                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} IST${cell.late ? " (late)" : ""}` : ""}${editable ? ` · click to change` : ""}`}
                         className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
                       >
                         <MiniCell cell={cell} />
                         {/* Entry time (IST), slanted so it fits the narrow column */}
                         {cell.markedAt && (
                           <span className="mx-auto mt-1 flex h-7 w-6 items-center justify-center">
-                            <span className="-rotate-[60deg] whitespace-nowrap text-[8.5px] font-bold text-slate-600">{fmtEntry(cell.markedAt).replace(/\s?([AP])M$/, (_, m: string) => m.toLowerCase())}</span>
+                            <span className={cn("-rotate-[60deg] whitespace-nowrap text-[8.5px] font-bold", cell.late ? "text-orange-600" : "text-slate-600")}>{fmtEntry(cell.markedAt).replace(/\s?([AP])M$/, (_, m: string) => m.toLowerCase())}</span>
                           </span>
                         )}
                       </td>

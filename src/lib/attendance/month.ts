@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayKeyOf } from "@/lib/tz";
+import { entryTime, isLate, lateLeaveDays } from "./late";
 import { ATTENDANCE_START, addDays, dateToKey, eachDay, isWeekend, keyToDate, monthRange, todayKey, weekday } from "./dates";
 
 export type DayStatus =
@@ -21,6 +21,8 @@ export interface DayCell {
   sandwich?: boolean;
   /** When the employee marked themselves in that day (ISO); absent when an admin set the day instead */
   markedAt?: string;
+  /** Marked in after 7:40 PM IST (rule from 2026-11-17) */
+  late?: boolean;
 }
 
 export interface MonthSummary {
@@ -31,6 +33,9 @@ export interface MonthSummary {
   paidLeave: number;
   unpaidLeave: number;
   pending: number;
+  /** Days marked in late this month, and the leave charged for them (2 = half a day, 3 = one day) */
+  lateDays: number;
+  lateLeave: number;
 }
 
 export interface MonthView {
@@ -65,11 +70,10 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
   const marks = new Map(attendance.map((a) => [dateToKey(a.day), a.status]));
   // Entry time: only when the employee marked in on that same Central day. A row an admin created
   // ("Set to present by admin") carries the admin's click time, which is not an entry time.
-  const entryAt = new Map<string, string>();
+  const entryAt = new Map<string, Date>();
   for (const a of attendance) {
-    const key = dateToKey(a.day);
-    const byAdmin = !!a.reviewNote?.startsWith("Set to") && !!a.reviewedAt && Math.abs(a.reviewedAt.getTime() - a.markedAt.getTime()) < 5_000;
-    if (!byAdmin && dayKeyOf(a.markedAt) === key) entryAt.set(key, a.markedAt.toISOString());
+    const entry = entryTime(a);
+    if (entry) entryAt.set(dateToKey(a.day), entry);
   }
   const leaveByDay = new Map<string, DayStatus>();
   for (const l of leaves) {
@@ -94,8 +98,8 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
 
   const cells: DayCell[] = eachDay(first, last).map((day) => {
     const status = baseStatus(day);
-    const markedAt = status === "present" || status === "pending" ? entryAt.get(day) : undefined;
-    if (status !== "weekend") return markedAt ? { day, status, markedAt } : { day, status };
+    const entry = status === "present" || status === "pending" ? entryAt.get(day) : undefined;
+    if (status !== "weekend") return entry ? { day, status, markedAt: entry.toISOString(), ...(isLate(day, entry) ? { late: true } : {}) } : { day, status };
     // Sandwich: Friday and Monday around this weekend both not worked → the weekend counts too
     const friday = weekday(day) === 6 ? addDays(day, -1) : addDays(day, -2);
     const monday = weekday(day) === 6 ? addDays(day, 2) : addDays(day, 1);
@@ -107,6 +111,7 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
   });
 
   const count = (s: DayStatus) => cells.filter((c) => c.status === s).length;
+  const lateDays = cells.filter((c) => c.late).length;
   return {
     month,
     days: cells,
@@ -118,6 +123,8 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
       paidLeave: count("leave"),
       unpaidLeave: count("unpaid"),
       pending: count("pending") + count("leave-pending"),
+      lateDays,
+      lateLeave: lateLeaveDays(lateDays),
     },
   };
 }
