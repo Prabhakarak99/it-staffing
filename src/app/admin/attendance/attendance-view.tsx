@@ -79,6 +79,9 @@ const range = (l: { startDate: string; endDate: string }) =>
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Weeks Monday → Sunday, padded with nulls on either side */
+/** "9:02 AM" Central */
+const fmtEntry = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ });
+
 function weeks(days: DayCell[]) {
   const lead = (weekday(days[0].day) + 6) % 7;
   const cells: (DayCell | null)[] = [...Array(lead).fill(null), ...days];
@@ -386,7 +389,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
             cell ? (
               <div
                 key={cell.day}
-                title={onEditDay && isEditableDay(cell, today) ? `${CELL[cell.status].label} · click to change` : CELL[cell.status].label}
+                title={`${CELL[cell.status].label}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} CT` : ""}${onEditDay && isEditableDay(cell, today) ? " · click to change" : ""}`}
                 onClick={onEditDay && isEditableDay(cell, today) ? () => onEditDay(cell) : undefined}
                 className={cn(
                   "flex h-[78px] flex-col justify-between rounded-xl border p-2",
@@ -399,7 +402,7 @@ function CalendarGrid({ view, today, onEditDay, flat }: {
                   <DayBadge status={cell.status} />
                 </div>
                 <span className={cn("truncate text-[10px] font-medium", cell.status === "weekend" ? "text-slate-400" : "text-slate-500")}>
-                  {cell.sandwich ? "Sandwich" : CELL[cell.status].label}
+                  {cell.sandwich ? "Sandwich" : cell.markedAt ? <>In <b className="font-semibold text-slate-700">{fmtEntry(cell.markedAt)}</b></> : CELL[cell.status].label}
                 </span>
               </div>
             ) : (
@@ -822,7 +825,7 @@ function TeamGrid({ team, month, today, canEdit, onEditDay, onOpen }: {
                       <td
                         key={cell.day}
                         onClick={editable ? () => onEditDay(r.userId, cell) : undefined}
-                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${editable ? ` · click to change` : ""}`}
+                        title={`${fmtDayKey(cell.day)}: ${CELL[cell.status].label || "—"}${cell.sandwich ? " (sandwich)" : ""}${cell.markedAt ? ` · in at ${fmtEntry(cell.markedAt)} CT` : ""}${editable ? ` · click to change` : ""}`}
                         className={cn("border-b border-slate-100 px-0.5 py-1.5 group-hover:bg-slate-50", editable && "cursor-pointer hover:!bg-indigo-50")}
                       >
                         <MiniCell cell={cell} />

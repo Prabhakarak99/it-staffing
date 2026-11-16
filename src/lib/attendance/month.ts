@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { dayKeyOf } from "@/lib/tz";
 import { ATTENDANCE_START, addDays, dateToKey, eachDay, isWeekend, keyToDate, monthRange, todayKey, weekday } from "./dates";
 
 export type DayStatus =
@@ -18,6 +19,8 @@ export interface DayCell {
   status: DayStatus;
   /** Weekend charged because the Friday and Monday around it are leave / absent */
   sandwich?: boolean;
+  /** When the employee marked themselves in that day (ISO); absent when an admin set the day instead */
+  markedAt?: string;
 }
 
 export interface MonthSummary {
@@ -51,7 +54,7 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
   const [attendance, leaves] = await Promise.all([
     prisma.attendance.findMany({
       where: { userId, day: { gte: keyToDate(from), lte: keyToDate(to) } },
-      select: { day: true, status: true },
+      select: { day: true, status: true, markedAt: true, reviewedAt: true, reviewNote: true },
     }),
     prisma.leaveRequest.findMany({
       where: { userId, status: { in: ["pending", "approved"] }, startDate: { lte: keyToDate(to) }, endDate: { gte: keyToDate(addDays(from, -2)) } },
@@ -60,6 +63,14 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
   ]);
 
   const marks = new Map(attendance.map((a) => [dateToKey(a.day), a.status]));
+  // Entry time: only when the employee marked in on that same Central day. A row an admin created
+  // ("Set to present by admin") carries the admin's click time, which is not an entry time.
+  const entryAt = new Map<string, string>();
+  for (const a of attendance) {
+    const key = dateToKey(a.day);
+    const byAdmin = !!a.reviewNote?.startsWith("Set to") && !!a.reviewedAt && Math.abs(a.reviewedAt.getTime() - a.markedAt.getTime()) < 5_000;
+    if (!byAdmin && dayKeyOf(a.markedAt) === key) entryAt.set(key, a.markedAt.toISOString());
+  }
   const leaveByDay = new Map<string, DayStatus>();
   for (const l of leaves) {
     l.days.forEach((d, i) => {
@@ -83,7 +94,8 @@ export async function buildMonth(userId: string, month: string, trackFrom?: stri
 
   const cells: DayCell[] = eachDay(first, last).map((day) => {
     const status = baseStatus(day);
-    if (status !== "weekend") return { day, status };
+    const markedAt = status === "present" || status === "pending" ? entryAt.get(day) : undefined;
+    if (status !== "weekend") return markedAt ? { day, status, markedAt } : { day, status };
     // Sandwich: Friday and Monday around this weekend both not worked → the weekend counts too
     const friday = weekday(day) === 6 ? addDays(day, -1) : addDays(day, -2);
     const monday = weekday(day) === 6 ? addDays(day, 2) : addDays(day, 1);

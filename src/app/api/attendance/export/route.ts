@@ -6,6 +6,7 @@ import { canApprove } from "@/lib/attendance/access";
 import { dateToKey, fmtDayKey, fmtMonth, isMonthKey, keyToDate, monthOf, monthRange, todayKey } from "@/lib/attendance/dates";
 import type { DayStatus } from "@/lib/attendance/month";
 import { getTeamMonth } from "@/lib/attendance/team";
+import { APP_TZ } from "@/lib/tz";
 
 export const maxDuration = 60;
 
@@ -94,6 +95,19 @@ export async function GET(req: NextRequest) {
   ws.getColumn(3).width = 14;
   days.forEach((_, i) => (ws.getColumn(4 + i).width = 5));
   totals.forEach((_, i) => (ws.getColumn(4 + days.length + i).width = 11));
+
+  // ── Entry times: when each person marked in, Central time ──
+  const es = wb.addWorksheet("Entry Times", { views: [{ state: "frozen", xSplit: 1, ySplit: 2 }] });
+  es.addRow([`Entry times (Central) — ${fmtMonth(month)}. Blank: not marked in, or the day was set by an admin.`]).font = { italic: true, size: 9, color: { argb: "FF64748B" } };
+  es.addRow(["Employee", ...days.map((d) => fmtDayKey(d, { day: "numeric", weekday: "narrow" }))]).eachCell((c) => {
+    c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+    c.alignment = { horizontal: "center" };
+  });
+  const entry = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: APP_TZ }) : "");
+  for (const r of team) es.addRow([r.name, ...r.days.map((d) => entry(d.markedAt))]);
+  es.getColumn(1).width = 24;
+  days.forEach((_, i) => (es.getColumn(2 + i).width = 9));
 
   // ── Sheet 2: leave requests touching the month ──
   const ls = wb.addWorksheet("Leave Requests", { views: [{ state: "frozen", ySplit: 1 }] });
