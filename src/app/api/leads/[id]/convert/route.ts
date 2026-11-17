@@ -27,6 +27,10 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Add the lead's full name and email before moving them to Consultants" }, { status: 400 });
     }
 
+    if (lead.consultantId) {
+      return NextResponse.json({ error: "This lead is already in Pre-Marketing" }, { status: 409 });
+    }
+
     const emailTaken = await prisma.student.findUnique({ where: { email: lead.email } });
     if (emailTaken) {
       return NextResponse.json({ error: "A consultant with this email already exists" }, { status: 409 });
@@ -72,7 +76,8 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
         },
       });
 
-      await tx.lead.delete({ where: { id: lead.id } });
+      // The lead stays in Leads, linked to its consultant, so its progress can still be tracked there
+      await tx.lead.update({ where: { id: lead.id }, data: { consultantId: created.id, status: "Premarketing" } });
 
       return created;
     });

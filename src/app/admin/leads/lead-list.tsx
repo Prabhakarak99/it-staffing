@@ -171,8 +171,8 @@ export function LeadList({
         const res = await fetch(`/api/leads/${id}/convert`, { method: "POST" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to convert lead");
-        onLeadsChange?.((prev) => prev.filter((lead) => lead.id !== id));
-        show(`${consultantName} added to Consultants and moved to Pre-Marketing`, "success");
+        onLeadsChange?.((prev) => prev.map((lead) => (lead.id === id ? { ...lead, consultantId: data.consultantId, consultantStatus: "Pre-Marketing", status: "Premarketing" } : lead)));
+        show(`${consultantName} moved to Pre-Marketing. The lead stays here so you can follow its progress.`, "success");
         router.refresh();
       } catch (err) {
         show(err instanceof Error ? err.message : "Failed to convert lead", "error");
@@ -275,6 +275,11 @@ export function LeadList({
                       {!isLeadStatus(lead.status) && <option value={lead.status}>{lead.status}</option>}
                       {LEAD_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
                     </select>
+                    {lead.consultantId && (
+                      <p className="mt-1 whitespace-nowrap text-[10.5px] text-slate-500" title="The consultant's current status; the lead status follows it">
+                        Consultant: <b className="text-slate-700">{lead.consultantStatus ?? "—"}</b>
+                      </p>
+                    )}
                   </td>
                   <td className="w-[280px] min-w-[220px] max-w-[280px] px-5 py-3.5 align-top">
                     {lead.comments ? (
@@ -287,6 +292,16 @@ export function LeadList({
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1.5">
+                      {lead.consultantId ? (
+                        <a
+                          href="/admin/premarketing"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+                          title="Already converted: open Pre-Marketing"
+                        >
+                          <ArrowRightCircle className="h-3.5 w-3.5" />
+                          Converted
+                        </a>
+                      ) : (
                       <button
                         type="button"
                         onClick={() => convertLead(lead.id, leadLabel(lead))}
@@ -296,6 +311,7 @@ export function LeadList({
                         <ArrowRightCircle className="h-3.5 w-3.5" />
                         Convert
                       </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => deleteLead(lead.id, leadLabel(lead))}

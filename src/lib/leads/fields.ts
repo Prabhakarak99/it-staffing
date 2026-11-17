@@ -35,10 +35,29 @@ export function isLeadStatus(v: unknown): v is LeadStatus {
   return typeof v === "string" && (LEAD_STATUSES as readonly string[]).includes(v);
 }
 
+/**
+ * A converted lead's status, from its consultant's current status (Pre-Marketing → Premarketing,
+ * in market → Marketing, confirmed / in project → Placement). Exits leave the lead status as it was.
+ */
+export function leadStatusFromConsultant(projectStatus: string | null | undefined): LeadStatus | null {
+  switch (projectStatus) {
+    case "Pre-Marketing": return "Premarketing";
+    case "In-Market":
+    case "Project Completed- InMarket": return "Marketing";
+    case "Verbal Confirmation":
+    case "Confirmation":
+    case "In-Project":
+    case "Second Project": return "Placement";
+    default: return null;
+  }
+}
+
 /** A lead as sent to the browser (dates as ISO strings) */
 export interface LeadRow {
   id: string;
   consultantId: string | null;
+  /** Converted leads: the consultant's current status (Pre-Marketing, In-Market, ...) */
+  consultantStatus?: string | null;
   consultantName: string;
   phoneNumber: string | null;
   email: string;
