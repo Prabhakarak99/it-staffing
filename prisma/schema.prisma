@@ -323,6 +323,25 @@ model LeadSheet {
   @@map("lead_sheets")
 }
 
+/// The "loaded" flag for team Google Sheet rows: one record per row already brought into Leads, so a
+/// row is never loaded twice, even after its lead is converted to a consultant or deleted.
+model LeadSheetRow {
+  id         String   @id @default(cuid())
+  /// The Google Sheet's id (from its link)
+  sheetId    String
+  /// The row's identity: its email, else name + phone, else all its values (see rowKey in team-sheet.ts)
+  rowKey     String
+  /// Row number in the sheet when it was loaded (for messages only; rows can move)
+  rowNumber  Int
+  /// Whose lead it became
+  ownerId    String
+  loadedById String
+  loadedAt   DateTime @default(now())
+
+  @@unique([sheetId, rowKey])
+  @@map("lead_sheet_rows")
+}
+
 /// Small app-wide settings by key (e.g. "leads-team-sheet": the shared Google Sheet for leads)
 model AppSetting {
   key       String   @id

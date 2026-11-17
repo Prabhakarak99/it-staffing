@@ -1,11 +1,23 @@
+import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth";
 import { canSeeAllLeads } from "./access";
-import { fetchGoogleSheet, leadKey, parseLeadGrid, type SkippedRow } from "./import";
+import { fetchGoogleSheet, leadKey, parseLeadGrid, type ParsedLead, type SkippedRow } from "./import";
 import { parseCsv } from "@/lib/csv";
 import { saveImportedLeads } from "./save";
 
 const KEY = "leads-team-sheet";
+
+const sheetIdOf = (url: string) => /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(url)?.[1] ?? url;
+
+/** A row's identity for the "loaded" flag: its email, else name + phone, else a hash of all its values */
+const rowKey = (lead: ParsedLead) =>
+  leadKey(lead) ?? `h:${createHash("sha1").update(JSON.stringify(lead)).digest("hex")}`;
+
+const fmtLoaded = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Kolkata" });
+
+// One load at a time, so two people clicking Load together can't both take the same rows
+let loading: Promise<unknown> = Promise.resolve();
 
 /**
  * The team sheet: ONE Google Sheet everybody fills in, shared as "Anyone with the link". The app
@@ -46,7 +58,13 @@ export async function setTeamSheetUrl(url: string | null): Promise<{ error: stri
  * (a recruiter's own load takes only their rows, a manager's load takes everyone's). A row without one
  * (or a sheet without that column) goes to whoever loads it first, and is never loaded twice.
  */
-export async function loadTeamSheet(session: SessionPayload): Promise<{ error: string } | { added: number; skipped: SkippedRow[] }> {
+export function loadTeamSheet(session: SessionPayload): Promise<{ error: string } | { added: number; skipped: SkippedRow[] }> {
+  const run = loading.then(() => loadTeamSheetNow(session));
+  loading = run.catch(() => undefined);
+  return run;
+}
+
+async function loadTeamSheetNow(session: SessionPayload): Promise<{ error: string } | { added: number; skipped: SkippedRow[] }> {
   const url = await getTeamSheetUrl();
   if (!url) return { error: "No team sheet is set up yet. Ask an admin to add it." };
   const parsed = await readTeamSheet(url);
@@ -63,7 +81,13 @@ export async function loadTeamSheet(session: SessionPayload): Promise<{ error: s
   const userByEmail = new Map(users.map((u) => [u.email.trim().toLowerCase(), u.id]));
   const myEmail = session.email.trim().toLowerCase();
 
-  // Unclaimed rows: skip the ones that are already anyone's lead, so the first person to load takes them
+  // The "loaded" flags: rows of this sheet already brought in (by anyone, at any time)
+  const sheetId = sheetIdOf(url);
+  const flags = await prisma.leadSheetRow.findMany({ where: { sheetId }, select: { rowKey: true, loadedAt: true, ownerId: true } });
+  const loaded = new Map(flags.map((f) => [f.rowKey, f]));
+  const nameOf = new Map(users.map((u) => [u.id, u.email]));
+
+  // Unclaimed rows loaded before the flags existed: skip the ones that are already anyone's lead
   const allLeads = await prisma.lead.findMany({ select: { consultantName: true, email: true, phoneNumber: true } });
   const taken = new Set(allLeads.map(leadKey).filter(Boolean));
 
@@ -72,6 +96,14 @@ export async function loadTeamSheet(session: SessionPayload): Promise<{ error: s
   const add = (userId: string, entry: (typeof parsed.leads)[number]) => byOwner.set(userId, [...(byOwner.get(userId) ?? []), entry]);
   for (const entry of parsed.leads) {
     const owner = entry.owner ?? "";
+    const flag = loaded.get(rowKey(entry.lead));
+    if (flag) {
+      // Show it to managers, and to whoever the row belongs to / took it; others just don't get it
+      if (everyone || flag.ownerId === session.userId || owner === myEmail) {
+        skipped.push({ row: entry.row, reason: `Already loaded on ${fmtLoaded(flag.loadedAt)}${flag.ownerId !== session.userId ? ` (to ${nameOf.get(flag.ownerId) ?? "another user"})` : ""}` });
+      }
+      continue;
+    }
     if (!owner) {
       const key = leadKey(entry.lead);
       if (key && taken.has(key)) skipped.push({ row: entry.row, reason: "Already loaded" });
@@ -89,6 +121,15 @@ export async function loadTeamSheet(session: SessionPayload): Promise<{ error: s
   for (const [userId, leads] of byOwner) {
     const res = await saveImportedLeads(userId, { leads, skipped: [] });
     added += res.added;
+    // Flag every row that is now this user's lead (new, or already there) so it is never loaded again
+    const done = new Set(res.handled);
+    const flagged = leads.filter((l) => done.has(l.row));
+    if (flagged.length) {
+      await prisma.leadSheetRow.createMany({
+        data: flagged.map((l) => ({ sheetId, rowKey: rowKey(l.lead), rowNumber: l.row, ownerId: userId, loadedById: session.userId })),
+        skipDuplicates: true,
+      });
+    }
     skipped.push(...res.skipped.map((s) => (userId !== session.userId ? { ...s, reason: s.reason.replace("in your leads", "loaded") } : s)));
   }
   skipped.sort((a, b) => a.row - b.row);

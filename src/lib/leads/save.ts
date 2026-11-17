@@ -18,5 +18,6 @@ export async function saveImportedLeads(userId: string, parsed: { leads: { row: 
   }
   if (data.length) await prisma.lead.createMany({ data });
   skipped.sort((a, b) => a.row - b.row);
-  return { added: data.length, skipped };
+  // `handled`: sheet rows now in this user's leads, newly added or already there
+  return { added: data.length, skipped, handled: parsed.leads.map((l) => l.row).filter((r) => !skipped.some((s) => s.row === r && !s.reason.startsWith("Already in your leads"))) };
 }
