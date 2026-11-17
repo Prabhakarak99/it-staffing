@@ -3,6 +3,11 @@
 export const LEAD_STATUSES = ["Interested", "Not Responded", "Call Back", "Joined", "Premarketing", "Marketing", "Placement", "Not Interested"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
+/** Team sheet headings, in order: the lead columns (as in the upload format) plus the optional owner column */
+export const TEAM_SHEET_HEADINGS = [
+  "Full Name", "Contact Number", "Email ID", "Visa Status", "OPT Start Date", "University", "State", "Status", "Comments", "Recruiter Email",
+];
+
 export const LEAD_VISA_STATUSES = ["F1", "Initial OPT", "Stem OPT", "CPT", "H1B", "H4Ead", "GC", "TN", "U", "Citizen"];
 
 export const US_STATES = [

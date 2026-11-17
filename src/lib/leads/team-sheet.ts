@@ -50,7 +50,13 @@ export async function loadTeamSheet(session: SessionPayload): Promise<{ error: s
   const url = await getTeamSheetUrl();
   if (!url) return { error: "No team sheet is set up yet. Ask an admin to add it." };
   const parsed = await readTeamSheet(url);
-  if ("error" in parsed) return parsed;
+  if ("error" in parsed) {
+    // A new, blank team sheet: say what to do instead of "The file is empty"
+    if (/empty|No known column headings/.test(parsed.error)) {
+      return { error: 'The team sheet has no headings yet. Click "Copy column headings", click cell A1 in the sheet and paste, then add leads under them.' };
+    }
+    return parsed;
+  }
 
   const everyone = canSeeAllLeads(session);
   const users = await prisma.user.findMany({ select: { id: true, email: true } });

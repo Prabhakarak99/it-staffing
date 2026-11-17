@@ -1,11 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, ExternalLink, Loader2, RefreshCw, Users2 } from "lucide-react";
+import { Check, ClipboardCopy, Download, ExternalLink, Loader2, RefreshCw, Users2 } from "lucide-react";
+import { TEAM_SHEET_HEADINGS } from "@/lib/leads/fields";
 import { Button } from "@/components/ui/button";
 
 interface Result { added: number; skipped: { row: number; reason: string }[] }
 interface Team { url: string | null; canManage: boolean }
+
+/**
+ * Copies the headings tab-separated: pasted into cell A1 of a Google Sheet they fill A1 to J1.
+ * (The app can't write into the sheet itself without Google sign-in, so this is the one-paste way.)
+ */
+function CopyHeadings() {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(TEAM_SHEET_HEADINGS.join("\t"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt("Copy these headings, then paste them into cell A1:", TEAM_SHEET_HEADINGS.join("\t"));
+    }
+  };
+  return (
+    <button type="button" onClick={copy} className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 font-semibold text-indigo-700 hover:bg-indigo-50">
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <ClipboardCopy className="h-3.5 w-3.5" />} {copied ? "Copied: paste into cell A1" : "Copy column headings"}
+    </button>
+  );
+}
 
 /** Top of the upload popup: the one Google Sheet the whole team fills in (no Google sign-in needed) */
 export function TeamSheetSection({ myEmail, onResult, onError }: {
@@ -45,6 +68,7 @@ export function TeamSheetSection({ myEmail, onResult, onError }: {
       {!setup && team.url && (
         <>
           <p className="mt-1 text-slate-600">
+            New sheet? Click <b>Copy column headings</b>, open the sheet, click cell <b>A1</b> and paste: the columns appear in row 1.
             Everyone adds leads to this one sheet, then clicks Load. Rows are loaded once, to whoever loads them first.
             To keep a row for a particular recruiter, put their login email (yours is <b>{myEmail}</b>) in a <b>Recruiter Email</b> column. Rows already loaded are skipped.
           </p>
@@ -52,6 +76,7 @@ export function TeamSheetSection({ myEmail, onResult, onError }: {
             <a href={team.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 font-semibold text-indigo-700 hover:bg-indigo-50">
               <ExternalLink className="h-3.5 w-3.5" /> Open the team sheet
             </a>
+            <CopyHeadings />
             <Button onClick={() => call("POST")} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Load data from sheet
             </Button>
