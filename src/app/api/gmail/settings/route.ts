@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -46,7 +47,9 @@ export async function PUT(req: NextRequest) {
   if (problem) return NextResponse.json({ error: problem }, { status: 400 });
 
   const data = { clientId, clientSecretEnc: encrypt(clientSecret), updatedById: session.userId };
-  await prisma.gmailSettings.upsert({ where: { id: "default" }, create: { id: "default", ...data }, update: data });
+  // Saved for this company (a company without its own uses the platform's shared Google app)
+  const companyId = await currentCompanyId();
+  await prisma.gmailSettings.upsert({ where: { companyId }, create: { companyId, ...data }, update: data });
   clearOAuthClientCache();
   console.log(`[gmail] OAuth client saved by ${session.email} (redirect ${redirectUri()})`);
 

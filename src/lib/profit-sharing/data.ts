@@ -1,3 +1,4 @@
+import { companyCode } from "@/lib/submissions/record";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -45,7 +46,10 @@ export async function lookupSubmission(
 ): Promise<SubmissionLookup | null> {
   const typed = input.trim();
   if (!typed) return null;
-  const codes = /^\d+$/.test(typed) ? [`Sub-${typed.padStart(3, "0")}`, `Sub-${typed}`] : [typed];
+  // "12", "Sub-012" (the old form) and "Sub-GEN-012" all find Sub-GEN-012
+  const code = await companyCode();
+  const num = /^(?:sub-)?(\d+)$/i.exec(typed)?.[1];
+  const codes = num ? [`Sub-${code}-${num.padStart(3, "0")}`, `Sub-${code}-${num}`] : [typed];
   const s = await prisma.submission.findFirst({
     where: { OR: codes.map((c) => ({ submissionId: { equals: c, mode: "insensitive" as const } })) },
     include: {

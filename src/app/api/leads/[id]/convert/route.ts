@@ -31,7 +31,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "This lead is already in Pre-Marketing" }, { status: 409 });
     }
 
-    const emailTaken = await prisma.student.findUnique({ where: { email: lead.email } });
+    const emailTaken = await prisma.student.findFirst({ where: { email: lead.email } });
     if (emailTaken) {
       return NextResponse.json({ error: "A consultant with this email already exists" }, { status: 409 });
     }

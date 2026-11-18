@@ -31,7 +31,8 @@ export function AttendancePrompt({ data, onDone }: { data: AttendancePromptData;
     // The 8-hour login ran out while the page was open: the request was sent to the login page instead
     if (res.redirected || res.status === 401 || res.status === 405) {
       setError("Your login has expired. Taking you to the login page… sign in and mark attendance again.");
-      setTimeout(() => { window.location.href = "/login"; }, 2000);
+      // /admin while signed out goes on to this company's own login page
+      setTimeout(() => { window.location.href = "/admin"; }, 2000);
       return;
     }
     if (!res.ok) {

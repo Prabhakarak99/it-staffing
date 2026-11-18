@@ -1,3 +1,4 @@
+import { nextSubmissionId as peekNextSubmissionId } from "@/lib/submissions/record";
 export const dynamic = "force-dynamic";
 
 import { Header } from "@/components/layout/header";
@@ -10,15 +11,14 @@ export default async function CreateSubmissionPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [recruiter, count] = await Promise.all([
+  const [recruiter] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.userId },
       select: { firstName: true, lastName: true },
     }),
-    prisma.submission.count(),
   ]);
 
-  const nextSubmissionId = `Sub-${String(count + 1).padStart(3, "0")}`;
+  const nextSubmissionId = await peekNextSubmissionId();
   const recruiterName = recruiter
     ? `${recruiter.firstName} ${recruiter.lastName}`
     : session.email;

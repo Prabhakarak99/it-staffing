@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { currentCompanyId } from "@/lib/tenant/context";
 import type { SessionPayload } from "@/lib/auth";
 import { canSeeAllLeads } from "./access";
 import { fetchGoogleSheet, leadKey, parseLeadGrid, type ParsedLead, type SkippedRow } from "./import";
@@ -25,7 +26,7 @@ let loading: Promise<unknown> = Promise.resolve();
  * Each row names its recruiter in the "Recruiter Email" column; that person owns the lead.
  */
 export async function getTeamSheetUrl() {
-  return (await prisma.appSetting.findUnique({ where: { key: KEY } }))?.value ?? null;
+  return (await prisma.appSetting.findFirst({ where: { key: KEY } }))?.value ?? null;
 }
 
 async function readTeamSheet(url: string) {
@@ -49,7 +50,8 @@ export async function setTeamSheetUrl(url: string | null): Promise<{ error: stri
   if ("error" in readable) return readable;
   const gid = /[#?&]gid=(\d+)/.exec(url)?.[1];
   const clean = `https://docs.google.com/spreadsheets/d/${id}/edit${gid ? `#gid=${gid}` : ""}`;
-  await prisma.appSetting.upsert({ where: { key: KEY }, create: { key: KEY, value: clean }, update: { value: clean } });
+  const companyId = await currentCompanyId();
+  await prisma.appSetting.upsert({ where: { companyId_key: { companyId, key: KEY } }, create: { key: KEY, value: clean }, update: { value: clean } });
   return { url: clean };
 }
 

@@ -10,7 +10,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const recruiterRole = await prisma.role.findUnique({ where: { name: "Recruiter" } });
+  const recruiterRole = await prisma.role.findFirst({ where: { name: "Recruiter" } });
 
   const recruiters = await prisma.user.findMany({
     where: recruiterRole ? { roleId: recruiterRole.id } : {},
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
     // Use provided roleId or fall back to the Recruiter role
     let resolvedRoleId = roleId || null;
     if (!resolvedRoleId) {
-      const recruiterRole = await prisma.role.findUnique({ where: { name: "Recruiter" } });
+      const recruiterRole = await prisma.role.findFirst({ where: { name: "Recruiter" } });
       resolvedRoleId = recruiterRole?.id ?? null;
     }
 

@@ -1,3 +1,4 @@
+import { PLATFORM_COMPANY_ID } from "@/lib/tenant/context";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/gmail/crypto";
 import { PROVIDERS, type ProviderId } from "./catalog";
@@ -13,12 +14,16 @@ export interface AiConfig {
 
 export class AiError extends Error {}
 
-/** The admin's default enabled provider, otherwise the first enabled one */
+/**
+ * The company's default enabled provider, otherwise its first enabled one. A company with no key of
+ * its own uses the platform's shared key the same way.
+ */
 export async function getActiveAi(): Promise<AiConfig | null> {
-  const row = await prisma.aiProvider.findFirst({
-    where: { isEnabled: true },
+  const rows = await prisma.aiProvider.findMany({
+    where: { isEnabled: true }, // the company's rows and the platform's
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
   });
+  const row = rows.find((r) => r.companyId !== PLATFORM_COMPANY_ID) ?? rows[0];
   if (!row || !(row.provider in PROVIDERS)) return null;
   return {
     id: row.id,

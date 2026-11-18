@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
   const q = req.nextUrl.searchParams.get("q") ?? "";
 
-  const recruiterRole = await prisma.role.findUnique({ where: { name: "Recruiter" } });
+  const recruiterRole = await prisma.role.findFirst({ where: { name: "Recruiter" } });
 
   const recruiters = await prisma.user.findMany({
     where: {

@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { prisma } from "@/lib/prisma";
 import { runAllScrapers } from "@/lib/apify/scraperService";
 import { crawlCompany } from "./ats";
@@ -10,8 +11,8 @@ const PURGE_FULLTIME_DAYS = 14;
 
 export async function getJobIngestConfig() {
   return prisma.jobIngestConfig.upsert({
-    where: { id: "singleton" },
-    create: { id: "singleton" },
+    where: { companyId: await currentCompanyId() },
+    create: { companyId: await currentCompanyId() },
     update: {},
   });
 }
@@ -51,7 +52,7 @@ async function scrapeBoardsIfDue(config: Config, force: boolean) {
   const due = !config.lastBoardScrapeAt || Date.now() - config.lastBoardScrapeAt.getTime() >= config.boardScrapeHours * 3_600_000;
   if (!due && !force) return;
   // Stamp first so a failing actor isn't retried (and billed) every tick
-  await prisma.jobIngestConfig.update({ where: { id: "singleton" }, data: { lastBoardScrapeAt: new Date() } });
+  await prisma.jobIngestConfig.update({ where: { companyId: await currentCompanyId() }, data: { lastBoardScrapeAt: new Date() } });
   const res = await runAllScrapers();
   console.log(`[jobfeed] boards: ${res.saved} saved, ${res.skipped} skipped${res.errors.length ? `, errors: ${res.errors.join("; ")}` : ""}`);
 }

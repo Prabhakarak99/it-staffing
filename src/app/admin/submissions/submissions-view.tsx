@@ -36,8 +36,8 @@ export function SubmissionsView({ submissions, recruiterId, recruiterName, nextS
 
   const handleSuccess = () => {
     setShowAdd(false);
-    const num = parseInt(nextId.replace("Sub-", ""), 10);
-    setNextId(`Sub-${String(num + 1).padStart(3, "0")}`);
+    // Sub-GEN-012 → Sub-GEN-013 (the server picks the real number when saving)
+    setNextId((id) => id.replace(/(\d+)$/, (n) => String(Number(n) + 1).padStart(3, "0")));
   };
 
   return (

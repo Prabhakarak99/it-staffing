@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { prisma } from "@/lib/prisma";
 import nodemailer from "nodemailer";
 
@@ -5,8 +6,8 @@ import nodemailer from "nodemailer";
 
 export async function getAutoJobsConfig() {
   return prisma.autoJobsConfig.upsert({
-    where: { id: "singleton" },
-    create: { id: "singleton" },
+    where: { companyId: await currentCompanyId() },
+    create: { companyId: await currentCompanyId() },
     update: {},
   });
 }

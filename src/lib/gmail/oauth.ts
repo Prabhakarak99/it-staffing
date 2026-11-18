@@ -1,3 +1,4 @@
+import { gmailAppSettings } from "@/lib/gmail/app-settings";
 import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-url";
 import { decrypt, encrypt } from "./crypto";
@@ -24,7 +25,7 @@ export async function getOAuthClient(): Promise<OAuthClient | null> {
     return { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, source: "env" };
   }
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.client;
-  const row = await prisma.gmailSettings.findUnique({ where: { id: "default" } });
+  const row = await gmailAppSettings();
   const client = row ? { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc), source: "app" as const } : null;
   cached = { client, at: Date.now() };
   return client;

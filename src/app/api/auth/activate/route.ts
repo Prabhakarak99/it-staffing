@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { unscopedPrisma as prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { activationToken: token } });
+    const user = await prisma.user.findUnique({ where: { activationToken: token } , include: { company: { select: { slug: true } } } });
 
     if (!user) {
       return NextResponse.json({ error: "Invalid or already-used activation link" }, { status: 400 });
@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
       data: { password: hashed, isActive: true, activationToken: null, activationExpiry: null },
     });
 
-    return NextResponse.json({ success: true });
+    // The company's slug, so the page goes on to that company's login link
+    return NextResponse.json({ success: true, company: user.company.slug });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

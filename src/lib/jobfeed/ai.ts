@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 
@@ -136,7 +137,7 @@ export async function runAiStep(config: { aiBatchId: string | null }) {
   });
 
   await prisma.jobIngestConfig.update({
-    where: { id: "singleton" },
+    where: { companyId: await currentCompanyId() },
     data: { aiBatchId: batch.id, aiBatchSubmittedAt: new Date() },
   });
   console.log(`[jobfeed] AI batch ${batch.id} submitted with ${jobs.length} jobs`);
@@ -235,7 +236,7 @@ async function applyAiResult(jobId: string, ai: AiJob) {
 
 async function clearBatch() {
   await prisma.jobIngestConfig.update({
-    where: { id: "singleton" },
+    where: { companyId: await currentCompanyId() },
     data: { aiBatchId: null, aiBatchSubmittedAt: null },
   });
 }

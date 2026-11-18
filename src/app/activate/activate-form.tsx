@@ -43,7 +43,10 @@ export function ActivateForm({ token, email, mode = "activate" }: Props) {
         body: JSON.stringify({ token, password }),
       });
       if (res.ok) {
-        router.push(isReset ? "/login?reset=1" : "/login?activated=1");
+        // Back to the user's own company login link
+        const { company } = (await res.json().catch(() => ({}))) as { company?: string };
+        const login = `/login?${isReset ? "reset=1" : "activated=1"}${company && company !== "platform" ? `&company=${encodeURIComponent(company)}` : ""}`;
+        router.push(login);
       } else {
         const data = await res.json();
         setErrors({ password: data.error ?? (isReset ? "Password reset failed. Please try again." : "Activation failed. Please try again.") });

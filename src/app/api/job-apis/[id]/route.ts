@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { currentCompanyId } from "@/lib/tenant/context";
 import { encrypt } from "@/lib/gmail/crypto";
 import { aiAdminSession } from "@/lib/ai/admin";
 import { DEFAULT_KEYWORDS, JOB_APIS, isJobApiId } from "@/lib/jobfeed/apis/catalog";
@@ -29,7 +30,9 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const startUrls = body.startUrls !== undefined ? lines(body.startUrls, 25) : undefined;
   if (startUrls?.some((u) => !/^https:\/\/\S+$/i.test(u))) return NextResponse.json({ error: "Every page to read must start with https://" }, { status: 400 });
 
-  const existing = await prisma.jobApiSource.findUnique({ where: { id }, select: { apiKeyEnc: true } });
+  // This company's own settings for the provider (the Super Admin, in the platform company, edits the shared pool's)
+  const companyId = await currentCompanyId();
+  const existing = await prisma.jobApiSource.findFirst({ where: { provider: id, companyId }, select: { apiKeyEnc: true } });
   const willHaveKey = body.removeKey === true ? false : !!apiKey || !!existing?.apiKeyEnc;
   if (body.isEnabled === true && !willHaveKey) return NextResponse.json({ error: "Add the API key before turning this on" }, { status: 400 });
 
@@ -47,9 +50,9 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     updatedById: session.userId,
   };
   await prisma.jobApiSource.upsert({
-    where: { id },
+    where: { companyId_provider: { companyId, provider: id } },
     create: {
-      id, intervalMin: JOB_APIS[id].defaultIntervalMin, keywords: DEFAULT_KEYWORDS.join("\n"),
+      companyId, provider: id, intervalMin: JOB_APIS[id].defaultIntervalMin, keywords: DEFAULT_KEYWORDS.join("\n"),
       activeFromHour: JOB_APIS[id].defaultWindow?.from ?? null, activeToHour: JOB_APIS[id].defaultWindow?.to ?? null,
       ...data,
     },

@@ -82,7 +82,8 @@ model Company {
 
 model Role {
   id          String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name        String
   description String?
@@ -107,7 +108,8 @@ model Screen {
 
 model RoleScreen {
   id       String  @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   roleId   String
   screenId String
@@ -123,7 +125,8 @@ model RoleScreen {
 
 model User {
   id                     String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   firstName              String
   lastName               String
@@ -182,7 +185,8 @@ model User {
 
 model Student {
   id                     String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Personal
   firstName              String
@@ -264,7 +268,8 @@ model Student {
 
 model Submission {
   id                   String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionId         String   @unique
   submissionDate       DateTime
@@ -298,7 +303,8 @@ model Submission {
 
 model TechSupport {
   id           String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   firstName    String
   lastName     String
@@ -320,7 +326,8 @@ model TechSupport {
 
 model Interview {
   id                  String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   interviewId         String
   recruiterId         String
@@ -349,7 +356,8 @@ model Interview {
 
 model PreMarketing {
   id                              String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   consultantId                    String    @unique
   checklist                       Json?
@@ -377,7 +385,8 @@ model PreMarketing {
 
 model Expense {
   id            String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   expenseId     String
   date          DateTime
@@ -402,7 +411,8 @@ model Expense {
 
 model Lead {
   id             String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   consultantId   String?   @unique
   consultantName String
@@ -429,7 +439,8 @@ model Lead {
 /// A user's Google Sheets connection for loading leads: their own sheet, created by the app in their Drive
 model LeadSheet {
   id                String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId            String    @unique
   /// AES-256-GCM encrypted; never sent to the browser
@@ -448,7 +459,8 @@ model LeadSheet {
 /// row is never loaded twice, even after its lead is converted to a consultant or deleted.
 model LeadSheetRow {
   id         String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// The Google Sheet's id (from its link)
   sheetId    String
@@ -470,7 +482,8 @@ model LeadSheetRow {
 /// Small app-wide settings by key (e.g. "leads-team-sheet": the shared Google Sheet for leads)
 model AppSetting {
   key       String
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   value     String
   updatedAt DateTime @updatedAt
@@ -488,7 +501,8 @@ model AppMigration {
 
 model JobSearchResult {
   id               String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   jobId            String    @unique
   technology       String?
@@ -539,7 +553,8 @@ model JobSearchResult {
 // ── Job feed: company career boards to crawl ─────────────────────────────────
 model AtsCompany {
   id            String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name          String
   provider      String // greenhouse | lever | ashby | smartrecruiters | workday
@@ -579,7 +594,8 @@ model JobIngestConfig {
 model JobApiSource {
   id            String    @id @default(cuid())
   provider      String // was the id: fantastic | coresignal | sourcestack | aspen | jobfront | zyte
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// AES-256-GCM encrypted; never sent to the browser
   apiKeyEnc     String?
@@ -613,7 +629,8 @@ model JobApiSource {
 
 model GmailAccount {
   id                String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId            String    @unique
   email             String
@@ -649,7 +666,8 @@ model GmailSettings {
 /// Weekly and monthly totals are added up from these rows.
 model EmailDailyStat {
   id       String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId   String
   email    String   @default("") // the employee's connected Gmail address
@@ -668,7 +686,8 @@ model EmailDailyStat {
 
 model RecruiterVendor {
   id                     String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   ownerId                String
   name                   String
@@ -700,7 +719,8 @@ model RecruiterVendor {
 
 model VendorContact {
   id                 String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vendorCompany      String
   recruiterName      String?
@@ -724,7 +744,8 @@ model VendorContact {
 
 model AutoJobRun {
   id                  String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   triggerSubmissionId String
   clientName          String
@@ -744,7 +765,8 @@ model AutoJobRun {
 
 model AutoJobApplication {
   id              String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   runId           String
   consultantId    String
@@ -783,7 +805,8 @@ model AutoJobsConfig {
 /// One row per employee per day, created by the first-login "I'm in" popup and approved by a POC / Manager / Admin
 model Attendance {
   id           String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId       String
   day          DateTime  @db.Date
@@ -819,7 +842,8 @@ model DailyQuote {
 /// Leave requests. Every employee earns 1 paid leave per month; days beyond the balance are unpaid.
 model LeaveRequest {
   id           String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId       String
   startDate    DateTime  @db.Date
@@ -851,7 +875,8 @@ model LeaveRequest {
 /// An AI API an admin configured. The default enabled one is used for resume updates.
 model AiProvider {
   id           String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   provider     String // openai | anthropic | gemini | openai-compatible
   label        String
@@ -876,7 +901,8 @@ model AiProvider {
 /// Easy Submissions, or pasted / uploaded on the Resumes tab)
 model TailoredResume {
   id             String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionId   String? // null when generated on the Resumes tab
   consultantId   String
@@ -918,7 +944,8 @@ model TailoredResume {
 /// Every resume emailed to a vendor from Easy Submissions; also hides vendors already sent for that consultant
 model EasySubmissionSend {
   id               String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionId     String // the submission the requirement came from
   consultantId     String
@@ -947,7 +974,8 @@ model EasySubmissionSend {
 /// and up to 2 per interview (the day after, then a week later). Replies in the original Gmail thread.
 model FollowUp {
   id           String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   kind         String // submission | interview
   submissionId String
@@ -977,7 +1005,8 @@ model FollowUp {
 /// A user's own email template (only they see and use it)
 model EmailTemplate {
   id        String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId    String
   name      String
@@ -1000,7 +1029,8 @@ model EmailTemplate {
 /// A vendor requirement read from a recruiter's Gmail inbox (Vendor Requirements tab)
 model EmailRequirement {
   id             String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Recruiter whose inbox it came from
   ownerId        String
@@ -1046,7 +1076,8 @@ model EmailRequirement {
 /// Each inbox message checked for requirements, so none is read (or sent to the AI) twice
 model EmailScan {
   id             String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   ownerId        String
   gmailMessageId String
@@ -1063,7 +1094,8 @@ model EmailScan {
 /// A consultant's own Gmail (the one used to market them), connected by their recruiter with read and send access
 model ConsultantMailbox {
   id                String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   consultantId      String    @unique
   email             String
@@ -1091,7 +1123,8 @@ model ConsultantMailbox {
 /// A consultant's resume emailed to a vendor from Vendor Management
 model VendorResumeSend {
   id               String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vendorId         String
   consultantId     String
@@ -1114,7 +1147,8 @@ model VendorResumeSend {
 /// A consultant's resume emailed to the vendor of a requirement (Vendor Requirements)
 model EmailRequirementSend {
   id               String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   requirementId    String
   consultantId     String
@@ -1138,7 +1172,8 @@ model EmailRequirementSend {
 /// Who did what in the app: sign-ins (and failed attempts), sign-outs and every tab opened, with the IP address.
 model ActivityLog {
   id        String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Null for a failed sign-in with an unknown email
   userId    String?
@@ -1164,7 +1199,8 @@ model ActivityLog {
 /// from the submission / interview when saved, so the record stands even if those change later.
 model Confirmation {
   id                 String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Submission.id (one confirmation per submission) and its "Sub-NNN" code
   submissionRefId    String    @unique
@@ -1195,7 +1231,8 @@ model Confirmation {
 /// submission when saved). The Calculations page works the monthly incentive out from these.
 model IncentivePlacement {
   id                 String    @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionRefId    String    @unique
   submissionCode     String
@@ -1234,7 +1271,8 @@ model IncentivePlacement {
 /// Written once, on the 1st, for the month before.
 model AppreciationAward {
   id        String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// "yyyy-mm" the award is for
   month     String
@@ -1260,7 +1298,8 @@ model AppreciationAward {
 /// Appreciation → Additional Bonus: an extra amount a Super Admin adds to an employee's appreciation account.
 model AppreciationBonus {
   id             String   @id @default(cuid())
-  companyId String
+  /// Set by the company filter in src/lib/prisma.ts; "unset" matches no company, so a save that skips the filter fails
+  companyId String  @default("unset")
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// The employee who receives it
   userId         String

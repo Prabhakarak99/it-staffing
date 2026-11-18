@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, Suspense } from "react";
+import { useEffect, useState, useTransition, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,17 @@ function LoginForm() {
   const params = useSearchParams();
   const activated = params.get("activated") === "1";
   const passwordReset = params.get("reset") === "1";
+  // ?company=<slug>: that company's staff sign in here; no company = the Super Admin's sign-in
+  const slug = params.get("company")?.trim().toLowerCase() || null;
+  const [company, setCompany] = useState<{ name: string } | null | "missing">(null);
+  useEffect(() => {
+    if (!slug) return;
+    fetch(`/api/auth/company?slug=${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? r.json() : "missing"))
+      .then(setCompany)
+      .catch(() => setCompany("missing"));
+  }, [slug]);
+  const companyName = company && company !== "missing" ? company.name : null;
 
   const login = () => {
     if (!email || !password) { setError("Please enter email and password."); return; }
@@ -24,7 +35,7 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, company: slug }),
       });
       if (res.ok) {
         router.push("/admin");
@@ -101,8 +112,12 @@ function LoginForm() {
           </div>
 
           <div className="mb-7">
-            <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
-            <p className="text-sm text-slate-500 mt-1">Sign in to your GFT Vision account</p>
+            <h1 className="text-2xl font-bold text-slate-900">{slug ? (companyName ?? "Welcome back") : "Super Admin sign-in"}</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {slug
+                ? company === "missing" ? "This company link is not valid. Ask your administrator for your company's login link." : "Sign in to your GFT Vision account"
+                : "Staff: please use your company's login link (it ends with ?company=…)."}
+            </p>
           </div>
 
           {activated && (

@@ -423,7 +423,7 @@ export default async function AdminDashboard() {
   /* ══════════════════════════════════════════════════════════════════════════
      ADMIN DASHBOARD
   ══════════════════════════════════════════════════════════════════════════ */
-  const recruiterRole = await prisma.role.findUnique({ where: { name: "Recruiter" } });
+  const recruiterRole = await prisma.role.findFirst({ where: { name: "Recruiter" } });
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [

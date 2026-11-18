@@ -68,7 +68,7 @@ function mapSubmissions(
 }
 
 export default async function RecruitersPage() {
-  const recruiterRole = await prisma.role.findUnique({ where: { name: "Recruiter" } });
+  const recruiterRole = await prisma.role.findFirst({ where: { name: "Recruiter" } });
 
   const [recruiters, roles] = await Promise.all([
     prisma.user.findMany({

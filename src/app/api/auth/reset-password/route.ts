@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { unscopedPrisma as prisma } from "@/lib/prisma";
 
 // POST /api/auth/reset-password { token, password } — public; the emailed token is the credential
 export async function POST(req: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters with an uppercase letter and a number" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { resetToken: token } });
+    const user = await prisma.user.findUnique({ where: { resetToken: token } , include: { company: { select: { slug: true } } } });
     if (!user) {
       return NextResponse.json({ error: "Invalid or already-used reset link" }, { status: 400 });
     }
@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
       data: { password: await bcrypt.hash(password, 12), resetToken: null, resetExpiry: null },
     });
 
-    return NextResponse.json({ success: true });
+    // The company's slug, so the page goes on to that company's login link
+    return NextResponse.json({ success: true, company: user.company.slug });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

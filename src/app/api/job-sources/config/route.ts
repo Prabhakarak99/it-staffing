@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRequirementsAccess } from "@/lib/jobfeed/access";
@@ -24,6 +25,6 @@ export async function PATCH(req: NextRequest) {
   }
 
   await getJobIngestConfig();
-  const config = await prisma.jobIngestConfig.update({ where: { id: "singleton" }, data });
+  const config = await prisma.jobIngestConfig.update({ where: { companyId: await currentCompanyId() }, data });
   return NextResponse.json({ config });
 }

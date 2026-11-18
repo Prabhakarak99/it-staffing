@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "First name, last name, and email are required" }, { status: 400 });
     }
 
-    const existing = await prisma.student.findUnique({ where: { email } });
+    const existing = await prisma.student.findFirst({ where: { email } });
     if (existing) {
       return NextResponse.json({ error: "A consultant with this email already exists" }, { status: 409 });
     }

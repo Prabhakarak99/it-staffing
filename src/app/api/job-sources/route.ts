@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const exists = await prisma.atsCompany.findUnique({
-    where: { provider_boardToken_workdaySite: { provider: parsed.provider, boardToken: parsed.boardToken, workdaySite: parsed.workdaySite } },
+  // Already in this company's list, or in the shared list every company sees
+  const exists = await prisma.atsCompany.findFirst({
+    where: { provider: parsed.provider, boardToken: parsed.boardToken, workdaySite: parsed.workdaySite },
   });
   if (exists) return NextResponse.json({ error: `${exists.name} is already in the list.` }, { status: 409 });
 

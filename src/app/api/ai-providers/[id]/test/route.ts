@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/gmail/crypto";
@@ -13,7 +14,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
   if (response) return response;
 
   const { id } = await params;
-  const row = await prisma.aiProvider.findUnique({ where: { id } });
+  const row = await prisma.aiProvider.findFirst({ where: { id, companyId: await currentCompanyId() } }); // own keys only
   if (!row || !isProviderId(row.provider)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let error: string | null = null;

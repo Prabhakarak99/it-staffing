@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Sub-001, Sub-002, … (next after the highest, so deleted rows never cause a clash)
+    // Sub-GEN-001, Sub-GEN-002, … per company (next after the highest, so deleted rows never cause a clash)
     const created = await createSubmission({
       recruiterId: session.userId,
       consultantId,

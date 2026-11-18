@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name, email, phone, technology and location are required" }, { status: 400 });
     }
 
-    const existing = await prisma.techSupport.findUnique({ where: { email } });
+    const existing = await prisma.techSupport.findFirst({ where: { email } });
     if (existing) {
       return NextResponse.json({ error: "A tech support person with this email already exists" }, { status: 409 });
     }

@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -33,7 +34,8 @@ export interface AiProviderRow {
 
 /** Providers for the settings page; keys only as a masked preview */
 export async function listAiProviders(): Promise<AiProviderRow[]> {
-  const rows = await prisma.aiProvider.findMany({ orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] });
+  // Only the company's own keys (the shared platform key is managed by the Super Admin in the platform company)
+  const rows = await prisma.aiProvider.findMany({ where: { companyId: await currentCompanyId() }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] });
   return rows.map((r) => {
     let keyPreview = "••••";
     try {

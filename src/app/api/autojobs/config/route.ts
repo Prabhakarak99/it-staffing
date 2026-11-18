@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -28,7 +29,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const config = await prisma.autoJobsConfig.update({
-    where: { id: "singleton" },
+    where: { companyId: await currentCompanyId() },
     data,
   });
 

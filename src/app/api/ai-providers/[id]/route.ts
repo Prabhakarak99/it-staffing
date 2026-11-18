@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/gmail/crypto";
@@ -12,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   if (response) return response;
 
   const { id } = await params;
-  const row = await prisma.aiProvider.findUnique({ where: { id } });
+  const row = await prisma.aiProvider.findFirst({ where: { id, companyId: await currentCompanyId() } }); // own keys only
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await req.json()) as Record<string, unknown>;

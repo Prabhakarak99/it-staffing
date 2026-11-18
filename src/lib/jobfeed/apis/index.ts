@@ -1,3 +1,4 @@
+import { currentCompanyId } from "@/lib/tenant/context";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/gmail/crypto";
 import { APP_TZ } from "@/lib/tz";
@@ -27,9 +28,17 @@ const mask = (key: string) => (key.length <= 8 ? "••••" : `${key.slice(0
 const list = (s: string) => s.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
 const jobIdOf = (id: JobApiId, externalId: string) => `${id}_${externalId}`;
 
-/** Settings and status for all six providers (a provider nobody configured yet gets its defaults) */
+/**
+ * This company's own row for a provider (the platform company's rows are the shared pool's sources).
+ * Rows are one per (company, provider); `provider` holds the provider id.
+ */
+async function ownRow(id: JobApiId) {
+  return prisma.jobApiSource.findFirst({ where: { provider: id, companyId: await currentCompanyId() } });
+}
+
+/** Settings and status for all six providers, for this company (a provider not configured yet gets its defaults) */
 export async function listJobApis(): Promise<JobApiRow[]> {
-  const rows = new Map((await prisma.jobApiSource.findMany()).map((r) => [r.id, r]));
+  const rows = new Map((await prisma.jobApiSource.findMany({ where: { companyId: await currentCompanyId() } })).map((r) => [r.provider, r]));
   return JOB_API_IDS.map((id) => {
     const r = rows.get(id);
     let keyPreview: string | null = null;
@@ -124,7 +133,7 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 
 /** "Test": a tiny real request (up to 3 jobs, nothing saved) to prove the key and the format work */
 export async function testJobApi(id: JobApiId) {
-  const row = await prisma.jobApiSource.findUnique({ where: { id } });
+  const row = await ownRow(id);
   if (!row) return { ok: false, error: "Add the API key first", sample: [] as string[] };
   let error: string | null = null;
   let sample: string[] = [];
@@ -135,37 +144,39 @@ export async function testJobApi(id: JobApiId) {
   } catch (err) {
     error = message(err);
   }
-  await prisma.jobApiSource.update({ where: { id }, data: { lastTestedAt: new Date(), lastTestError: error } });
+  await prisma.jobApiSource.update({ where: { id: row.id }, data: { lastTestedAt: new Date(), lastTestError: error } });
   return { ok: !error, error, sample };
 }
 
-const busy = new Set<JobApiId>();
+/** Running pulls, per company and provider */
+const busy = new Set<string>();
 
 /** One pull: fetch, classify, save into the Requirements table. Existing jobs are never deleted. */
 export async function runJobApi(id: JobApiId) {
-  if (busy.has(id)) return { ok: false, error: "Already running", fetched: 0, created: 0 };
-  busy.add(id);
+  const key = `${await currentCompanyId()}:${id}`;
+  if (busy.has(key)) return { ok: false, error: "Already running", fetched: 0, created: 0 };
+  busy.add(key);
   try {
-    const row = await prisma.jobApiSource.findUnique({ where: { id } });
+    const row = await ownRow(id);
     if (!row) return { ok: false, error: "Add the API key first", fetched: 0, created: 0 };
     // First run looks back a day; later runs cover the gap since the last one (5 minutes of overlap, at most a week)
     const since = new Date(Math.max(Date.now() - 7 * 86_400_000, row.lastRunAt ? row.lastRunAt.getTime() - 5 * 60_000 : Date.now() - 86_400_000));
     // Stamp first so a failing (or billing) provider is not retried on every worker tick
-    await prisma.jobApiSource.update({ where: { id }, data: { lastRunAt: new Date() } });
+    await prisma.jobApiSource.update({ where: { id: row.id }, data: { lastRunAt: new Date() } });
     try {
       const jobs = await fetchFrom(id, row, { maxJobs: row.maxPerRun, since });
       const saved = await saveJobs(jobs.map((j) => toScrapedJob(id, j)));
-      await prisma.jobApiSource.update({ where: { id }, data: { lastError: null, lastFetched: jobs.length, lastNew: saved.created, totalNew: { increment: saved.created } } });
+      await prisma.jobApiSource.update({ where: { id: row.id }, data: { lastError: null, lastFetched: jobs.length, lastNew: saved.created, totalNew: { increment: saved.created } } });
       console.log(`[job-apis] ${id}: ${jobs.length} fetched, ${saved.created} new, ${saved.duplicates} duplicates`);
       return { ok: true, error: null, fetched: jobs.length, created: saved.created };
     } catch (err) {
       const error = message(err);
       console.error(`[job-apis] ${id} failed:`, error);
-      await prisma.jobApiSource.update({ where: { id }, data: { lastError: error } });
+      await prisma.jobApiSource.update({ where: { id: row.id }, data: { lastError: error } });
       return { ok: false, error, fetched: 0, created: 0 };
     }
   } finally {
-    busy.delete(id);
+    busy.delete(key);
   }
 }
 
@@ -197,20 +208,20 @@ async function applyScheduleOnce() {
   const id = "job-api-fantastic-8-to-5";
   if (!(await prisma.appMigration.findUnique({ where: { id } }))) {
     await prisma.$transaction([
-      prisma.jobApiSource.updateMany({ where: { id: "fantastic" }, data: { intervalMin: 60, activeFromHour: 8, activeToHour: 17 } }),
+      prisma.jobApiSource.updateMany({ where: { provider: "fantastic" }, data: { intervalMin: 60, activeFromHour: 8, activeToHour: 17 } }),
       prisma.appMigration.create({ data: { id } }),
     ]);
   }
   defaultsChecked = true;
 }
 
-/** Worker step: run every enabled provider that is due */
+/** Worker step (runs per company): run this company's enabled providers that are due */
 export async function processJobApis() {
   await applyScheduleOnce();
-  const rows = await prisma.jobApiSource.findMany({ where: { isEnabled: true, apiKeyEnc: { not: null } } });
+  const rows = await prisma.jobApiSource.findMany({ where: { companyId: await currentCompanyId(), isEnabled: true, apiKeyEnc: { not: null } } });
   for (const row of rows) {
-    if (!(JOB_API_IDS as readonly string[]).includes(row.id)) continue;
+    if (!(JOB_API_IDS as readonly string[]).includes(row.provider)) continue;
     if (!isDue(row)) continue;
-    await runJobApi(row.id as JobApiId);
+    await runJobApi(row.provider as JobApiId);
   }
 }

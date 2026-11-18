@@ -1,3 +1,4 @@
+import { gmailAppSettings } from "@/lib/gmail/app-settings";
 import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-url";
 import { GMAIL_SCOPE, getOAuthClient, redirectUri } from "./oauth";
@@ -5,7 +6,7 @@ import { GMAIL_SCOPE, getOAuthClient, redirectUri } from "./oauth";
 /** What the setup wizard shows. Never includes the client secret. */
 export async function getGmailSetup() {
   const client = await getOAuthClient();
-  const row = client?.source === "app" ? await prisma.gmailSettings.findUnique({ where: { id: "default" } }) : null;
+  const row = client?.source === "app" ? await gmailAppSettings() : null;
   const updatedBy = row?.updatedById
     ? await prisma.user.findUnique({ where: { id: row.updatedById }, select: { firstName: true, lastName: true } })
     : null;

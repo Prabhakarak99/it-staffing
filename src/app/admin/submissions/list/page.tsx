@@ -1,3 +1,4 @@
+import { nextSubmissionId as peekNextSubmissionId } from "@/lib/submissions/record";
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
@@ -11,7 +12,7 @@ export default async function TotalSubmissionsPage() {
 
   const isRecruiter = session.roleName === "Recruiter";
 
-  const [submissions, recruiter, count] = await Promise.all([
+  const [submissions, recruiter] = await Promise.all([
     prisma.submission.findMany({
       where: isRecruiter ? { recruiterId: session.userId } : {},
       select: {
@@ -37,13 +38,12 @@ export default async function TotalSubmissionsPage() {
       where: { id: session.userId },
       select: { firstName: true, lastName: true },
     }),
-    prisma.submission.count(),
   ]);
 
   const recruiterName = recruiter
     ? `${recruiter.firstName} ${recruiter.lastName}`
     : session.email;
-  const nextSubmissionId = `Sub-${String(count + 1).padStart(3, "0")}`;
+  const nextSubmissionId = await peekNextSubmissionId();
 
   return (
     <SubmissionsView
