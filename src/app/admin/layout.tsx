@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, unscopedPrisma } from "@/lib/prisma";
+import { allowedScreensFor } from "@/lib/tenant/session";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { SIDEBAR_COOKIE } from "@/components/layout/sidebar-cookie";
 import { getAttendancePrompt } from "@/lib/attendance/prompt";
@@ -19,15 +20,18 @@ export default async function AdminLayout({
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Company Admin / Super Admin (no roleId) sees all screens
-  let allowedPaths: string[] | null = null;
+  // Company Admin / Super Admin (no roleId) sees all screens, except the ones the Super Admin switched
+  // off for this company (the Super Admin always sees everything)
+  const company = await unscopedPrisma.company.findUnique({ where: { id: session.companyId }, select: { disabledModules: true } });
+  const disabled = session.isPlatformAdmin ? [] : (company?.disabledModules ?? []);
+  let allowedPaths: string[] | null = await allowedScreensFor(null, disabled);
 
   if (session.roleId) {
     const roleScreens = await prisma.roleScreen.findMany({
       where: { roleId: session.roleId, canView: true },
       include: { screen: true },
     });
-    allowedPaths = roleScreens.map((rs) => rs.screen.path);
+    allowedPaths = roleScreens.map((rs) => rs.screen.path).filter((p) => !disabled.includes(p));
     // Admins can switch Easy Submissions off for individual users
     if (await easyDisabledFor(session)) allowedPaths = allowedPaths.filter((p) => p !== EASY_SCREEN.path);
   }
@@ -53,6 +57,7 @@ export default async function AdminLayout({
       roleName={session.roleName}
       companyName={session.companyName}
       isPlatformAdmin={!!session.isPlatformAdmin}
+      allCompanies={!!session.allCompanies}
       initialCollapsed={sidebarCollapsed}
       attendancePrompt={attendancePrompt}
       notifications={notifications}

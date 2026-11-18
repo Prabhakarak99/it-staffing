@@ -19,13 +19,15 @@ interface AdminShellProps {
   roleName: string | null;
   companyName: string;
   isPlatformAdmin: boolean;
+  /** Super Admin's All companies view */
+  allCompanies: boolean;
   initialCollapsed: boolean;
   attendancePrompt: AttendancePromptData | null;
   notifications: { items: NotificationItem[]; pendingCount: number };
   children: React.ReactNode;
 }
 
-export function AdminShell({ allowedPaths, userEmail, userName, roleName, companyName, isPlatformAdmin, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
+export function AdminShell({ allowedPaths, userEmail, userName, roleName, companyName, isPlatformAdmin, allCompanies, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   // Until today's attendance is marked, the app behind the popup can't be used
@@ -52,8 +54,16 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, compan
           collapsed={collapsed}
           mobileOpen={mobileOpen}
           onNavigate={() => setMobileOpen(false)}
+          isPlatformAdmin={isPlatformAdmin}
         />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          {allCompanies && (
+            <div className="border-b border-emerald-200 bg-emerald-50 px-6 py-2 text-[12.5px] text-emerald-800">
+              <b>All companies view:</b> lists and reports include every company. To add a record, pick one company in the switcher at the top.
+            </div>
+          )}
+          {children}
+        </main>
       </div>
       </div>
       <ActivityTracker />

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Bell, Building2, ChevronDown, LogOut, Menu, Search } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, Search } from "lucide-react";
 import { GFTMark } from "@/components/ui/logo";
+import { CompanySwitcher } from "./company-switcher";
 import type { NotificationItem } from "@/lib/attendance/notifications";
 
 interface TopNavProps {
@@ -81,14 +82,8 @@ export function TopNav({ userEmail, userName, roleName, companyName, isPlatformA
         </div>
       </Link>
 
-      {/* ── Company ── */}
-      <div className="flex min-w-0 items-center gap-2 border-l border-white/[0.08] pl-3">
-        <Building2 className="h-4 w-4 shrink-0 text-indigo-400" />
-        <span className="truncate text-[13.5px] font-semibold text-slate-100" title={`Company: ${companyName}`}>{companyName}</span>
-        {isPlatformAdmin && (
-          <span className="hidden shrink-0 rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300 sm:inline">Super Admin</span>
-        )}
-      </div>
+      {/* ── Company (a switcher for the Super Admin) ── */}
+      <CompanySwitcher companyName={companyName} isPlatformAdmin={isPlatformAdmin} />
 
       <div className="flex-1" />
 

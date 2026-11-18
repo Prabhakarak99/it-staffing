@@ -10,6 +10,18 @@ function secretKey() {
 const COOKIE_NAME = "it-staff-session";
 const EXPIRES_IN = 60 * 60 * 8; // 8 hours
 
+/** Company status, checked at most once a minute per company */
+const statuses = new Map<string, { status: string; at: number }>();
+async function companyStatus(companyId: string) {
+  const hit = statuses.get(companyId);
+  if (hit && Date.now() - hit.at < 60_000) return hit.status;
+  const { unscopedPrisma } = await import("@/lib/prisma");
+  const c = await unscopedPrisma.company.findUnique({ where: { id: companyId }, select: { status: true } });
+  const status = c?.status ?? "missing";
+  statuses.set(companyId, { status, at: Date.now() });
+  return status;
+}
+
 /** Verified tokens, so the company filter can read the session on every query without re-checking the signature */
 const verified = new Map<string, { session: SessionPayload; exp: number }>();
 
@@ -52,14 +64,20 @@ export async function getSession(): Promise<SessionPayload | null> {
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (!token) return null;
 
+    let session: SessionPayload;
     const hit = verified.get(token);
-    if (hit && hit.exp > Date.now() / 1000) return hit.session;
-    const { payload } = await jwtVerify(token, secretKey());
-    const session = payload as unknown as SessionPayload;
-    // Sessions from before companies existed have no company: treat as signed out
-    if (!session.companyId) return null;
-    if (verified.size > 500) verified.clear();
-    verified.set(token, { session, exp: Number(payload.exp ?? 0) });
+    if (hit && hit.exp > Date.now() / 1000) {
+      session = hit.session;
+    } else {
+      const { payload } = await jwtVerify(token, secretKey());
+      session = payload as unknown as SessionPayload;
+      // Sessions from before companies existed have no company: treat as signed out
+      if (!session.companyId) return null;
+      if (verified.size > 500) verified.clear();
+      verified.set(token, { session, exp: Number(payload.exp ?? 0) });
+    }
+    // A suspended company's users are signed out within a minute (the Super Admin keeps access)
+    if (!session.isPlatformAdmin && (await companyStatus(session.companyId)) !== "active") return null;
     return session;
   } catch {
     return null;

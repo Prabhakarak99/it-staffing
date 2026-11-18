@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  Activity, Award, LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
+  Activity, Award, Building2, LayoutDashboard, BarChart3, CalendarCheck, GraduationCap, Megaphone, Target, Send, Calendar,
   ClipboardList, BookUser, Inbox, Zap, Bot, MailCheck, AtSign, FileText, Briefcase, Mic, Users, Shield, UserPlus, Wrench, DollarSign, PiggyBank, Trophy, ChevronDown,
 } from "lucide-react";
 
@@ -16,6 +16,8 @@ interface NavItem {
   match: string;
   icon: React.ComponentType<{ className?: string }>;
   exact?: boolean;
+  /** Only the Platform Super Admin (Company Admins also see every screen, so the flag decides) */
+  platformOnly?: boolean;
 }
 
 interface NavGroup {
@@ -24,6 +26,12 @@ interface NavGroup {
 }
 
 const NAV: NavGroup[] = [
+  {
+    label: "Platform",
+    items: [
+      { label: "Companies", href: "/admin/platform", match: "/admin/platform", icon: Building2, platformOnly: true },
+    ],
+  },
   {
     label: null,
     items: [
@@ -85,9 +93,10 @@ interface SidebarProps {
   /** Drawer state on small screens */
   mobileOpen: boolean;
   onNavigate: () => void;
+  isPlatformAdmin: boolean;
 }
 
-export function Sidebar({ allowedPaths, collapsed, mobileOpen, onNavigate }: SidebarProps) {
+export function Sidebar({ allowedPaths, collapsed, mobileOpen, onNavigate, isPlatformAdmin }: SidebarProps) {
   const pathname = usePathname();
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
 
@@ -111,7 +120,7 @@ export function Sidebar({ allowedPaths, collapsed, mobileOpen, onNavigate }: Sid
     });
 
   // Groups with no screens for this role are hidden entirely
-  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.match)) })).filter(
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (i.platformOnly ? isPlatformAdmin : allowed(i.match))) })).filter(
     (g) => g.items.length > 0
   );
 

@@ -15,9 +15,16 @@ export async function companyBySlug(slug: string | null | undefined) {
   return c && c.kind === "company" ? c : null;
 }
 
-/** Screen paths the user's role may open; null = every screen (Company Admin / Super Admin) */
+/**
+ * Screen paths the user's role may open; null = every screen (Company Admin / Super Admin). Screens the
+ * Super Admin switched off for the company are left out, for the Company Admin too.
+ */
 export async function allowedScreensFor(roleId: string | null, disabledModules: string[] = []) {
-  if (!roleId) return null;
+  if (!roleId) {
+    if (!disabledModules.length) return null;
+    const all = await unscopedPrisma.screen.findMany({ select: { path: true } });
+    return all.map((s) => s.path).filter((p) => !disabledModules.includes(p));
+  }
   const rows = await unscopedPrisma.roleScreen.findMany({ where: { roleId, canView: true }, include: { screen: true } });
   return rows.map((r) => r.screen.path).filter((p) => !disabledModules.includes(p));
 }

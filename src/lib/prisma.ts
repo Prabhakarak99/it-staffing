@@ -26,6 +26,7 @@ const SHARED_MODELS = new Set<string>(["JobSearchResult", "JobApiSource", "AtsCo
 const READS = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy"]);
 const SCOPED_WRITES = new Set(["update", "updateMany", "updateManyAndReturn", "delete", "deleteMany"]);
 const UNIQUE_OPS = new Set(["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"]);
+const CREATES = new Set(["create", "createMany", "createManyAndReturn", "upsert"]);
 
 export class TenantError extends Error {}
 
@@ -90,6 +91,11 @@ export const prisma = unscopedPrisma.$extends({
         if (GLOBAL_MODELS.has(model)) return query(args);
         const scope = await currentScope();
         if (!scope) throw new TenantError(`${model}.${operation} needs a company (no session and no runAs)`);
+        // "All companies" view: new records can't be created (they would land in whichever company the
+        // Super Admin last worked in). Changes to existing records stay allowed; the activity log too.
+        if (scope.all && CREATES.has(operation) && model !== "ActivityLog") {
+          throw new TenantError("The All companies view is read-only for new records. Switch to a company to add one.");
+        }
         return query(scopeArgs(model, operation, (args ?? {}) as Args, scope) as typeof args);
       },
     },

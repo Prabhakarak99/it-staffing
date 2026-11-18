@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
   }
 
   const fresh = await sessionFor(user, company, !!session.isPlatformAdmin);
-  await createSession({ ...fresh, allCompanies: session.isPlatformAdmin ? session.allCompanies : false });
+  const all = !!session.isPlatformAdmin && !!session.allCompanies;
+  await createSession({ ...fresh, allCompanies: all, ...(all ? { companyName: "All companies" } : {}) });
 
   const allowedScreens = fresh.allowedScreens;
   const canAccessNext =
