@@ -47,7 +47,7 @@ export async function matchedForRequirement(session: SessionPayload, id: string)
       .filter((s) => s.technology!.trim().toLowerCase() === tech.toLowerCase() || onTechnology(s.technology, stem))
       .map((s) => {
         const t = s.tailoredResumes[0];
-        const kw = (t?.keywords ?? {}) as { missing?: string[] };
+        const kw = (t?.keywords ?? {}) as { missing?: string[]; keptExisting?: boolean; keptMatched?: boolean };
         const r = s.preMarketings[0]?.recruiter;
         return {
           id: s.id,
@@ -59,7 +59,7 @@ export async function matchedForRequirement(session: SessionPayload, id: string)
           recruiterName: r ? `${r.firstName} ${r.lastName}`.trim() : null,
           resume: s.resumeFile ? { file: s.resumeFile, name: resumeName(s, extOf(s.resumeFile)) } : null,
           tailored: t
-            ? { id: t.id, file: t.file, name: resumeName(s, extOf(t.file)), atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: kw.missing ?? [], createdAt: t.createdAt.toISOString() }
+            ? { id: t.id, file: t.file, name: resumeName(s, extOf(t.file)), atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: kw.missing ?? [], createdAt: t.createdAt.toISOString(), keptExisting: !!kw.keptExisting, keptMatched: !!kw.keptMatched }
             : null,
           sentCount: s.requirementSends.length,
           lastSentAt: s.requirementSends[0]?.createdAt.toISOString() ?? null,

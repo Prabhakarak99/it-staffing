@@ -373,8 +373,8 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
     : givenJd ?? { text: "" };
   // No full JD: work from what there is (the technology / title, plus any short JD text)
   const shortJd = jd.text.trim().length < 100;
-  // (Easy Submissions keep the existing resume even with no technology; other screens need a JD)
-  if (shortJd && !sub && !jd.technology?.trim() && !jd.jobTitle?.trim()) {
+  // (Easy Submissions and Vendor Requirements keep the existing resume even with no technology; other screens need a JD)
+  if (shortJd && !sub && !emailRequirementId && !jd.technology?.trim() && !jd.jobTitle?.trim()) {
     throw new AiError(!jd.text.trim() ? (sub ? "This submission has no job description or technology." : "Paste or upload the job description first") : "The job description is too short. Paste the full JD.");
   }
   if (!consultant.resumeFile) throw new AiError("Upload the consultant's resume first");

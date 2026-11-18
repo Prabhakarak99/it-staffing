@@ -191,7 +191,9 @@ export function SendResumeDialog({ req, sender, aiReady, onClose, onDone }: {
                             <Link href={`/admin/resumes?consultant=${c.id}`} className="font-medium text-rose-600 hover:underline">No resume: upload first</Link>
                           ) : c.tailored ? (
                             <button type="button" onClick={() => setPreviewing({ id: c.tailored!.id, name: c.name })} className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:underline">
-                              <Eye className="h-3 w-3" /> Updated for this JD · ATS {c.tailored.atsAfter}%
+                              <Eye className="h-3 w-3" /> {(c.tailored as { keptExisting?: boolean }).keptExisting
+                                ? `Existing resume${(c.tailored as { keptMatched?: boolean }).keptMatched ? ", matched" : ", sent as is"} (no full JD) · ATS ${c.tailored.atsAfter}%`
+                                : `Updated for this JD · ATS ${c.tailored.atsAfter}%`}
                             </button>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-slate-500"><Sparkles className="h-3 w-3" /> Resume will be updated for this JD</span>
