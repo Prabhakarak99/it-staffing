@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { AiError, aiJson, getActiveAi } from "@/lib/ai/providers";
-import { resumeText, saveResume } from "@/lib/files/resumes";
+import { extOf, readResume, resumeText, saveResume } from "@/lib/files/resumes";
 import { atsScore, countTerm, type KeywordPriority } from "./ats";
 import { resumeName } from "@/lib/files/resume-name";
 import { buildResumeDocx, resumeContentText, type TailoredResumeContent } from "./resume-docx";
 
 const MAX_RESUME_CHARS = 30_000;
 const MAX_JD_CHARS = 15_000;
+/** No full JD: an existing resume covering this share of the role's keywords is sent as it is */
+const KEEP_EXISTING_SCORE = 70;
 
 const SYSTEM = `# SYSTEM PROMPT — US IT CONTRACT RESUME REWRITER (C2C / W2)
 
@@ -369,10 +371,11 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
   const jd: JobDescriptionInput = sub
     ? { text: sub.jobDescription ?? "", technology: sub.technology, clientName: sub.clientName }
     : givenJd ?? { text: "" };
-  if (!jd.text.trim()) {
-    throw new AiError(sub ? "This submission has no job description. Add the JD to the submission first." : "Paste or upload the job description first");
+  // No full JD: work from what there is (the technology / title, plus any short JD text)
+  const shortJd = jd.text.trim().length < 100;
+  if (shortJd && !jd.technology?.trim() && !jd.jobTitle?.trim()) {
+    throw new AiError(!jd.text.trim() ? (sub ? "This submission has no job description or technology." : "Paste or upload the job description first") : "The job description is too short. Paste the full JD.");
   }
-  if (jd.text.trim().length < 100) throw new AiError("The job description is too short. Paste the full JD.");
   if (!consultant.resumeFile) throw new AiError("Upload the consultant's resume first");
   const role = [jd.jobTitle, jd.technology].filter(Boolean).join(", ") || "the role";
 
@@ -380,7 +383,10 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
   const original = await resumeText(consultant.resumeFile);
   if (original.length < 200) throw new AiError("Could not read enough text from the resume. Upload a text-based PDF or a Word file (not a scanned image).");
 
-  const inputs = `JOB DESCRIPTION (${role}${jd.clientName ? `, client ${jd.clientName}` : ""}):\n${jd.text.slice(0, MAX_JD_CHARS)}\n\nORIGINAL RESUME OF ${name}:\n${original.slice(0, MAX_RESUME_CHARS)}`;
+  const jdText = shortJd
+    ? `Only a short job description is available. Role: ${role}.${jd.clientName ? ` Client: ${jd.clientName}.` : ""}${jd.text.trim() ? `\nWhat the JD says: ${jd.text.trim()}` : ""}\nInfer the core skills, tools and responsibilities a US client typically requires for this role and use those as the job's keywords.`
+    : jd.text.slice(0, MAX_JD_CHARS);
+  const inputs = `JOB DESCRIPTION (${role}${jd.clientName ? `, client ${jd.clientName}` : ""}):\n${jdText}\n\nORIGINAL RESUME OF ${name}:\n${original.slice(0, MAX_RESUME_CHARS)}`;
 
   // 1. Analyse: the JD's keywords by priority, and the evidence for each in this resume, role by role
   let plan: PlannedKeyword[] = [];
@@ -389,6 +395,39 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
   } catch (err) {
     if (!(err instanceof AiError)) throw err;
     console.warn("[resumes] keyword plan failed, writing without it:", err.message);
+  }
+
+  // No full JD and the existing resume already covers the role's keywords: keep it as it is
+  if (shortJd) {
+    const keywordsFor = plan.length ? plan : [jd.technology ?? "", jd.jobTitle ?? ""].filter((t) => t.trim());
+    const existing = atsScore(original, keywordsFor);
+    if (existing.score >= KEEP_EXISTING_SCORE) {
+      const file = await saveResume(await readResume(consultant.resumeFile), extOf(consultant.resumeFile), "tailored");
+      return prisma.tailoredResume.create({
+        data: {
+          submissionId, recruiterVendorId, emailRequirementId, consultantId,
+          jobTitle: jd.jobTitle?.trim() || null,
+          clientName: jd.clientName?.trim() || null,
+          technology: jd.technology?.trim() || null,
+          jobDescription: jd.text.trim() || role,
+          jdFile: jd.file ?? null,
+          jdFileName: jd.fileName ?? null,
+          createdById: userId,
+          file,
+          fileName: resumeName(name, extOf(consultant.resumeFile)),
+          atsBefore: existing.score,
+          atsAfter: existing.score,
+          keywords: {
+            matched: existing.matched,
+            missing: existing.missing,
+            plan: plan.map(({ term, priority, evidence, note }) => ({ term, priority, evidence, note })),
+            keptExisting: true,
+          },
+          provider: "Existing resume",
+          model: "matched without changes",
+        },
+      });
+    }
   }
 
   // 2. Write the full resume to the plan
@@ -434,7 +473,7 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
       jobTitle: jd.jobTitle?.trim() || null,
       clientName: jd.clientName?.trim() || null,
       technology: jd.technology?.trim() || null,
-      jobDescription: jd.text.trim(),
+      jobDescription: jd.text.trim() || role,
       jdFile: jd.file ?? null,
       jdFileName: jd.fileName ?? null,
       createdById: userId,

@@ -9,7 +9,7 @@ import { tailorResume, type TailorInput } from "./tailor";
 export interface TailorJob {
   userId: string;
   status: "running" | "done" | "failed";
-  result?: { id: string; file: string; name: string; atsBefore: number; atsAfter: number; missing: string[]; createdAt: string };
+  result?: { id: string; file: string; name: string; atsBefore: number; atsAfter: number; missing: string[]; createdAt: string; keptExisting?: boolean };
   error?: string;
   startedAt: number;
 }
@@ -46,11 +46,11 @@ export function startTailorJob(input: TailorInput) {
 
   withSlot(() => tailorResume(input))
     .then((t) => {
-      const keywords = t.keywords as { missing?: string[] };
+      const keywords = t.keywords as { missing?: string[]; keptExisting?: boolean };
       job.status = "done";
       job.result = {
         id: t.id, file: t.file, name: t.fileName, atsBefore: t.atsBefore, atsAfter: t.atsAfter,
-        missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString(),
+        missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString(), keptExisting: !!keywords.keptExisting,
       };
     })
     .catch((err: unknown) => {

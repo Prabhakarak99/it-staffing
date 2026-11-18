@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { extOf, readResume } from "@/lib/files/resumes";
+import { extOf, readResume, resumeText } from "@/lib/files/resumes";
 import { resumeName } from "@/lib/files/resume-name";
 import { countTerm } from "@/lib/easy/ats";
 
@@ -25,11 +25,20 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   } catch {
     return NextResponse.json({ error: "The resume file is missing" }, { status: 404 });
   }
-  const mammoth = await import("mammoth");
-  const [{ value: html }, { value: text }] = await Promise.all([
-    mammoth.convertToHtml({ buffer }),
-    mammoth.extractRawText({ buffer }),
-  ]);
+  let html: string;
+  let text: string;
+  if (extOf(t.file) === "pdf") {
+    // An existing PDF resume kept as it is (no full JD and it already matched): show its text
+    text = await resumeText(t.file);
+    const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    html = text.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, "<br/>")}</p>`).join("");
+  } else {
+    const mammoth = await import("mammoth");
+    [{ value: html }, { value: text }] = await Promise.all([
+      mammoth.convertToHtml({ buffer }),
+      mammoth.extractRawText({ buffer }),
+    ]);
+  }
 
   type Planned = { term: string; priority?: string; evidence?: string; note?: string };
   const kw = (t.keywords ?? {}) as { matched?: string[]; missing?: string[]; plan?: Planned[] };

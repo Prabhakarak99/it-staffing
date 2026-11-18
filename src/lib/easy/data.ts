@@ -118,7 +118,7 @@ export interface ConsultantOption {
   location: string | null;
   recruiterName: string | null;
   resume: { file: string; name: string } | null;
-  tailored: { id: string; file: string; name: string; atsBefore: number; atsAfter: number; missing: string[]; createdAt: string } | null;
+  tailored: { id: string; file: string; name: string; atsBefore: number; atsAfter: number; missing: string[]; createdAt: string; keptExisting?: boolean } | null;
   sentCount: number;
 }
 
@@ -164,7 +164,7 @@ export async function consultantsFor(submissionId: string): Promise<{ technology
 
   const consultants = students.map((s) => {
       const t = s.tailoredResumes[0];
-      const keywords = (t?.keywords ?? {}) as { missing?: string[] };
+      const keywords = (t?.keywords ?? {}) as { missing?: string[]; keptExisting?: boolean };
       return {
         id: s.id,
         name: `${s.firstName} ${s.lastName}`.trim(),
@@ -175,7 +175,7 @@ export async function consultantsFor(submissionId: string): Promise<{ technology
         recruiterName: fullName(s.preMarketings[0]?.recruiter),
         resume: s.resumeFile ? { file: s.resumeFile, name: resumeName(s, extOf(s.resumeFile)) } : null,
         tailored: t
-          ? { id: t.id, file: t.file, name: resumeName(s, extOf(t.file)), atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString() }
+          ? { id: t.id, file: t.file, name: resumeName(s, extOf(t.file)), atsBefore: t.atsBefore, atsAfter: t.atsAfter, missing: keywords.missing ?? [], createdAt: t.createdAt.toISOString(), keptExisting: !!keywords.keptExisting }
           : null,
         sentCount: s._count.easySends,
       };

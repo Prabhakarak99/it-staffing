@@ -446,7 +446,6 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
   /** Why a consultant's resume can't be generated, or null when it can */
   const blockReason = (c: ConsultantOption) =>
     !aiReady ? "No AI provider configured"
-      : !state.requirement?.jobDescription ? "Submission has no job description"
       : state.vendorCounts?.[c.id] === 0 ? "No vendors for generating resume"
       : !c.resume ? "Upload a resume first"
       : null;
@@ -470,7 +469,6 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
   };
   const generateAllTitle =
     !aiReady ? "No AI provider configured"
-      : !state.requirement?.jobDescription ? "Submission has no job description"
       : eligible.length === 0
         ? (tailoring.size ? "Resumes are being generated" : "No vendors for generating resume")
         : `Generate updated resumes for ${eligible.length} consultant${eligible.length === 1 ? "" : "s"} at the same time${skipped.length ? `. Skipped: ${skipped.map((c) => `${c.name} (${blockReason(c)})`).join(", ")}` : ""}`;
@@ -488,9 +486,9 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
             : <>No technology on {sub.consultantName}&apos;s profile</>}
         </p>
         <span className="text-[11px] text-slate-400">Same technology as {sub.consultantName}&apos;s profile · In-Market (or recently submitted), any recruiter</span>
-        {!state.requirement?.jobDescription && (
+        {(state.requirement?.jobDescription?.trim().length ?? 0) < 100 && (
           <span className="flex items-center gap-1 text-[11.5px] font-medium text-amber-700">
-            <AlertTriangle className="h-3.5 w-3.5" /> No job description on this submission, so AI updates are off
+            <AlertTriangle className="h-3.5 w-3.5" /> No full JD: each resume is checked against {sub.technology}. A matching resume is sent as it is; the others are updated with AI
           </span>
         )}
         {state.consultants.length > 0 && (
@@ -583,6 +581,7 @@ function ConsultantPanel({ sub, state, aiReady, sender, notify, onUpdate, onRelo
                             <Eye className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{c.tailored.name}</span>
                           </button>
                           <AtsBadge before={c.tailored.atsBefore} after={c.tailored.atsAfter} missing={c.tailored.missing} />
+                          {c.tailored.keptExisting && <span className="text-[10.5px] font-medium text-slate-500" title="No full JD, and the existing resume already matched the role's keywords, so it is sent unchanged">Existing resume, matched</span>}
                         </div>
                       ) : (
                         <span className="text-[11.5px] text-slate-400">—</span>
