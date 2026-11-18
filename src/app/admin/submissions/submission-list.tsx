@@ -1,5 +1,7 @@
 "use client";
 
+import { CompanyTd, CompanyTh } from "@/components/layout/company-column";
+
 import { useMemo, useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -258,6 +260,7 @@ export function SubmissionList({
         <table className="w-full text-sm">
           <thead className="bg-slate-800">
             <tr>
+              <CompanyTh />
               <CheckboxHeaderFilter
                 label="Sub ID"
                 sortCol="submissionId"
@@ -362,6 +365,7 @@ export function SubmissionList({
             ) : (
               sorted.map((s) => (
                 <tr key={s.id} className="hover:bg-sky-50/20 transition-colors">
+                  <CompanyTd row={s} />
                   <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
                     <button
                       type="button"

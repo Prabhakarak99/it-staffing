@@ -43,6 +43,11 @@ export default async function AdminLayout({
   });
   const userName = user ? `${user.firstName} ${user.lastName}`.trim() || null : null;
 
+  // All companies view: names for the Company column in the lists
+  const companyNames = session.allCompanies
+    ? Object.fromEntries((await unscopedPrisma.company.findMany({ select: { id: true, name: true } })).map((c) => [c.id, c.name]))
+    : null;
+
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "1";
   const [attendancePrompt, notifications] = await Promise.all([
     getAttendancePrompt(session, user?.firstName ?? ""),
@@ -58,6 +63,7 @@ export default async function AdminLayout({
       companyName={session.companyName}
       isPlatformAdmin={!!session.isPlatformAdmin}
       allCompanies={!!session.allCompanies}
+      companyNames={companyNames}
       initialCollapsed={sidebarCollapsed}
       attendancePrompt={attendancePrompt}
       notifications={notifications}

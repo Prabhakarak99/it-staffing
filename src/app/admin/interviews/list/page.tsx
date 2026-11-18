@@ -16,6 +16,7 @@ export default async function TotalInterviewsPage() {
       where: isRecruiter ? { recruiterId: session.userId } : {},
       select: {
         id: true,
+        companyId: true, // the Company column in the All companies view
         interviewId: true,
         interviewStartDate: true,
         interviewEndDate: true,

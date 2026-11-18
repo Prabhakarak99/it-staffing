@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TopNav } from "./topnav";
 import { Sidebar } from "./sidebar";
+import { CompanyNamesProvider } from "./company-column";
 
 import { SIDEBAR_COOKIE } from "./sidebar-cookie";
 import { AttendancePrompt } from "./attendance-prompt";
@@ -21,13 +22,15 @@ interface AdminShellProps {
   isPlatformAdmin: boolean;
   /** Super Admin's All companies view */
   allCompanies: boolean;
+  /** Company names by id, for the Company column in the All companies view */
+  companyNames: Record<string, string> | null;
   initialCollapsed: boolean;
   attendancePrompt: AttendancePromptData | null;
   notifications: { items: NotificationItem[]; pendingCount: number };
   children: React.ReactNode;
 }
 
-export function AdminShell({ allowedPaths, userEmail, userName, roleName, companyName, isPlatformAdmin, allCompanies, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
+export function AdminShell({ allowedPaths, userEmail, userName, roleName, companyName, isPlatformAdmin, allCompanies, companyNames, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   // Until today's attendance is marked, the app behind the popup can't be used
@@ -62,7 +65,7 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, compan
               <b>All companies view:</b> lists and reports include every company. To add a record, pick one company in the switcher at the top.
             </div>
           )}
-          {children}
+          <CompanyNamesProvider names={allCompanies ? companyNames : null}>{children}</CompanyNamesProvider>
         </main>
       </div>
       </div>

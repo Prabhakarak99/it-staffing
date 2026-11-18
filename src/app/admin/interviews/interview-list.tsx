@@ -1,5 +1,7 @@
 "use client";
 
+import { CompanyTd, CompanyTh } from "@/components/layout/company-column";
+
 import { useState, useMemo, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -294,6 +296,7 @@ export function InterviewList({
         <table className="w-full text-sm">
           <thead className="bg-slate-800">
             <tr>
+              <CompanyTh />
               <CheckboxHeaderFilter
                 label="Interview ID"
                 sortCol="interviewId"
@@ -440,6 +443,7 @@ export function InterviewList({
             ) : (
               sorted.map((iv) => (
                 <tr key={iv.id} className="hover:bg-indigo-50/30 transition-colors">
+                  <CompanyTd row={iv} />
                   <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
                     <button
                       type="button"

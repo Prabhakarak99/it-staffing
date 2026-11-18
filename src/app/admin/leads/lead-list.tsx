@@ -1,5 +1,7 @@
 "use client";
 
+import { CompanyTd, CompanyTh } from "@/components/layout/company-column";
+
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -224,6 +226,7 @@ export function LeadList({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-800 text-left">
+              <CompanyTh />
               {COLUMNS.map(({ key, label }) => (
                 <CheckboxHeaderFilter key={key} label={label} sortCol={key} sortDir={sortDir} currentSort={sortCol} onSort={toggleSort} options={filterOptions[key]} selected={filters[key]} onChange={(next) => setFilter(key, next)} accentClass="text-sky-600" hoverClass="hover:bg-sky-50" thClassName="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap" />
               ))}
@@ -240,6 +243,7 @@ export function LeadList({
             ) : (
               sorted.map((lead) => (
                 <tr key={lead.id} className="transition-colors hover:bg-sky-50/20">
+                  <CompanyTd row={lead} />
                   <td className="px-5 py-3.5">
                     <button
                       type="button"

@@ -10,6 +10,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        companyId: true, // the Company column in the All companies view
         firstName: true,
         lastName: true,
         email: true,

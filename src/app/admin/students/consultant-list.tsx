@@ -1,5 +1,7 @@
 "use client";
 
+import { CompanyTd, CompanyTh } from "@/components/layout/company-column";
+
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -286,6 +288,7 @@ export function ConsultantList({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-800 text-left">
+              <CompanyTh />
               <CheckboxHeaderFilter
                 label="Consultant"
                 sortCol="name"
@@ -409,6 +412,7 @@ export function ConsultantList({
                 const days = getDaysMetric(c);
                 return (
                   <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors">
+                    <CompanyTd row={c} />
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">

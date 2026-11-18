@@ -17,6 +17,7 @@ export default async function TotalSubmissionsPage() {
       where: isRecruiter ? { recruiterId: session.userId } : {},
       select: {
         id: true,
+        companyId: true, // the Company column in the All companies view
         submissionId: true,
         submissionDate: true,
         technology: true,
