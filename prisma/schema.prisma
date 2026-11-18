@@ -10,15 +10,90 @@ datasource db {
   provider = "postgresql"
 }
 
+/// A customer company (tenant). The "platform" company (kind = platform) owns shared data:
+/// the shared job pool and the default API keys every company can use.
+model Company {
+  id                 String   @id @default(cuid())
+  /// Used in the login URL (?company=genfusiontech); lowercase letters and digits, fixed after creation
+  slug               String   @unique
+  /// 3 letters for submission ids (Sub-GEN-001); unique, set by the Super Admin
+  code               String   @unique
+  name               String
+  /// company | platform
+  kind               String   @default("company")
+  /// active | suspended (suspended: nobody in it can log in; data kept)
+  status             String   @default("active")
+  logoFile           String?
+  brandColor         String?
+  timezone           String   @default("America/Chicago")
+  attendanceTimezone String   @default("Asia/Kolkata")
+  /// Screen paths switched off for this company by the Super Admin
+  disabledModules    String[] @default([])
+  maxUsers           Int?
+  /// Company rules (late-login cut-off, leave thresholds, ...)
+  settings           Json?
+  createdById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  roles Role[]
+  roleScreens RoleScreen[]
+  users User[]
+  students Student[]
+  submissions Submission[]
+  techSupports TechSupport[]
+  interviews Interview[]
+  preMarketings PreMarketing[]
+  expenses Expense[]
+  leads Lead[]
+  leadSheets LeadSheet[]
+  leadSheetRows LeadSheetRow[]
+  appSettings AppSetting[]
+  jobSearchResults JobSearchResult[]
+  atsCompanys AtsCompany[]
+  jobIngestConfigs JobIngestConfig[]
+  jobApiSources JobApiSource[]
+  gmailAccounts GmailAccount[]
+  gmailSettingss GmailSettings[]
+  emailDailyStats EmailDailyStat[]
+  recruiterVendors RecruiterVendor[]
+  vendorContacts VendorContact[]
+  autoJobRuns AutoJobRun[]
+  autoJobApplications AutoJobApplication[]
+  autoJobsConfigs AutoJobsConfig[]
+  attendances Attendance[]
+  leaveRequests LeaveRequest[]
+  aiProviders AiProvider[]
+  tailoredResumes TailoredResume[]
+  easySubmissionSends EasySubmissionSend[]
+  followUps FollowUp[]
+  emailTemplates EmailTemplate[]
+  emailRequirements EmailRequirement[]
+  emailScans EmailScan[]
+  consultantMailboxs ConsultantMailbox[]
+  vendorResumeSends VendorResumeSend[]
+  emailRequirementSends EmailRequirementSend[]
+  activityLogs ActivityLog[]
+  confirmations Confirmation[]
+  incentivePlacements IncentivePlacement[]
+  appreciationAwards AppreciationAward[]
+  appreciationBonuss AppreciationBonus[]
+}
+
 model Role {
   id          String   @id @default(cuid())
-  name        String   @unique
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   users       User[]
   roleScreens RoleScreen[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model Screen {
@@ -32,6 +107,8 @@ model Screen {
 
 model RoleScreen {
   id       String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   roleId   String
   screenId String
   canView  Boolean @default(true)
@@ -40,13 +117,19 @@ model RoleScreen {
   screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, screenId])
+
+  @@index([companyId])
 }
 
 model User {
   id                     String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   firstName              String
   lastName               String
   email                  String    @unique
+  /// Platform Super Admin: at the plain /login sees and manages every company
+  isPlatformAdmin        Boolean   @default(false)
   phoneNumber            String?
   password               String
   roleId                 String?
@@ -93,15 +176,19 @@ model User {
   emailTemplates               EmailTemplate[]
   emailRequirements            EmailRequirement[]
   consultantMailboxesConnected ConsultantMailbox[]
+
+  @@index([companyId])
 }
 
 model Student {
   id                     String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Personal
   firstName              String
   lastName               String
   personalPhone          String?
-  email                  String    @unique
+  email                  String
   dob                    DateTime?
   parentPhone            String?
   emergencyContact       String?
@@ -170,10 +257,15 @@ model Student {
   mailbox             ConsultantMailbox?
   vendorResumeSends   VendorResumeSend[]
   requirementSends    EmailRequirementSend[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
 }
 
 model Submission {
   id                   String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionId         String   @unique
   submissionDate       DateTime
   recruiterId          String
@@ -200,13 +292,17 @@ model Submission {
   tailoredResumes TailoredResume[]
   easySends       EasySubmissionSend[]
   followUps       FollowUp[]
+
+  @@index([companyId])
 }
 
 model TechSupport {
   id           String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   firstName    String
   lastName     String
-  email        String   @unique
+  email        String
   phoneNumber  String
   technology   String
   location     String
@@ -217,11 +313,16 @@ model TechSupport {
   updatedAt    DateTime @updatedAt
 
   interviews Interview[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
 }
 
 model Interview {
   id                  String   @id @default(cuid())
-  interviewId         String   @unique
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewId         String
   recruiterId         String
   submissionId        String
   interviewStartDate  DateTime
@@ -241,10 +342,15 @@ model Interview {
   submission  Submission   @relation(fields: [submissionId], references: [id])
   techSupport TechSupport? @relation(fields: [techSupportId], references: [id])
   followUps   FollowUp[]
+
+  @@unique([companyId, interviewId])
+  @@index([companyId])
 }
 
 model PreMarketing {
   id                              String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   consultantId                    String    @unique
   checklist                       Json?
   dlAvailable                     String?
@@ -265,11 +371,15 @@ model PreMarketing {
 
   consultant Student @relation(fields: [consultantId], references: [id])
   recruiter  User?   @relation("PreMarketingRecruiter", fields: [recruiterId], references: [id])
+
+  @@index([companyId])
 }
 
 model Expense {
   id            String   @id @default(cuid())
-  expenseId     String   @unique
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  expenseId     String
   date          DateTime
   submittedById String
   consultantId  String?
@@ -285,10 +395,15 @@ model Expense {
 
   submittedBy User     @relation("ExpenseSubmitter", fields: [submittedById], references: [id])
   consultant  Student? @relation("ExpenseConsultant", fields: [consultantId], references: [id])
+
+  @@unique([companyId, expenseId])
+  @@index([companyId])
 }
 
 model Lead {
   id             String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   consultantId   String?   @unique
   consultantName String
   phoneNumber    String?
@@ -307,11 +422,15 @@ model Lead {
   createdBy  User?    @relation("LeadCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([createdById])
+
+  @@index([companyId])
 }
 
 /// A user's Google Sheets connection for loading leads: their own sheet, created by the app in their Drive
 model LeadSheet {
   id                String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId            String    @unique
   /// AES-256-GCM encrypted; never sent to the browser
   refreshTokenEnc   String
@@ -321,12 +440,16 @@ model LeadSheet {
   createdAt         DateTime  @default(now())
 
   @@map("lead_sheets")
+
+  @@index([companyId])
 }
 
 /// The "loaded" flag for team Google Sheet rows: one record per row already brought into Leads, so a
 /// row is never loaded twice, even after its lead is converted to a consultant or deleted.
 model LeadSheetRow {
   id         String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// The Google Sheet's id (from its link)
   sheetId    String
   /// The row's identity: its email, else name + phone, else all its values (see rowKey in team-sheet.ts)
@@ -340,15 +463,21 @@ model LeadSheetRow {
 
   @@unique([sheetId, rowKey])
   @@map("lead_sheet_rows")
+
+  @@index([companyId])
 }
 
 /// Small app-wide settings by key (e.g. "leads-team-sheet": the shared Google Sheet for leads)
 model AppSetting {
-  key       String   @id
+  key       String
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   value     String
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
+
+  @@id([companyId, key])
 }
 
 /// One-time data changes that already ran (see src/lib/screens.ts)
@@ -359,6 +488,8 @@ model AppMigration {
 
 model JobSearchResult {
   id               String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   jobId            String    @unique
   technology       String?
   technologies     String[]
@@ -401,11 +532,15 @@ model JobSearchResult {
   @@index([sourceType, lastSeenAt])
   @@index([classifiedBy])
   @@map("job_search_results")
+
+  @@index([companyId])
 }
 
 // ── Job feed: company career boards to crawl ─────────────────────────────────
 model AtsCompany {
   id            String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name          String
   provider      String // greenhouse | lever | ashby | smartrecruiters | workday
   boardToken    String // greenhouse token / lever slug / ashby name / SR company id / workday tenant
@@ -418,12 +553,15 @@ model AtsCompany {
   lastError     String?
   createdAt     DateTime  @default(now())
 
-  @@unique([provider, boardToken, workdaySite])
+  @@unique([companyId, provider, boardToken, workdaySite])
   @@index([isActive, lastCrawledAt])
+
+  @@index([companyId])
 }
 
 model JobIngestConfig {
-  id                   String    @id @default("singleton")
+  companyId String  @id // one settings row per company ("platform" company = shared defaults)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   paused               Boolean   @default(false)
   crawlIntervalMin     Int       @default(60)
   maxCompaniesPerCycle Int       @default(10)
@@ -439,7 +577,10 @@ model JobIngestConfig {
 
 /// A paid job-data API feeding the Requirements tab (see src/lib/jobfeed/apis). id = provider key.
 model JobApiSource {
-  id            String    @id // fantastic | coresignal | sourcestack | aspen | jobfront | zyte
+  id            String    @id @default(cuid())
+  provider      String // was the id: fantastic | coresignal | sourcestack | aspen | jobfront | zyte
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// AES-256-GCM encrypted; never sent to the browser
   apiKeyEnc     String?
   isEnabled     Boolean   @default(false)
@@ -463,12 +604,17 @@ model JobApiSource {
   updatedAt     DateTime  @updatedAt
 
   @@map("job_api_sources")
+
+  @@unique([companyId, provider])
+  @@index([companyId])
 }
 
 // ── Gmail: each user's own Workspace mailbox (OAuth, gmail.modify) ─────────
 
 model GmailAccount {
   id                String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId            String    @unique
   email             String
   /// AES-256-GCM encrypted; never sent to the browser
@@ -483,13 +629,16 @@ model GmailAccount {
   reqScanAt         DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 /// Emails received / sent per user per day (server-local day), filled by the Gmail stats worker
 /// Google OAuth client entered in the Mailbox setup wizard (single row, id "default").
 /// GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET env vars take precedence when set.
 model GmailSettings {
-  id              String   @id @default("default")
+  companyId String  @id // one settings row per company ("platform" company = shared defaults)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   clientId        String
   clientSecretEnc String
   updatedById     String?
@@ -500,6 +649,8 @@ model GmailSettings {
 /// Weekly and monthly totals are added up from these rows.
 model EmailDailyStat {
   id       String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId   String
   email    String   @default("") // the employee's connected Gmail address
   day      DateTime
@@ -509,12 +660,16 @@ model EmailDailyStat {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, day])
+
+  @@index([companyId])
 }
 
 // ── Vendor Management: each recruiter's own vendor contact book ─────────────
 
 model RecruiterVendor {
   id                     String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   ownerId                String
   name                   String
   email                  String
@@ -537,12 +692,16 @@ model RecruiterVendor {
 
   @@unique([ownerId, email])
   @@index([ownerId])
+
+  @@index([companyId])
 }
 
 // ── AutoJobs: automated vendor marketing engine ─────────────────────────────
 
 model VendorContact {
   id                 String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vendorCompany      String
   recruiterName      String?
   email              String
@@ -557,12 +716,16 @@ model VendorContact {
 
   applications AutoJobApplication[]
 
-  @@unique([email, clientName])
+  @@unique([companyId, email, clientName])
   @@index([clientName])
+
+  @@index([companyId])
 }
 
 model AutoJobRun {
   id                  String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   triggerSubmissionId String
   clientName          String
   technology          String
@@ -575,10 +738,14 @@ model AutoJobRun {
   updatedAt           DateTime @updatedAt
 
   applications AutoJobApplication[]
+
+  @@index([companyId])
 }
 
 model AutoJobApplication {
   id              String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   runId           String
   consultantId    String
   vendorContactId String
@@ -595,10 +762,13 @@ model AutoJobApplication {
 
   @@unique([runId, consultantId, vendorContactId])
   @@index([consultantId, vendorEmail])
+
+  @@index([companyId])
 }
 
 model AutoJobsConfig {
-  id               String   @id @default("singleton")
+  companyId String  @id // one settings row per company ("platform" company = shared defaults)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   paused           Boolean  @default(false)
   autoSend         Boolean  @default(false) // false = dry-run: match and queue only, no emails
   dailyCap         Int      @default(100)
@@ -613,6 +783,8 @@ model AutoJobsConfig {
 /// One row per employee per day, created by the first-login "I'm in" popup and approved by a POC / Manager / Admin
 model Attendance {
   id           String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId       String
   day          DateTime  @db.Date
   status       String    @default("pending") // pending | approved | rejected
@@ -629,6 +801,8 @@ model Attendance {
 
   @@unique([userId, day])
   @@index([status, day])
+
+  @@index([companyId])
 }
 
 /// Positive note shown in the attendance popup, one per day in rotation
@@ -645,6 +819,8 @@ model DailyQuote {
 /// Leave requests. Every employee earns 1 paid leave per month; days beyond the balance are unpaid.
 model LeaveRequest {
   id           String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId       String
   startDate    DateTime  @db.Date
   endDate      DateTime  @db.Date
@@ -666,6 +842,8 @@ model LeaveRequest {
 
   @@index([userId, status])
   @@index([status])
+
+  @@index([companyId])
 }
 
 // ── AI providers (Admin → AI Settings) ──────────────────────────────────────
@@ -673,6 +851,8 @@ model LeaveRequest {
 /// An AI API an admin configured. The default enabled one is used for resume updates.
 model AiProvider {
   id           String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   provider     String // openai | anthropic | gemini | openai-compatible
   label        String
   apiKeyEnc    String
@@ -685,6 +865,8 @@ model AiProvider {
   updatedById  String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([companyId])
 }
 
 // ── Easy Submissions ────────────────────────────────────────────────────────
@@ -694,6 +876,8 @@ model AiProvider {
 /// Easy Submissions, or pasted / uploaded on the Resumes tab)
 model TailoredResume {
   id             String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionId   String? // null when generated on the Resumes tab
   consultantId   String
   jobTitle       String?
@@ -727,11 +911,15 @@ model TailoredResume {
   @@index([consultantId, createdAt])
   @@index([recruiterVendorId, consultantId])
   @@index([emailRequirementId, consultantId])
+
+  @@index([companyId])
 }
 
 /// Every resume emailed to a vendor from Easy Submissions; also hides vendors already sent for that consultant
 model EasySubmissionSend {
   id               String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionId     String // the submission the requirement came from
   consultantId     String
   senderId         String
@@ -751,12 +939,16 @@ model EasySubmissionSend {
 
   @@index([consultantId, vendorEmail])
   @@index([submissionId])
+
+  @@index([companyId])
 }
 
 /// Follow-up emails to the vendor: up to 2 per submission (a week after submitting, then a week later)
 /// and up to 2 per interview (the day after, then a week later). Replies in the original Gmail thread.
 model FollowUp {
   id           String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   kind         String // submission | interview
   submissionId String
   interviewId  String?
@@ -778,11 +970,15 @@ model FollowUp {
   @@index([submissionId, kind])
   @@index([interviewId])
   @@index([senderId, createdAt])
+
+  @@index([companyId])
 }
 
 /// A user's own email template (only they see and use it)
 model EmailTemplate {
   id        String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userId    String
   name      String
   /// submission | followup-submission | followup-interview | general
@@ -797,11 +993,15 @@ model EmailTemplate {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, category])
+
+  @@index([companyId])
 }
 
 /// A vendor requirement read from a recruiter's Gmail inbox (Vendor Requirements tab)
 model EmailRequirement {
   id             String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Recruiter whose inbox it came from
   ownerId        String
   /// Other recruiters who got the same email (vendors often mail several of us)
@@ -839,11 +1039,15 @@ model EmailRequirement {
   @@index([receivedAt])
   @@index([fingerprint])
   @@index([createdAt])
+
+  @@index([companyId])
 }
 
 /// Each inbox message checked for requirements, so none is read (or sent to the AI) twice
 model EmailScan {
   id             String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   ownerId        String
   gmailMessageId String
   /// requirement | duplicate | skipped | failed
@@ -852,11 +1056,15 @@ model EmailScan {
 
   @@unique([ownerId, gmailMessageId])
   @@index([createdAt])
+
+  @@index([companyId])
 }
 
 /// A consultant's own Gmail (the one used to market them), connected by their recruiter with read and send access
 model ConsultantMailbox {
   id                String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   consultantId      String    @unique
   email             String
   /// "app_password": Gmail address + Google App Password over IMAP/SMTP; "oauth": Google sign-in
@@ -876,11 +1084,15 @@ model ConsultantMailbox {
 
   consultant  Student @relation(fields: [consultantId], references: [id], onDelete: Cascade)
   connectedBy User    @relation(fields: [connectedById], references: [id])
+
+  @@index([companyId])
 }
 
 /// A consultant's resume emailed to a vendor from Vendor Management
 model VendorResumeSend {
   id               String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vendorId         String
   consultantId     String
   senderId         String
@@ -895,11 +1107,15 @@ model VendorResumeSend {
   consultant Student         @relation(fields: [consultantId], references: [id], onDelete: Cascade)
 
   @@index([vendorId, consultantId])
+
+  @@index([companyId])
 }
 
 /// A consultant's resume emailed to the vendor of a requirement (Vendor Requirements)
 model EmailRequirementSend {
   id               String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   requirementId    String
   consultantId     String
   senderId         String
@@ -915,11 +1131,15 @@ model EmailRequirementSend {
   consultant  Student          @relation(fields: [consultantId], references: [id], onDelete: Cascade)
 
   @@index([requirementId, consultantId])
+
+  @@index([companyId])
 }
 
 /// Who did what in the app: sign-ins (and failed attempts), sign-outs and every tab opened, with the IP address.
 model ActivityLog {
   id        String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Null for a failed sign-in with an unknown email
   userId    String?
   /// The email typed or signed in with
@@ -936,12 +1156,16 @@ model ActivityLog {
   @@index([createdAt])
   @@index([userId, createdAt])
   @@map("activity_logs")
+
+  @@index([companyId])
 }
 
 /// Profit Sharing → Confirmations: a confirmed placement, entered by submission id. Details are copied
 /// from the submission / interview when saved, so the record stands even if those change later.
 model Confirmation {
   id                 String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// Submission.id (one confirmation per submission) and its "Sub-NNN" code
   submissionRefId    String    @unique
   submissionCode     String
@@ -963,12 +1187,16 @@ model Confirmation {
 
   @@index([confirmationDate])
   @@map("confirmations")
+
+  @@index([companyId])
 }
 
 /// Incentives → Placements: a recruiter's placement, entered by submission id (details copied from the
 /// submission when saved). The Calculations page works the monthly incentive out from these.
 model IncentivePlacement {
   id                 String    @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   submissionRefId    String    @unique
   submissionCode     String
   interviewRefId     String?
@@ -998,12 +1226,16 @@ model IncentivePlacement {
   @@index([recruiterId])
   @@index([status])
   @@map("incentive_placements")
+
+  @@index([companyId])
 }
 
 /// Appreciation: each month's top recruiter by submissions and by interviews shares a prize (ties split it).
 /// Written once, on the 1st, for the month before.
 model AppreciationAward {
   id        String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// "yyyy-mm" the award is for
   month     String
   /// submissions | interviews
@@ -1021,11 +1253,15 @@ model AppreciationAward {
   @@unique([month, category, userId])
   @@index([userId])
   @@map("appreciation_awards")
+
+  @@index([companyId])
 }
 
 /// Appreciation → Additional Bonus: an extra amount a Super Admin adds to an employee's appreciation account.
 model AppreciationBonus {
   id             String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// The employee who receives it
   userId         String
   /// placement | submissions | interviews | special-gift | other
@@ -1045,4 +1281,6 @@ model AppreciationBonus {
 
   @@index([userId])
   @@map("appreciation_bonuses")
+
+  @@index([companyId])
 }
