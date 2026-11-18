@@ -25,8 +25,15 @@ export function AttendancePrompt({ data, onDone }: { data: AttendancePromptData;
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ note }),
-    });
+    }).catch(() => null);
     setSaving(false);
+    if (!res) return setError("No connection to the server. Check the internet and try again.");
+    // The 8-hour login ran out while the page was open: the request was sent to the login page instead
+    if (res.redirected || res.status === 401 || res.status === 405) {
+      setError("Your login has expired. Taking you to the login page… sign in and mark attendance again.");
+      setTimeout(() => { window.location.href = "/login"; }, 2000);
+      return;
+    }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       return setError(data.error ?? "Could not mark attendance. Please try again.");
