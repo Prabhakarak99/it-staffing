@@ -19,7 +19,7 @@ export default async function AdminLayout({
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Super Admin (no roleId) sees all screens
+  // Company Admin / Super Admin (no roleId) sees all screens
   let allowedPaths: string[] | null = null;
 
   if (session.roleId) {
@@ -51,6 +51,8 @@ export default async function AdminLayout({
       userEmail={session.email}
       userName={userName}
       roleName={session.roleName}
+      companyName={session.companyName}
+      isPlatformAdmin={!!session.isPlatformAdmin}
       initialCollapsed={sidebarCollapsed}
       attendancePrompt={attendancePrompt}
       notifications={notifications}

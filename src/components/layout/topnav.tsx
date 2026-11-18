@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import {
-  ChevronDown, Search, Bell, LogOut, Menu,
-} from "lucide-react";
+import { Bell, Building2, ChevronDown, LogOut, Menu, Search } from "lucide-react";
 import { GFTMark } from "@/components/ui/logo";
 import type { NotificationItem } from "@/lib/attendance/notifications";
 
@@ -13,6 +11,10 @@ interface TopNavProps {
   userEmail: string;
   userName: string | null;
   roleName: string | null;
+  /** The company this session works in (shown next to the logo) */
+  companyName: string;
+  /** Signed in as Platform Super Admin */
+  isPlatformAdmin: boolean;
   onToggleSidebar: () => void;
   notifications: { items: NotificationItem[]; pendingCount: number };
 }
@@ -23,7 +25,7 @@ const STATE_STYLE = {
   rejected: "bg-rose-400",
 } as const;
 
-export function TopNav({ userEmail, userName, roleName, onToggleSidebar, notifications }: TopNavProps) {
+export function TopNav({ userEmail, userName, roleName, companyName, isPlatformAdmin, onToggleSidebar, notifications }: TopNavProps) {
   const [userOpen, setUserOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
@@ -78,6 +80,15 @@ export function TopNav({ userEmail, userName, roleName, onToggleSidebar, notific
           </p>
         </div>
       </Link>
+
+      {/* ── Company ── */}
+      <div className="flex min-w-0 items-center gap-2 border-l border-white/[0.08] pl-3">
+        <Building2 className="h-4 w-4 shrink-0 text-indigo-400" />
+        <span className="truncate text-[13.5px] font-semibold text-slate-100" title={`Company: ${companyName}`}>{companyName}</span>
+        {isPlatformAdmin && (
+          <span className="hidden shrink-0 rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300 sm:inline">Super Admin</span>
+        )}
+      </div>
 
       <div className="flex-1" />
 
@@ -161,7 +172,7 @@ export function TopNav({ userEmail, userName, roleName, onToggleSidebar, notific
               <p className="max-w-[110px] truncate text-[11px] font-semibold leading-tight text-slate-200">
                 {displayName}
               </p>
-              <p className="text-[9px] leading-tight text-slate-500">{roleName ?? "Super Admin"}</p>
+              <p className="text-[9px] leading-tight text-slate-500">{roleName ?? "Company Admin"}</p>
             </div>
             <ChevronDown className={cn(
               "h-3 w-3 text-slate-600 transition-transform duration-200",
@@ -173,7 +184,7 @@ export function TopNav({ userEmail, userName, roleName, onToggleSidebar, notific
             <div className="absolute right-0 top-[calc(100%+6px)] w-[190px] rounded-xl border border-white/[0.08] bg-[#111827] p-1.5 shadow-2xl shadow-black/50">
               <div className="mb-1 border-b border-white/[0.06] px-2.5 pb-2.5 pt-2">
                 <p className="truncate text-[12px] font-semibold text-slate-200">{displayName}</p>
-                <p className="mt-0.5 text-[10px] text-slate-500">{roleName ?? "Super Admin"}</p>
+                <p className="mt-0.5 text-[10px] text-slate-500">{roleName ?? "Company Admin"}</p>
               </div>
               <form action="/api/auth/logout" method="POST">
                 <button

@@ -17,13 +17,15 @@ interface AdminShellProps {
   userEmail: string;
   userName: string | null;
   roleName: string | null;
+  companyName: string;
+  isPlatformAdmin: boolean;
   initialCollapsed: boolean;
   attendancePrompt: AttendancePromptData | null;
   notifications: { items: NotificationItem[]; pendingCount: number };
   children: React.ReactNode;
 }
 
-export function AdminShell({ allowedPaths, userEmail, userName, roleName, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
+export function AdminShell({ allowedPaths, userEmail, userName, roleName, companyName, isPlatformAdmin, initialCollapsed, attendancePrompt, notifications, children }: AdminShellProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   // Until today's attendance is marked, the app behind the popup can't be used
@@ -43,7 +45,7 @@ export function AdminShell({ allowedPaths, userEmail, userName, roleName, initia
   return (
     <div className="flex h-screen flex-col bg-slate-50">
       <div inert={blocked} aria-hidden={blocked || undefined} className="flex min-h-0 flex-1 flex-col">
-      <TopNav userEmail={userEmail} userName={userName} roleName={roleName} onToggleSidebar={toggle} notifications={notifications} />
+      <TopNav userEmail={userEmail} userName={userName} roleName={roleName} companyName={companyName} isPlatformAdmin={isPlatformAdmin} onToggleSidebar={toggle} notifications={notifications} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
           allowedPaths={allowedPaths}
