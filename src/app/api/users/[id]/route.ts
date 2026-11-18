@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { getUserRelationCounts, userDeleteBlockMessage } from "@/lib/user-deletion";
 import { Prisma } from "@/generated/prisma/client";
-import { SAFE_USER_OMIT } from "@/lib/user-safe";
+import { SAFE_USER_OMIT, canManageUsers } from "@/lib/user-safe";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -24,6 +24,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Only admins (Company Admin, or a role with the Users screen) may change users
+  if (!canManageUsers(session)) return NextResponse.json({ error: "Only an admin can manage users" }, { status: 403 });
 
   const { id } = await ctx.params;
   const body = await req.json();
@@ -48,6 +50,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Only admins (Company Admin, or a role with the Users screen) may change users
+  if (!canManageUsers(session)) return NextResponse.json({ error: "Only an admin can manage users" }, { status: 403 });
 
   const { id } = await ctx.params;
 

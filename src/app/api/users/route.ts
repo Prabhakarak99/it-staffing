@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { prisma } from "@/lib/prisma";
+import { prisma, unscopedPrisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { sendActivationEmail } from "@/lib/email";
-import { SAFE_USER_OMIT } from "@/lib/user-safe";
+import { SAFE_USER_OMIT, canManageUsers } from "@/lib/user-safe";
 
 export async function GET() {
   const session = await getSession();
@@ -21,6 +21,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Only admins (Company Admin, or a role with the Users screen) may change users
+  if (!canManageUsers(session)) return NextResponse.json({ error: "Only an admin can manage users" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -32,7 +34,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+    // An email belongs to one user in one company, so it is checked across all companies
+    const existing = await unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
     if (existing) {
       return NextResponse.json({ error: "Email already in use" }, { status: 409 });
     }

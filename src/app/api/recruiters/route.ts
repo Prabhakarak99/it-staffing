@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { prisma } from "@/lib/prisma";
+import { prisma, unscopedPrisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { sendActivationEmail } from "@/lib/email";
 
@@ -114,7 +114,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+    // An email belongs to one user in one company, so it is checked across all companies
+    const existing = await unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
     if (existing) {
       return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 });
     }
