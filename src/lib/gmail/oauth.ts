@@ -1,4 +1,5 @@
 import { gmailAppSettings } from "@/lib/gmail/app-settings";
+import { PLATFORM_COMPANY_ID, currentCompanyId } from "@/lib/tenant/context";
 import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-url";
 import { decrypt, encrypt } from "./crypto";
@@ -15,25 +16,33 @@ export interface OAuthClient {
   source: "env" | "app";
 }
 
-// The settings row rarely changes; cache it so every Gmail call doesn't hit the database
-let cached: { client: OAuthClient | null; at: number } | null = null;
+// The settings rarely change; cache them per company so every Gmail call doesn't hit the database
+const cached = new Map<string, { client: OAuthClient | null; at: number }>();
 const CACHE_MS = 60_000;
 
-/** The Google OAuth client: server env vars first, otherwise what an admin saved in the setup wizard */
+/**
+ * The Google OAuth client for the current company: the company's own (saved in the Mailbox setup
+ * wizard) first, then the server env vars, then the platform's shared one.
+ */
 export async function getOAuthClient(): Promise<OAuthClient | null> {
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    return { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, source: "env" };
-  }
-  if (cached && Date.now() - cached.at < CACHE_MS) return cached.client;
+  const companyId = await currentCompanyId();
+  const hit = cached.get(companyId);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.client;
   const row = await gmailAppSettings();
-  const client = row ? { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc), source: "app" as const } : null;
-  cached = { client, at: Date.now() };
+  const own = row && row.companyId !== PLATFORM_COMPANY_ID;
+  const fromRow = row ? { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc), source: "app" as const } : null;
+  const fromEnv =
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, source: "env" as const }
+      : null;
+  const client = own ? fromRow : (fromEnv ?? fromRow);
+  cached.set(companyId, { client, at: Date.now() });
   return client;
 }
 
 /** Call after saving or clearing the settings row */
 export function clearOAuthClientCache() {
-  cached = null;
+  cached.clear();
 }
 
 /** The Google Cloud project the OAuth client belongs to: the number a client id starts with */
