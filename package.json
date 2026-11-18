@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "copy:multi-company": "tsx scripts/copy-to-multi-company.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
