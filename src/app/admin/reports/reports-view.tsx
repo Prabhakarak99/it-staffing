@@ -221,13 +221,25 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
         byRecruiter.set(r.recruiterId, { key: r.recruiterId, cells: [r.recruiterName], count: r.count, details: [r] });
       }
     }
+    for (const r of recruiters) {
+      if (!byRecruiter.has(r.id)) byRecruiter.set(r.id, { key: r.id, cells: [r.name], count: 0, zero: true, details: [] });
+    }
+    // Every In-Market consultant assigned to the recruiter shows under their +, with 0 when nothing was submitted
+    for (const c of consultants) {
+      if (!c.recruiterId) continue;
+      let row = byRecruiter.get(c.recruiterId);
+      if (!row) {
+        row = { key: c.recruiterId, cells: [c.recruiterName], count: 0, zero: true, details: [] };
+        byRecruiter.set(c.recruiterId, row);
+      }
+      if (!row.details!.some((d) => d.consultantId === c.id)) {
+        row.details!.push({ recruiterId: c.recruiterId, recruiterName: c.recruiterName, consultantId: c.id, consultantName: c.name, technology: c.technology, count: 0 });
+      }
+    }
     for (const row of byRecruiter.values()) {
       row.details!.sort(
         (a, b) => b.count - a.count || a.consultantName.localeCompare(b.consultantName) || a.technology.localeCompare(b.technology)
       );
-    }
-    for (const r of recruiters) {
-      if (!byRecruiter.has(r.id)) byRecruiter.set(r.id, { key: r.id, cells: [r.name], count: 0, zero: true });
     }
     return [...byRecruiter.values()];
   }, [rows, consultants, recruiters, report.by]);
@@ -495,7 +507,7 @@ export function ReportsView({ initialReport, initialPeriod, initialDate }: Repor
                                     <td className="px-4 py-2 text-slate-400">{di + 1}</td>
                                     <td className="px-4 py-2 text-slate-800">{d.consultantName}</td>
                                     <td className="px-4 py-2 text-slate-600">{d.technology}</td>
-                                    <td className="px-4 py-2 text-right font-semibold text-slate-900">{d.count}</td>
+                                    <td className={cn("px-4 py-2 text-right font-semibold", d.count ? "text-slate-900" : "text-rose-600")}>{d.count}</td>
                                   </tr>
                                 ))}
                               </tbody>
