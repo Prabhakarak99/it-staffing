@@ -7,8 +7,8 @@ import { buildResumeDocx, resumeContentText, type TailoredResumeContent } from "
 
 const MAX_RESUME_CHARS = 30_000;
 const MAX_JD_CHARS = 15_000;
-/** No full JD: an existing resume covering this share of the role's keywords is sent as it is */
-const KEEP_EXISTING_SCORE = 70;
+/** No full JD: the existing resume is always sent as it is; at this share of the role's keywords it counts as "matched" */
+const KEEP_EXISTING_SCORE = 50;
 
 const SYSTEM = `# SYSTEM PROMPT — US IT CONTRACT RESUME REWRITER (C2C / W2)
 
@@ -373,7 +373,8 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
     : givenJd ?? { text: "" };
   // No full JD: work from what there is (the technology / title, plus any short JD text)
   const shortJd = jd.text.trim().length < 100;
-  if (shortJd && !jd.technology?.trim() && !jd.jobTitle?.trim()) {
+  // (Easy Submissions keep the existing resume even with no technology; other screens need a JD)
+  if (shortJd && !sub && !jd.technology?.trim() && !jd.jobTitle?.trim()) {
     throw new AiError(!jd.text.trim() ? (sub ? "This submission has no job description or technology." : "Paste or upload the job description first") : "The job description is too short. Paste the full JD.");
   }
   if (!consultant.resumeFile) throw new AiError("Upload the consultant's resume first");
@@ -397,11 +398,11 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
     console.warn("[resumes] keyword plan failed, writing without it:", err.message);
   }
 
-  // No full JD and the existing resume already covers the role's keywords: keep it as it is
+  // No full JD (none, or a short one): send the existing resume as it is, matched or not
   if (shortJd) {
     const keywordsFor = plan.length ? plan : [jd.technology ?? "", jd.jobTitle ?? ""].filter((t) => t.trim());
     const existing = atsScore(original, keywordsFor);
-    if (existing.score >= KEEP_EXISTING_SCORE) {
+    {
       const file = await saveResume(await readResume(consultant.resumeFile), extOf(consultant.resumeFile), "tailored");
       return prisma.tailoredResume.create({
         data: {
@@ -422,6 +423,7 @@ export async function tailorResume({ consultantId, userId, submissionId = null, 
             missing: existing.missing,
             plan: plan.map(({ term, priority, evidence, note }) => ({ term, priority, evidence, note })),
             keptExisting: true,
+            keptMatched: existing.score >= KEEP_EXISTING_SCORE,
           },
           provider: "Existing resume",
           model: "matched without changes",
