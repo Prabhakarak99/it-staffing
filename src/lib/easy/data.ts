@@ -5,6 +5,7 @@ import { addDays, todayKey } from "@/lib/attendance/dates";
 import { dayStart } from "@/lib/tz";
 import { extOf } from "@/lib/files/resumes";
 import { resumeName } from "@/lib/files/resume-name";
+import { progressOf, type EasyProgress } from "./progress";
 
 export const EASY_SCREEN = { name: "Easy Submissions", path: "/admin/easy-submissions" };
 
@@ -33,6 +34,8 @@ export interface EasySubmissionRow {
   vendorRecruiterName: string;
   status: string;
   hasJobDescription: boolean;
+  /** Work done for the suggested consultants: AI resumes generated and resumes emailed to vendors */
+  progress: EasyProgress;
 }
 
 /** Today's submissions (Central date): the recruiter's own, or everyone's for managers */
@@ -49,7 +52,9 @@ export async function todaysSubmissions(session: SessionPayload): Promise<EasySu
     },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((s) => ({
+  const lists = await Promise.all(rows.map((s) => consultantsFor(s.id).catch(() => null)));
+  return rows.map((s, i) => ({
+    progress: progressOf(lists[i]?.consultants ?? []),
     id: s.id,
     submissionId: s.submissionId,
     submittedAt: s.createdAt.toISOString(),

@@ -13,6 +13,32 @@ import { APP_TZ } from "@/lib/tz";
 import type { ConsultantOption, EasySubmissionRow, VendorOption } from "@/lib/easy/data";
 import { categoryLabel, defaultTemplate, fillFields, renderBody, signOff, type EmailTemplateDto, type TemplateVars } from "@/lib/email-templates/render";
 import { AccessDialog } from "./access-dialog";
+import { progressOf, type EasyProgress } from "@/lib/easy/progress";
+
+/** "Resumes 2/3 · Emailed 1/3": what's already done for this submission's suggested consultants */
+function ProgressCell({ p }: { p: EasyProgress }) {
+  if (p.suggested === 0) return <span className="text-[11.5px] text-slate-400">No suggestions</span>;
+  const done = p.generated === p.suggested && p.emailed === p.suggested;
+  const started = p.generated > 0 || p.emailed > 0;
+  const step = (label: string, n: number) => (
+    <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
+      n === p.suggested ? "bg-emerald-50 text-emerald-700" : n > 0 ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500")}>
+      {label} {n}/{p.suggested}
+    </span>
+  );
+  return (
+    <div className="flex flex-col items-start gap-1" title={`${p.suggested} suggested consultants: ${p.generated} AI resumes generated, ${p.emailed} emailed to vendors (${p.emails} emails sent)`}>
+      <span className={cn("text-[11px] font-bold", done ? "text-emerald-700" : started ? "text-amber-700" : "text-slate-500")}>
+        {done ? "Completed" : started ? "In progress" : "Not started"}
+      </span>
+      <div className="flex flex-wrap gap-1">
+        {step("Resumes", p.generated)}
+        {step("Emailed", p.emailed)}
+      </div>
+      {p.emails > 0 && <span className="text-[10.5px] text-slate-400">{p.emails} email{p.emails === 1 ? "" : "s"} sent</span>}
+    </div>
+  );
+}
 
 interface Requirement {
   technology: string;
@@ -261,7 +287,7 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
               <thead className="bg-slate-800">
                 <tr>
                   <th className="w-10 px-3 py-2.5" />
-                  {["Submission", "Consultant", "Technology", "Client / Implementation", "Vendor", "Time", ...(showRecruiter ? ["Recruiter"] : []), "Status"].map((h) => (
+                  {["Submission", "Consultant", "Technology", "Client / Implementation", "Vendor", "Time", ...(showRecruiter ? ["Recruiter"] : []), "Resumes / Emails", "Status"].map((h) => (
                     <th key={h} className="whitespace-nowrap px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-300">{h}</th>
                   ))}
                 </tr>
@@ -269,7 +295,7 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
               <tbody className="divide-y divide-slate-100">
                 {submissions.length === 0 ? (
                   <tr>
-                    <td colSpan={showRecruiter ? 9 : 8} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={showRecruiter ? 10 : 9} className="px-4 py-12 text-center text-slate-400">
                       No submissions today yet. <Link href="/admin/submissions/list" className="font-semibold text-indigo-600 hover:underline">Create a submission</Link> and it shows up here.
                     </td>
                   </tr>
@@ -296,11 +322,15 @@ export function EasySubmissionsView({ submissions, showRecruiter, dayLabel, ai, 
                           <td className="px-4 py-2.5 text-slate-700">{s.vendorCompany}<p className="text-[11px] text-slate-400">{s.vendorRecruiterName}</p></td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{fmtTime(s.submittedAt)}</td>
                           {showRecruiter && <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{s.recruiterName}</td>}
+                          <td className="px-4 py-2.5">
+                            {/* Live once the row is opened (generating / sending updates the loaded list) */}
+                            <ProgressCell p={consultants[s.id] && !consultants[s.id].loading && !consultants[s.id].error ? progressOf(consultants[s.id].consultants) : s.progress} />
+                          </td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{s.status}</td>
                         </tr>
                         {open && (
                           <tr>
-                            <td colSpan={showRecruiter ? 9 : 8} className="bg-slate-50/80 px-4 py-3">
+                            <td colSpan={showRecruiter ? 10 : 9} className="bg-slate-50/80 px-4 py-3">
                               <ConsultantPanel
                                 sub={s}
                                 state={consultants[s.id]}
