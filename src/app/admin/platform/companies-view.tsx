@@ -1,12 +1,14 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { Building2, Check, Copy, Loader2, Minus, Plus, ShieldCheck, UserPlus, X } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { Building2, Check, Copy, Eye, EyeOff, KeyRound, Loader2, Minus, Plus, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { CompanyRow } from "@/lib/tenant/platform";
+import type { CompanyUserRow } from "@/app/api/platform/companies/[id]/users/route";
+import { validatePassword } from "@/lib/validators";
 
 interface Screen { name: string; path: string }
 
@@ -283,6 +285,8 @@ function CompanySettings({ company, screens, onSaved, onError }: {
         </div>
       )}
 
+      {!platform && <CompanyUsers company={company} onDone={(m) => onSaved(undefined as unknown as CompanyRow[], m)} onError={onError} />}
+
       {!platform && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
           <p className="text-[13px] font-bold text-slate-800">Screens for this company</p>
@@ -299,6 +303,118 @@ function CompanySettings({ company, screens, onSaved, onError }: {
             {busy === "modules" && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save screens
           </Button>
         </div>
+      )}
+    </div>
+  );
+}
+
+function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDone: (m: string) => void; onError: (m: string) => void }) {
+  const [users, setUsers] = useState<CompanyUserRow[] | null>(null);
+  const [filter, setFilter] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/platform/companies/${company.id}/users`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((list: CompanyUserRow[]) => live && setUsers(list))
+      .catch(() => live && setLoadError(true));
+    return () => { live = false; };
+  }, [company.id]);
+
+  const change = async (u: CompanyUserRow, body: Record<string, unknown>, message: string) => {
+    setBusy(u.id);
+    const { ok, data } = await send(`/api/platform/companies/${company.id}/users`, "PATCH", { userId: u.id, ...body });
+    setBusy(null);
+    if (!ok) return onError(String(data.error ?? "Could not save"));
+    setUsers(data as unknown as CompanyUserRow[]);
+    setEditing(null);
+    setPassword("");
+    onDone(message);
+  };
+
+  const q = filter.trim().toLowerCase();
+  const shown = (users ?? []).filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q));
+
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800"><Users className="h-4 w-4 text-indigo-600" /> Users in {company.name}</p>
+        {users && <span className="text-[12px] text-slate-500">{users.filter((u) => u.isActive).length} active of {users.length}</span>}
+        <input className={cn(field, "ml-auto max-w-xs")} placeholder="Search name, email or role" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      </div>
+      <p className="text-[12px] text-slate-500">Setting a password also activates the account, so the user can sign in right away with it at <span className="font-mono">?company={company.slug}</span>. Share the password with them privately.</p>
+      {!users ? (
+        loadError ? (
+          <p className="py-2 text-[12.5px] font-medium text-rose-600">Could not load the users. Refresh the page to try again.</p>
+        ) : (
+          <p className="flex items-center gap-2 py-2 text-[12.5px] text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading users…</p>
+        )
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {shown.length === 0 && <li className="py-2 text-[12px] text-slate-400">No users.</li>}
+          {shown.map((u) => (
+            <li key={u.id} className="py-2 text-[12.5px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-slate-800">{u.name}</span>
+                <span className="text-slate-500">{u.email}</span>
+                <span className="rounded bg-slate-100 px-1.5 text-[10.5px] font-semibold text-slate-600">{u.isPlatformAdmin ? "Super Admin" : u.role}</span>
+                {u.isActive ? (
+                  <span className="rounded bg-emerald-50 px-1.5 text-[10.5px] font-semibold text-emerald-700">Active</span>
+                ) : (
+                  <span className="rounded bg-amber-50 px-1.5 text-[10.5px] font-semibold text-amber-700">{u.pendingActivation ? "Not activated" : "Inactive"}</span>
+                )}
+                <span className="ml-auto flex gap-1.5">
+                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditing(editing === u.id ? null : u.id); setPassword(""); setShow(false); }}>
+                    <KeyRound className="h-3.5 w-3.5" /> Set password
+                  </Button>
+                  {u.isActive ? (
+                    !u.isPlatformAdmin && (
+                      <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { if (confirm(`Deactivate ${u.name}? They won't be able to sign in until activated again.`)) void change(u, { isActive: false }, `${u.name} deactivated`); }}>
+                        {busy === u.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Deactivate
+                      </Button>
+                    )
+                  ) : (
+                    !u.pendingActivation && (
+                      <Button size="sm" disabled={!!busy} onClick={() => void change(u, { isActive: true }, `${u.name} activated`)}>
+                        {busy === u.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Activate
+                      </Button>
+                    )
+                  )}
+                </span>
+              </div>
+              {editing === u.id && (
+                <form
+                  className="mt-2 flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => { e.preventDefault(); void change(u, { password }, u.isActive ? `Password set for ${u.name}` : `Password set and ${u.name} activated`); }}
+                >
+                  <div className="relative w-64">
+                    <input
+                      className={cn(field, "pr-9")}
+                      type={show ? "text" : "password"}
+                      autoComplete="new-password"
+                      autoFocus
+                      placeholder="New password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label={show ? "Hide password" : "Show password"}>
+                      {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <Button size="sm" type="submit" disabled={!!busy || !!validatePassword(password)}>
+                    {busy === u.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {u.isActive ? "Save password" : "Save and activate"}
+                  </Button>
+                  <span className="text-[11.5px] text-slate-500">{password ? validatePassword(password) ?? "OK" : "At least 8 characters, a letter and a number"}</span>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
