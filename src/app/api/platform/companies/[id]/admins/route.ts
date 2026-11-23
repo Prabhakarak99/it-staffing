@@ -4,12 +4,16 @@ import bcrypt from "bcryptjs";
 import { unscopedPrisma } from "@/lib/prisma";
 import { requirePlatform, listCompanies } from "@/lib/tenant/platform";
 import { sendActivationEmail, sendPasswordResetEmail } from "@/lib/email";
+import { readNewPassword } from "@/lib/tenant/provision";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 const sendError = (err: unknown) => (err instanceof Error ? err.message : "Could not send the email");
 
-/** POST { firstName, lastName, email } — another Company Admin (no role = every screen in the company) */
+/**
+ * POST { firstName, lastName, email, password?, confirmPassword? } — another Company Admin (no role = every screen in
+ * the company). With a password they are active right away; without, they get an activation email.
+ */
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { response } = await requirePlatform();
   if (response) return response;
@@ -25,17 +29,23 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (await unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } })) {
     return NextResponse.json({ error: "That email already has an account" }, { status: 409 });
   }
-  const activationToken = randomBytes(32).toString("hex");
+  const pw = readNewPassword(body);
+  if (pw.error) return NextResponse.json({ error: pw.error }, { status: 400 });
+  if (pw.password && company.maxUsers != null) {
+    const active = await unscopedPrisma.user.count({ where: { companyId: company.id, isActive: true } });
+    if (active >= company.maxUsers) return NextResponse.json({ error: `This company is at its limit of ${company.maxUsers} active users` }, { status: 400 });
+  }
+  const activationToken = pw.password ? null : randomBytes(32).toString("hex");
   const user = await unscopedPrisma.user.create({
     data: {
-      companyId: company.id, firstName, lastName, email, roleId: null, isActive: false,
-      password: await bcrypt.hash(randomBytes(24).toString("hex"), 12),
-      activationToken, activationExpiry: new Date(Date.now() + 7 * 86_400_000),
+      companyId: company.id, firstName, lastName, email, roleId: null, isActive: !!pw.password,
+      password: await bcrypt.hash(pw.password ?? randomBytes(24).toString("hex"), 12),
+      activationToken, activationExpiry: activationToken ? new Date(Date.now() + 7 * 86_400_000) : null,
     },
   });
   let emailError: string | null = null;
-  await sendActivationEmail(user.email, user.firstName, activationToken).catch((err) => (emailError = sendError(err)));
-  return NextResponse.json({ emailSent: !emailError, emailError, companies: await listCompanies() }, { status: 201 });
+  if (activationToken) await sendActivationEmail(user.email, user.firstName, activationToken).catch((err) => (emailError = sendError(err)));
+  return NextResponse.json({ active: !activationToken, emailSent: !!activationToken && !emailError, emailError, companies: await listCompanies() }, { status: 201 });
 }
 
 /** PATCH { userId, action: "resend-activation" | "reset-password" } — for one of this company's admins */

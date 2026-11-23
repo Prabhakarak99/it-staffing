@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { unscopedPrisma } from "@/lib/prisma";
 import { requirePlatform } from "@/lib/tenant/platform";
-import { validatePassword } from "@/lib/validators";
+import { readNewPassword } from "@/lib/tenant/provision";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -49,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 }
 
 /**
- * PATCH { userId, password?, isActive? }
+ * PATCH { userId, password?, confirmPassword?, isActive? }
  * - password: the Super Admin sets it directly; this also activates the account (no email needed)
  * - isActive: activate or deactivate the account
  */
@@ -64,14 +64,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const user = await unscopedPrisma.user.findFirst({ where: { id: String(body.userId ?? ""), companyId: id } });
   if (!user) return NextResponse.json({ error: "User not found in this company" }, { status: 404 });
 
-  const password = typeof body.password === "string" ? body.password : undefined;
+  const pw = readNewPassword(body);
+  if (pw.error) return NextResponse.json({ error: pw.error }, { status: 400 });
+  const password = pw.password;
   const wantActive = typeof body.isActive === "boolean" ? body.isActive : password !== undefined ? true : undefined;
   if (password === undefined && wantActive === undefined) return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
 
-  if (password !== undefined) {
-    const err = validatePassword(password);
-    if (err) return NextResponse.json({ error: `Password: ${err}` }, { status: 400 });
-  }
   if (wantActive === false) {
     if (user.id === session.userId) return NextResponse.json({ error: "You can't deactivate your own account" }, { status: 400 });
     if (user.isPlatformAdmin) return NextResponse.json({ error: "A Super Admin account can't be deactivated here" }, { status: 400 });

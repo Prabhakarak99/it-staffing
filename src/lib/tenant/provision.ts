@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { unscopedPrisma } from "@/lib/prisma";
 import { sendActivationEmail } from "@/lib/email";
+import { validatePassword } from "@/lib/validators";
 
 /** The company whose roles and screen access every new company starts with */
 const TEMPLATE_SLUG = "genfusiontech";
@@ -13,11 +14,27 @@ export interface NewCompany {
   code: string;
   timezone?: string;
   attendanceTimezone?: string;
-  admin: { firstName: string; lastName: string; email: string };
+  /** password: set by the Super Admin, so the admin is active right away (no activation email) */
+  admin: { firstName: string; lastName: string; email: string; password?: string };
   createdById?: string | null;
 }
 
 export class ProvisionError extends Error {}
+
+/**
+ * A password the Super Admin typed, with its re-entered copy. Both empty = none given.
+ * Returns the password, or an error message to show.
+ */
+export function readNewPassword(body: Record<string, unknown>): { password?: string; error?: string } {
+  const password = body.password;
+  const confirm = body.confirmPassword;
+  if ((password === undefined || password === "") && (confirm === undefined || confirm === "")) return {};
+  if (typeof password !== "string") return { error: "Enter a password" };
+  const err = validatePassword(password);
+  if (err) return { error: `Password: ${err}` };
+  if (confirm !== undefined && confirm !== password) return { error: "The passwords don't match" };
+  return { password };
+}
 
 /** "GenFusion Tech" → "genfusiontech"; "Dataforce" → "DAT" */
 export const suggestSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 30);
@@ -58,9 +75,12 @@ export async function provisionCompany(input: NewCompany) {
     include: { roles: { include: { roleScreens: true } } },
   });
 
-  const activationToken = randomBytes(32).toString("hex");
-  // A random password nobody knows: the admin sets their own through the activation link
-  const placeholder = await bcrypt.hash(randomBytes(24).toString("hex"), 12);
+  const chosen = input.admin.password;
+  const chosenError = chosen !== undefined ? validatePassword(chosen) : undefined;
+  if (chosenError) throw new ProvisionError(`Password: ${chosenError}`);
+  const activationToken = chosen ? null : randomBytes(32).toString("hex");
+  // Without a chosen password: a random one nobody knows; the admin sets their own through the activation link
+  const passwordHash = await bcrypt.hash(chosen ?? randomBytes(24).toString("hex"), 12);
 
   const { company, admin } = await unscopedPrisma.$transaction(async (tx) => {
     const company = await tx.company.create({
@@ -88,21 +108,26 @@ export async function provisionCompany(input: NewCompany) {
         firstName: input.admin.firstName.trim(),
         lastName: input.admin.lastName.trim(),
         email,
-        password: placeholder,
+        password: passwordHash,
         roleId: null, // Company Admin: every screen inside this company
-        isActive: false,
+        isActive: !!chosen,
         activationToken,
-        activationExpiry: new Date(Date.now() + 7 * 86_400_000),
+        activationExpiry: chosen ? null : new Date(Date.now() + 7 * 86_400_000),
       },
     });
     return { company, admin };
   });
 
   let emailError: string | null = null;
-  try {
-    await sendActivationEmail(admin.email, admin.firstName, activationToken);
-  } catch (err) {
-    emailError = err instanceof Error ? err.message : "Could not send the activation email";
+  if (activationToken) {
+    try {
+      await sendActivationEmail(admin.email, admin.firstName, activationToken);
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : "Could not send the activation email";
+    }
   }
-  return { company, adminId: admin.id, loginUrl: `/login?company=${company.slug}`, emailSent: !emailError, emailError };
+  return {
+    company, adminId: admin.id, loginUrl: `/login?company=${company.slug}`,
+    adminActive: !activationToken, emailSent: !!activationToken && !emailError, emailError,
+  };
 }

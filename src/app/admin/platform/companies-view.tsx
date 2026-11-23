@@ -38,6 +38,51 @@ function CopyLink({ slug }: { slug: string }) {
   );
 }
 
+type PasswordPair = { password: string; confirm: string };
+const EMPTY_PAIR: PasswordPair = { password: "", confirm: "" };
+
+/** Why the pair can't be saved (undefined = OK). Optional: both empty is fine (e.g. send an activation email instead). */
+function pairError(p: PasswordPair, optional = false): string | undefined {
+  if (optional && !p.password && !p.confirm) return undefined;
+  return validatePassword(p.password) ?? (p.password !== p.confirm ? "The passwords don't match" : undefined);
+}
+
+/** Password + Re-enter password, with show/hide and a live hint */
+function PasswordFields({ value, onChange, optional, autoFocus }: { value: PasswordPair; onChange: (p: PasswordPair) => void; optional?: boolean; autoFocus?: boolean }) {
+  const [show, setShow] = useState(false);
+  const err = pairError(value, optional);
+  const empty = !value.password && !value.confirm;
+  const input = (key: keyof PasswordPair, placeholder: string, focus?: boolean) => (
+    <input
+      className={cn(field, "pr-9")}
+      type={show ? "text" : "password"}
+      autoComplete="new-password"
+      autoFocus={focus}
+      placeholder={placeholder}
+      value={value[key]}
+      onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+    />
+  );
+  return (
+    <div className="space-y-1">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="relative">
+          {input("password", optional ? "Password (optional)" : "Password", autoFocus)}
+          <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label={show ? "Hide passwords" : "Show passwords"}>
+            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        {input("confirm", "Re-enter password")}
+      </div>
+      <p className={cn("text-[11.5px]", empty ? "text-slate-500" : err ? "text-rose-600" : "text-emerald-600")}>
+        {empty
+          ? optional ? "Leave empty to email an activation link instead, or set a password so they can sign in right away." : "At least 8 characters, with a letter and a number."
+          : err ?? "Passwords match"}
+      </p>
+    </div>
+  );
+}
+
 export function CompaniesView({ initial, screens }: { initial: CompanyRow[]; screens: Screen[] }) {
   const { toast, show, hide } = useToast();
   const [companies, setCompanies] = useState(initial);
@@ -119,7 +164,7 @@ export function CompaniesView({ initial, screens }: { initial: CompanyRow[]; scr
                       {isOpen && (
                         <tr>
                           <td colSpan={10} className="bg-slate-50/80 px-4 py-4">
-                            <CompanySettings company={c} screens={screens} onSaved={(list, m) => { setCompanies(list); show(m, "success"); }} onError={(m) => show(m, "error")} />
+                            <CompanySettings company={c} screens={screens} onSaved={(list, m) => { if (list) setCompanies(list); show(m, "success"); }} onError={(m) => show(m, "error")} />
                           </td>
                         </tr>
                       )}
@@ -138,6 +183,7 @@ export function CompaniesView({ initial, screens }: { initial: CompanyRow[]; scr
 
 function NewCompanyForm({ onCreated, onError }: { onCreated: (list: CompanyRow[], message: string) => void; onError: (m: string) => void }) {
   const [f, setF] = useState({ name: "", slug: "", code: "", firstName: "", lastName: "", email: "" });
+  const [pw, setPw] = useState(EMPTY_PAIR);
   const [touched, setTouched] = useState({ slug: false, code: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -154,18 +200,18 @@ function NewCompanyForm({ onCreated, onError }: { onCreated: (list: CompanyRow[]
     setBusy(true);
     setError("");
     const { ok, data } = await send("/api/platform/companies", "POST", {
-      name: f.name, slug: f.slug, code: f.code, admin: { firstName: f.firstName, lastName: f.lastName, email: f.email },
+      name: f.name, slug: f.slug, code: f.code, admin: { firstName: f.firstName, lastName: f.lastName, email: f.email, ...(pw.password || pw.confirm ? { password: pw.password, confirmPassword: pw.confirm } : {}) },
     });
     setBusy(false);
     if (!ok) { setError(String(data.error ?? "Could not create the company")); onError(String(data.error ?? "Could not create the company")); return; }
-    const mail = data.emailSent ? "The admin was emailed an activation link." : `The activation email could not be sent (${String(data.emailError ?? "email not set up")}); use Resend in the company's settings.`;
+    const mail = data.adminActive ? "The admin can sign in now with the password you set." : data.emailSent ? "The admin was emailed an activation link." : `The activation email could not be sent (${String(data.emailError ?? "email not set up")}); use Resend in the company's settings.`;
     onCreated(data.companies as CompanyRow[], `${f.name} created. Login link: ${loginUrl(f.slug)}. ${mail}`);
   };
 
   return (
     <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5">
       <p className="text-[14px] font-bold text-slate-800">New company</p>
-      <p className="mt-0.5 text-[12px] text-slate-500">It starts with GenFusion Tech&apos;s roles and screen access, AutoJobs paused, and the shared AI keys. Its first admin gets an activation email.</p>
+      <p className="mt-0.5 text-[12px] text-slate-500">It starts with GenFusion Tech&apos;s roles and screen access, AutoJobs paused, and the shared AI keys. Its first admin gets an activation email, or set their password here so they can sign in right away.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <label className="space-y-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Company name<input className={field} value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Dataforce" /></label>
         <label className="space-y-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Login name (in the link)<input className={field} value={f.slug} onChange={(e) => { setTouched((t) => ({ ...t, slug: true })); set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "")); }} placeholder="dataforce" /></label>
@@ -174,10 +220,11 @@ function NewCompanyForm({ onCreated, onError }: { onCreated: (list: CompanyRow[]
         <label className="space-y-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Admin last name<input className={field} value={f.lastName} onChange={(e) => set("lastName", e.target.value)} /></label>
         <label className="space-y-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Admin email<input className={field} type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></label>
       </div>
+      <div className="mt-3"><PasswordFields value={pw} onChange={setPw} optional /></div>
       {f.slug && <p className="mt-3 text-[12px] text-slate-500">Login link: <span className="font-mono text-slate-700">{loginUrl(f.slug)}</span> · submission ids: <span className="font-mono text-slate-700">Sub-{f.code || "XXX"}-001</span></p>}
       {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-[12.5px] font-medium text-rose-700">{error}</p>}
       <div className="mt-4 flex justify-end">
-        <Button onClick={() => void submit()} disabled={busy || !f.name || !f.slug || f.code.length !== 3 || !f.email}>
+        <Button onClick={() => void submit()} disabled={busy || !f.name || !f.slug || f.code.length !== 3 || !f.email || !!pairError(pw, true)}>
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Create company
         </Button>
       </div>
@@ -188,10 +235,30 @@ function NewCompanyForm({ onCreated, onError }: { onCreated: (list: CompanyRow[]
 function CompanySettings({ company, screens, onSaved, onError }: {
   company: CompanyRow;
   screens: Screen[];
-  onSaved: (list: CompanyRow[], message: string) => void;
+  onSaved: (list: CompanyRow[] | null, message: string) => void;
   onError: (m: string) => void;
 }) {
   const platform = company.kind === "platform";
+  const [pwFor, setPwFor] = useState<string | null>(null);
+  const [pw, setPw] = useState(EMPTY_PAIR);
+  const [newPw, setNewPw] = useState(EMPTY_PAIR);
+  const [usersKey, setUsersKey] = useState(0);
+
+  /** Fresh company list (admins' status) after a user change */
+  const reload = async (message: string, refreshUsers = false) => {
+    const list = await fetch("/api/platform/companies").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    onSaved(list as CompanyRow[] | null, message);
+    if (refreshUsers) setUsersKey((k) => k + 1);
+  };
+  const setAdminPassword = async (a: { id: string; name: string; isActive: boolean }) => {
+    setBusy(a.id + "pw");
+    const { ok, data } = await send(`/api/platform/companies/${company.id}/users`, "PATCH", { userId: a.id, password: pw.password, confirmPassword: pw.confirm });
+    setBusy(null);
+    if (!ok) return onError(String(data.error ?? "Could not set the password"));
+    setPwFor(null);
+    setPw(EMPTY_PAIR);
+    await reload(a.isActive ? `Password set for ${a.name}` : `Password set and ${a.name} activated`, true);
+  };
   const [name, setName] = useState(company.name);
   const [timezone, setTimezone] = useState(company.timezone);
   const [attTz, setAttTz] = useState(company.attendanceTimezone);
@@ -213,15 +280,25 @@ function CompanySettings({ company, screens, onSaved, onError }: {
     setBusy(null);
     if (!ok) return onError(String(data.error ?? "Could not send"));
     if (!data.emailSent) return onError(`The email could not be sent: ${String(data.emailError ?? "email not set up")}`);
-    onSaved(undefined as unknown as CompanyRow[], action === "reset-password" ? "Password reset link sent" : "Activation link sent again");
+    onSaved(null, action === "reset-password" ? "Password reset link sent" : "Activation link sent again");
   };
   const addAdmin = async () => {
     setBusy("add-admin");
-    const { ok, data } = await send(`/api/platform/companies/${company.id}/admins`, "POST", admin);
+    const withPassword = !!(newPw.password || newPw.confirm);
+    const { ok, data } = await send(`/api/platform/companies/${company.id}/admins`, "POST", {
+      ...admin,
+      ...(withPassword ? { password: newPw.password, confirmPassword: newPw.confirm } : {}),
+    });
     setBusy(null);
     if (!ok) return onError(String(data.error ?? "Could not add the admin"));
     setAdmin({ firstName: "", lastName: "", email: "" });
-    onSaved(data.companies as CompanyRow[], data.emailSent ? "Admin added and emailed an activation link" : "Admin added; the activation email could not be sent");
+    setNewPw(EMPTY_PAIR);
+    setUsersKey((k) => k + 1);
+    onSaved(
+      data.companies as CompanyRow[],
+      withPassword ? "Admin added and active: they can sign in with the password you set"
+        : data.emailSent ? "Admin added and emailed an activation link" : "Admin added; the activation email could not be sent",
+    );
   };
 
   return (
@@ -263,14 +340,32 @@ function CompanySettings({ company, screens, onSaved, onError }: {
           <ul className="divide-y divide-slate-100">
             {company.admins.length === 0 && <li className="py-2 text-[12px] text-slate-400">No admin yet.</li>}
             {company.admins.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-2 py-2 text-[12.5px]">
-                <span className="font-semibold text-slate-800">{a.name}</span>
-                <span className="text-slate-500">{a.email}</span>
-                {!a.isActive && <span className="rounded bg-amber-50 px-1.5 text-[10.5px] font-semibold text-amber-700">Not activated</span>}
-                <span className="ml-auto flex gap-1.5">
-                  {!a.isActive && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void adminAction(a.id, "resend-activation")}>Resend activation</Button>}
-                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void adminAction(a.id, "reset-password")}>Send password reset</Button>
-                </span>
+              <li key={a.id} className="py-2 text-[12.5px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-800">{a.name}</span>
+                  <span className="text-slate-500">{a.email}</span>
+                  {a.isActive
+                    ? <span className="rounded bg-emerald-50 px-1.5 text-[10.5px] font-semibold text-emerald-700">Active</span>
+                    : <span className="rounded bg-amber-50 px-1.5 text-[10.5px] font-semibold text-amber-700">Not activated</span>}
+                  <span className="ml-auto flex flex-wrap justify-end gap-1.5">
+                    <Button size="sm" variant={pwFor === a.id ? "default" : "outline"} disabled={!!busy} onClick={() => { setPwFor(pwFor === a.id ? null : a.id); setPw(EMPTY_PAIR); }}>
+                      <KeyRound className="h-3.5 w-3.5" /> Set password
+                    </Button>
+                    {!a.isActive && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void adminAction(a.id, "resend-activation")}>Resend activation</Button>}
+                    <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void adminAction(a.id, "reset-password")}>Send password reset</Button>
+                  </span>
+                </div>
+                {pwFor === a.id && (
+                  <form className="mt-2 space-y-2 rounded-lg bg-slate-50 p-3" onSubmit={(e) => { e.preventDefault(); void setAdminPassword(a); }}>
+                    <PasswordFields value={pw} onChange={setPw} autoFocus />
+                    <div className="flex gap-2">
+                      <Button size="sm" type="submit" disabled={!!busy || !!pairError(pw)}>
+                        {busy === a.id + "pw" && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {a.isActive ? "Save password" : "Save and activate"}
+                      </Button>
+                      <Button size="sm" type="button" variant="outline" onClick={() => setPwFor(null)}>Cancel</Button>
+                    </div>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
@@ -279,13 +374,14 @@ function CompanySettings({ company, screens, onSaved, onError }: {
             <input className={field} placeholder="Last name" value={admin.lastName} onChange={(e) => setAdmin((p) => ({ ...p, lastName: e.target.value }))} />
             <input className={field} placeholder="Email" type="email" value={admin.email} onChange={(e) => setAdmin((p) => ({ ...p, email: e.target.value }))} />
           </div>
-          <Button size="sm" variant="outline" disabled={!!busy || !admin.email} onClick={() => void addAdmin()}>
+          <PasswordFields value={newPw} onChange={setNewPw} optional />
+          <Button size="sm" variant="outline" disabled={!!busy || !admin.email || !!pairError(newPw, true)} onClick={() => void addAdmin()}>
             {busy === "add-admin" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />} Add admin
           </Button>
         </div>
       )}
 
-      {!platform && <CompanyUsers company={company} onDone={(m) => onSaved(undefined as unknown as CompanyRow[], m)} onError={onError} />}
+      {!platform && <CompanyUsers key={usersKey} company={company} onDone={(m) => void reload(m)} onError={onError} />}
 
       {!platform && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
@@ -312,8 +408,7 @@ function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDon
   const [users, setUsers] = useState<CompanyUserRow[] | null>(null);
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
-  const [password, setPassword] = useState("");
-  const [show, setShow] = useState(false);
+  const [pw, setPw] = useState(EMPTY_PAIR);
   const [busy, setBusy] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
 
@@ -333,7 +428,7 @@ function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDon
     if (!ok) return onError(String(data.error ?? "Could not save"));
     setUsers(data as unknown as CompanyUserRow[]);
     setEditing(null);
-    setPassword("");
+    setPw(EMPTY_PAIR);
     onDone(message);
   };
 
@@ -369,7 +464,7 @@ function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDon
                   <span className="rounded bg-amber-50 px-1.5 text-[10.5px] font-semibold text-amber-700">{u.pendingActivation ? "Not activated" : "Inactive"}</span>
                 )}
                 <span className="ml-auto flex gap-1.5">
-                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditing(editing === u.id ? null : u.id); setPassword(""); setShow(false); }}>
+                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditing(editing === u.id ? null : u.id); setPw(EMPTY_PAIR); }}>
                     <KeyRound className="h-3.5 w-3.5" /> Set password
                   </Button>
                   {u.isActive ? (
@@ -389,27 +484,16 @@ function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDon
               </div>
               {editing === u.id && (
                 <form
-                  className="mt-2 flex flex-wrap items-center gap-2"
-                  onSubmit={(e) => { e.preventDefault(); void change(u, { password }, u.isActive ? `Password set for ${u.name}` : `Password set and ${u.name} activated`); }}
+                  className="mt-2 space-y-2 rounded-lg bg-slate-50 p-3"
+                  onSubmit={(e) => { e.preventDefault(); void change(u, { password: pw.password, confirmPassword: pw.confirm }, u.isActive ? `Password set for ${u.name}` : `Password set and ${u.name} activated`); }}
                 >
-                  <div className="relative w-64">
-                    <input
-                      className={cn(field, "pr-9")}
-                      type={show ? "text" : "password"}
-                      autoComplete="new-password"
-                      autoFocus
-                      placeholder="New password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label={show ? "Hide password" : "Show password"}>
-                      {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+                  <PasswordFields value={pw} onChange={setPw} autoFocus />
+                  <div className="flex gap-2">
+                    <Button size="sm" type="submit" disabled={!!busy || !!pairError(pw)}>
+                      {busy === u.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {u.isActive ? "Save password" : "Save and activate"}
+                    </Button>
+                    <Button size="sm" type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
                   </div>
-                  <Button size="sm" type="submit" disabled={!!busy || !!validatePassword(password)}>
-                    {busy === u.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {u.isActive ? "Save password" : "Save and activate"}
-                  </Button>
-                  <span className="text-[11.5px] text-slate-500">{password ? validatePassword(password) ?? "OK" : "At least 8 characters, a letter and a number"}</span>
                 </form>
               )}
             </li>
