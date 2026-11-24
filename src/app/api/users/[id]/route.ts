@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getUserRelationCounts, userDeleteBlockMessage } from "@/lib/user-deletion";
 import { Prisma } from "@/generated/prisma/client";
 import { SAFE_USER_OMIT, canManageUsers } from "@/lib/user-safe";
+import { emailConflict } from "@/lib/tenant/user-email";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -29,6 +30,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const body = await req.json();
+
+  const current = await prisma.user.findUnique({ where: { id }, select: { email: true, isActive: true } });
+  if (!current) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (typeof body.email === "string") body.email = body.email.trim().toLowerCase();
+  // A changed email, or switching the account on: the email rule across companies
+  const emailChanged = typeof body.email === "string" && body.email !== current.email.toLowerCase();
+  const activating = body.isActive === true && !current.isActive;
+  if (emailChanged || activating) {
+    const conflict = await emailConflict(emailChanged ? body.email : current.email, session.companyId, {
+      exceptUserId: id,
+      activating: activating || (current.isActive && body.isActive !== false),
+    });
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
+  }
 
   const user = await prisma.user.update({
     where: { id },

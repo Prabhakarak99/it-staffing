@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { prisma, unscopedPrisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { sendActivationEmail } from "@/lib/email";
+import { emailConflict } from "@/lib/tenant/user-email";
 
 export async function GET() {
   const session = await getSession();
@@ -114,11 +115,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // An email belongs to one user in one company, so it is checked across all companies
-    const existing = await unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
-    if (existing) {
-      return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 });
-    }
+    // Unique inside this company; an account in another company is fine once it is deactivated there
+    const conflict = await emailConflict(email, session.companyId);
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
     const activationToken = randomBytes(32).toString("hex");
     const activationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);

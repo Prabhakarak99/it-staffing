@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { unscopedPrisma } from "@/lib/prisma";
 import { sendActivationEmail } from "@/lib/email";
 import { validatePassword } from "@/lib/validators";
+import { emailConflict } from "@/lib/tenant/user-email";
 
 /** The company whose roles and screen access every new company starts with */
 const TEMPLATE_SLUG = "genfusiontech";
@@ -55,11 +56,12 @@ async function validate(input: NewCompany) {
   const [slugTaken, codeTaken, emailTaken] = await Promise.all([
     unscopedPrisma.company.findUnique({ where: { slug }, select: { id: true } }),
     unscopedPrisma.company.findUnique({ where: { code }, select: { id: true } }),
-    unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } }),
+    // A brand-new company has no users yet, so only an active account elsewhere is in the way
+    emailConflict(email, "", { showCompany: true }),
   ]);
   if (slugTaken) throw new ProvisionError(`The login name "${slug}" is already used by another company`);
   if (codeTaken) throw new ProvisionError(`The code ${code} is already used by another company`);
-  if (emailTaken) throw new ProvisionError("That admin email already has an account");
+  if (emailTaken) throw new ProvisionError(emailTaken);
   return { name, slug, code, email };
 }
 

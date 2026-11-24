@@ -130,7 +130,8 @@ model User {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   firstName              String
   lastName               String
-  email                  String    @unique
+  /// Unique inside a company: the same person may have an account in each company (each with its own history)
+  email                  String
   /// Platform Super Admin: at the plain /login sees and manages every company
   isPlatformAdmin        Boolean   @default(false)
   phoneNumber            String?
@@ -180,6 +181,7 @@ model User {
   emailRequirements            EmailRequirement[]
   consultantMailboxesConnected ConsultantMailbox[]
 
+  @@unique([companyId, email])
   @@index([companyId])
 }
 

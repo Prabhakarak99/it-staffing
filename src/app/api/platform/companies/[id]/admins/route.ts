@@ -5,6 +5,7 @@ import { unscopedPrisma } from "@/lib/prisma";
 import { requirePlatform, listCompanies } from "@/lib/tenant/platform";
 import { sendActivationEmail, sendPasswordResetEmail } from "@/lib/email";
 import { readNewPassword } from "@/lib/tenant/provision";
+import { emailConflict } from "@/lib/tenant/user-email";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -26,9 +27,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const lastName = String(body.lastName ?? "").trim();
   const email = String(body.email ?? "").trim().toLowerCase();
   if (!firstName || !lastName || !/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: "Enter first name, last name and a valid email" }, { status: 400 });
-  if (await unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } })) {
-    return NextResponse.json({ error: "That email already has an account" }, { status: 409 });
-  }
+  const conflict = await emailConflict(email, company.id, { showCompany: true });
+  if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
   const pw = readNewPassword(body);
   if (pw.error) return NextResponse.json({ error: pw.error }, { status: 400 });
   if (pw.password && company.maxUsers != null) {

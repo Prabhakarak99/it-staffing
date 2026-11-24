@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { Building2, Check, Copy, Eye, EyeOff, KeyRound, Loader2, Minus, Plus, ShieldCheck, UserPlus, Users, X } from "lucide-react";
+import { ArrowRightLeft, Building2, Check, Copy, Eye, EyeOff, KeyRound, Loader2, Minus, Plus, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -164,7 +164,7 @@ export function CompaniesView({ initial, screens }: { initial: CompanyRow[]; scr
                       {isOpen && (
                         <tr>
                           <td colSpan={10} className="bg-slate-50/80 px-4 py-4">
-                            <CompanySettings company={c} screens={screens} onSaved={(list, m) => { if (list) setCompanies(list); show(m, "success"); }} onError={(m) => show(m, "error")} />
+                            <CompanySettings company={c} companies={companies} screens={screens} onSaved={(list, m) => { if (list) setCompanies(list); show(m, "success"); }} onError={(m) => show(m, "error")} />
                           </td>
                         </tr>
                       )}
@@ -232,8 +232,9 @@ function NewCompanyForm({ onCreated, onError }: { onCreated: (list: CompanyRow[]
   );
 }
 
-function CompanySettings({ company, screens, onSaved, onError }: {
+function CompanySettings({ company, companies, screens, onSaved, onError }: {
   company: CompanyRow;
+  companies: CompanyRow[];
   screens: Screen[];
   onSaved: (list: CompanyRow[] | null, message: string) => void;
   onError: (m: string) => void;
@@ -381,7 +382,7 @@ function CompanySettings({ company, screens, onSaved, onError }: {
         </div>
       )}
 
-      {!platform && <CompanyUsers key={usersKey} company={company} onDone={(m) => void reload(m)} onError={onError} />}
+      {!platform && <CompanyUsers key={usersKey} company={company} companies={companies} onDone={(m) => void reload(m)} onError={onError} />}
 
       {!platform && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
@@ -404,13 +405,21 @@ function CompanySettings({ company, screens, onSaved, onError }: {
   );
 }
 
-function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDone: (m: string) => void; onError: (m: string) => void }) {
+function CompanyUsers({ company, companies, onDone, onError }: { company: CompanyRow; companies: CompanyRow[]; onDone: (m: string) => void; onError: (m: string) => void }) {
   const [users, setUsers] = useState<CompanyUserRow[] | null>(null);
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [pw, setPw] = useState(EMPTY_PAIR);
   const [busy, setBusy] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [moving, setMoving] = useState<string | null>(null);
+  const others = companies.filter((c) => c.kind === "company" && c.id !== company.id);
+
+  const refresh = () =>
+    fetch(`/api/platform/companies/${company.id}/users`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((list: CompanyUserRow[]) => setUsers(list))
+      .catch(() => setLoadError(true));
 
   useEffect(() => {
     let live = true;
@@ -464,9 +473,14 @@ function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDon
                   <span className="rounded bg-amber-50 px-1.5 text-[10.5px] font-semibold text-amber-700">{u.pendingActivation ? "Not activated" : "Inactive"}</span>
                 )}
                 <span className="ml-auto flex gap-1.5">
-                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditing(editing === u.id ? null : u.id); setPw(EMPTY_PAIR); }}>
+                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditing(editing === u.id ? null : u.id); setMoving(null); setPw(EMPTY_PAIR); }}>
                     <KeyRound className="h-3.5 w-3.5" /> Set password
                   </Button>
+                  {!u.isPlatformAdmin && !u.pendingActivation && others.length > 0 && (
+                    <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setMoving(moving === u.id ? null : u.id); setEditing(null); }}>
+                      <ArrowRightLeft className="h-3.5 w-3.5" /> Transfer
+                    </Button>
+                  )}
                   {u.isActive ? (
                     !u.isPlatformAdmin && (
                       <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { if (confirm(`Deactivate ${u.name}? They won't be able to sign in until activated again.`)) void change(u, { isActive: false }, `${u.name} deactivated`); }}>
@@ -496,10 +510,92 @@ function CompanyUsers({ company, onDone, onError }: { company: CompanyRow; onDon
                   </div>
                 </form>
               )}
+              {moving === u.id && (
+                <TransferForm
+                  user={u}
+                  from={company}
+                  companies={others}
+                  onCancel={() => setMoving(null)}
+                  onError={onError}
+                  onDone={(m) => { setMoving(null); void refresh(); onDone(m); }}
+                />
+              )}
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Move a user to another company: history stays here under the old (deactivated) account */
+function TransferForm({ user, from, companies, onCancel, onDone, onError }: {
+  user: CompanyUserRow;
+  from: CompanyRow;
+  companies: CompanyRow[];
+  onCancel: () => void;
+  onDone: (m: string) => void;
+  onError: (m: string) => void;
+}) {
+  const [toId, setToId] = useState(companies.find((c) => c.status === "active")?.id ?? companies[0]?.id ?? "");
+  const [roles, setRoles] = useState<{ id: string; name: string }[] | null>(null);
+  const [roleId, setRoleId] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const admin = user.role === "Company Admin";
+
+  useEffect(() => {
+    if (!toId) return;
+    let live = true;
+    fetch(`/api/platform/companies/${toId}/roles`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((list: { id: string; name: string }[]) => {
+        if (!live) return;
+        setRoles(list);
+        // Same role as now when that company has it ("" = Company Admin)
+        setRoleId(admin ? "" : list.find((r) => r.name === user.role)?.id ?? "?");
+      })
+      .catch(() => live && setRoles([]));
+    return () => { live = false; };
+  }, [toId, admin, user.role]);
+
+  const to = companies.find((c) => c.id === toId);
+  const submit = async () => {
+    if (!to) return;
+    if (!confirm(`Move ${user.name} from ${from.name} to ${to.name}?\n\nTheir account in ${from.name} is deactivated; its submissions and other records stay with ${from.name}. They sign in at ?company=${to.slug} with the same email and password.`)) return;
+    setBusy(true);
+    const { ok, data } = await send(`/api/platform/companies/${from.id}/users/transfer`, "POST", { userId: user.id, toCompanyId: to.id, roleId });
+    setBusy(false);
+    if (!ok) return onError(String(data.error ?? "Could not transfer the user"));
+    onDone(`${user.name} moved to ${to.name}. They sign in at ?company=${to.slug} with the same password.`);
+  };
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg bg-slate-50 p-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="space-y-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Move to company
+          <select className={field} value={toId} onChange={(e) => { setRoles(null); setToId(e.target.value); }}>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.status !== "active" ? " (suspended)" : ""}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Role there
+          <select className={field} value={roleId} onChange={(e) => setRoleId(e.target.value)} disabled={!roles}>
+            {roleId === "?" && <option value="?">Choose a role…</option>}
+            <option value="">Company Admin (every screen)</option>
+            {(roles ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </label>
+      </div>
+      <p className="text-[11.5px] text-slate-500">
+        {user.name}&apos;s records stay with {from.name} under the old account, which is deactivated. In {to?.name ?? "the other company"} they get an active account with the same email, details and password.
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy || !roles || roleId === "?" || !to} onClick={() => void submit()}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRightLeft className="h-3.5 w-3.5" />} Transfer
+        </Button>
+        <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { unscopedPrisma } from "@/lib/prisma";
 import { requirePlatform } from "@/lib/tenant/platform";
 import { readNewPassword } from "@/lib/tenant/provision";
+import { emailConflict } from "@/lib/tenant/user-email";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -78,6 +79,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (password === undefined && user.activationToken) {
       return NextResponse.json({ error: "This user never chose a password. Set a password to activate the account." }, { status: 400 });
     }
+    const conflict = await emailConflict(user.email, id, { exceptUserId: user.id, showCompany: true });
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
     if (company.maxUsers != null) {
       const active = await unscopedPrisma.user.count({ where: { companyId: id, isActive: true } });
       if (active >= company.maxUsers) return NextResponse.json({ error: `This company is at its limit of ${company.maxUsers} active users` }, { status: 400 });

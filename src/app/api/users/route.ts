@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { prisma, unscopedPrisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { sendActivationEmail } from "@/lib/email";
+import { emailConflict } from "@/lib/tenant/user-email";
 import { SAFE_USER_OMIT, canManageUsers } from "@/lib/user-safe";
 
 export async function GET() {
@@ -34,11 +35,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // An email belongs to one user in one company, so it is checked across all companies
-    const existing = await unscopedPrisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
-    if (existing) {
-      return NextResponse.json({ error: "Email already in use" }, { status: 409 });
-    }
+    // Unique inside this company; an account in another company is fine once it is deactivated there
+    const conflict = await emailConflict(email, session.companyId);
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
     const hashed = await bcrypt.hash(password, 12);
     const activationToken = randomBytes(32).toString("hex");
